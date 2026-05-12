@@ -1,0 +1,30 @@
+# Python
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Claude Code (keep project-specific config, ignore local session state)
+.claude/sessions/
+.claude/worktrees/
+
+# Generated files and outputs
+data/
+reports/
+*.pdf
+
+# Temporary/analysis files
+POSTMORTEM.md
+*.tmp
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
