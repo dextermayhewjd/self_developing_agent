@@ -25,6 +25,9 @@ POSTMORTEM.md
 *.tmp
 *.log
 
+# worktree 本地提示卡（每个开发目录各自一份，不进版本管理）
+WORKTREE.md
+
 # OS files
 .DS_Store
 Thumbs.db
