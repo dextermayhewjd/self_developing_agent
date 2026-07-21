@@ -1,0 +1,114 @@
+#!/usr/bin/env bash
+#
+# pin-claude-prod — 把生产用的 Claude Code 二进制钉死在某个版本
+#
+# 背景:
+#   官方 claude (native 安装) 会自动更新,并对托管目录
+#   ~/.local/share/claude/versions/ 做 GC,只保留最近几个版本。
+#   生产 wrapper (如 claude-deepseek) 若直接 exec 托管目录里的某个版本,
+#   迟早会被这个 GC 删掉,导致 "exec: no such file" 报错。
+#
+# 本脚本的做法:
+#   把指定版本的二进制 *复制一份到托管目录之外* (~/.local/share/claude-pinned/),
+#   GC 永远碰不到它;再把 wrapper 的 exec 行指向这个副本。
+#   => dev 的 `claude` 继续随便自动更新,生产版本纹丝不动。
+#
+# 用法:
+#   pin-claude-prod <version>           钉死到指定版本 (如 2.1.157)
+#   pin-claude-prod --list              列出可用版本 / 已钉死版本 / 当前生产指向
+#   pin-claude-prod --wrapper <path> <version>   指定别的 wrapper (默认 claude-deepseek)
+#
+set -euo pipefail
+
+VERSIONS_DIR="${CLAUDE_VERSIONS_DIR:-$HOME/.local/share/claude/versions}"
+PINNED_DIR="${CLAUDE_PINNED_DIR:-$HOME/.local/share/claude-pinned}"
+WRAPPER="${CLAUDE_PROD_WRAPPER:-$HOME/.local/bin/claude-deepseek}"
+
+c_red()  { printf '\033[31m%s\033[0m\n' "$*"; }
+c_grn()  { printf '\033[32m%s\033[0m\n' "$*"; }
+c_dim()  { printf '\033[2m%s\033[0m\n' "$*"; }
+die()    { c_red "✗ $*" >&2; exit 1; }
+
+# 解析 wrapper 当前 exec 行指向的二进制路径
+current_pinned() {
+  [[ -f "$WRAPPER" ]] || return 0
+  grep -oE '^exec [^ ]+' "$WRAPPER" 2>/dev/null | head -1 | awk '{print $2}'
+}
+
+cmd_list() {
+  echo "可用版本 (托管目录, 会被官方更新 GC):"
+  if [[ -d "$VERSIONS_DIR" ]]; then
+    ls -1 "$VERSIONS_DIR" | sort -V | sed 's/^/  /'
+  else
+    echo "  (无)"
+  fi
+  echo
+  echo "已钉死版本 (托管目录之外, GC 删不到):"
+  if [[ -d "$PINNED_DIR" ]] && [[ -n "$(ls -A "$PINNED_DIR" 2>/dev/null)" ]]; then
+    ls -1 "$PINNED_DIR" | sort -V | sed 's/^/  /'
+  else
+    echo "  (无)"
+  fi
+  echo
+  local cur; cur="$(current_pinned)"
+  echo "生产 wrapper : $WRAPPER"
+  echo "当前 exec 指向: ${cur:-<未找到 exec 行>}"
+}
+
+main() {
+  local version=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --list|-l) cmd_list; exit 0 ;;
+      --wrapper) WRAPPER="$2"; shift 2 ;;
+      -h|--help) sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+      -*) die "未知参数: $1" ;;
+      *)  version="$1"; shift ;;
+    esac
+  done
+
+  [[ -n "$version" ]] || { cmd_list; echo; die "请指定版本号,例如: pin-claude-prod 2.1.157"; }
+
+  local src="$VERSIONS_DIR/$version"
+  local dest="$PINNED_DIR/$version"
+
+  [[ -f "$src" ]] || die "托管目录里没有版本 $version。先跑 \`claude update\` 装好,或 \`pin-claude-prod --list\` 看可用版本。"
+  [[ -f "$WRAPPER" ]] || die "找不到 wrapper: $WRAPPER (用 --wrapper 指定路径)"
+  grep -qE '^exec .* "\$@"$' "$WRAPPER" || die "wrapper 里没找到形如 \`exec <二进制> \"\$@\"\` 的行,无法自动改写。"
+
+  # 1) 复制到托管目录之外 (已存在且一致则跳过)
+  mkdir -p "$PINNED_DIR"
+  if [[ -f "$dest" ]] && cmp -s "$src" "$dest"; then
+    c_dim "副本已存在且一致,跳过复制: $dest"
+  else
+    cp -p "$src" "$dest"
+    chmod +x "$dest"
+    cmp -s "$src" "$dest" || die "复制后校验不一致: $dest"
+    c_grn "✓ 已复制到托管目录之外: $dest"
+  fi
+
+  # 2) 改写 wrapper 的 exec 行 (改前备份)
+  local cur; cur="$(current_pinned)"
+  if [[ "$cur" == "$dest" ]]; then
+    c_dim "wrapper 已指向该副本,无需改动。"
+  else
+    cp -p "$WRAPPER" "$WRAPPER.bak"
+    sed -i -E "s#^exec .* \"\\\$@\"\$#exec $dest \"\\\$@\"#" "$WRAPPER"
+    c_grn "✓ 已更新 wrapper exec 行 (备份: $WRAPPER.bak)"
+  fi
+
+  # 3) 验证
+  echo
+  echo "验证生产版本:"
+  local got; got="$("$WRAPPER" --version 2>/dev/null | tail -1 || true)"
+  if [[ "$got" == "$version"* ]]; then
+    c_grn "✓ $(basename "$WRAPPER") --version -> $got"
+  else
+    c_red "⚠ 验证输出异常: '$got' (期望以 $version 开头)"
+  fi
+
+  echo
+  c_dim "dev 的 \`claude\` 不受影响,继续自动更新。生产已钉死在 $version。"
+}
+
+main "$@"
