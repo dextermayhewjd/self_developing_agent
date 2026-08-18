@@ -20,6 +20,9 @@ data/
 reports/
 *.pdf
 
+# debug-equity-thesis 的跑测产物（transcript.jsonl 单个可达 9MB）
+debug/
+
 # Temporary/analysis files
 POSTMORTEM.md
 *.tmp
