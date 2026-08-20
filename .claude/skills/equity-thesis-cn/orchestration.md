@@ -17,6 +17,29 @@ reports/{SYMBOL}_thesis_{YYYYMMDD}/     ← 一个 run 一个文件夹（随 rep
 positions/{SYMBOL}.md                   ← 不在 run 文件夹里！跨 run 累积的耐久档案，单独跟踪
 ```
 
+**写产物的硬规矩：一律用绝对路径。**
+
+`reports/...`、`positions/...` 这类相对路径**不要**用来写文件。Bash 的工作目录跨调用保持，
+而这个 skill 的流程里到处都是 `cd` 进 `lenses/`、`data/`、`findings/` 去读东西的动作——
+cwd 会漂，而且漂了不会报错。
+
+2026-08-18 实测：编排器读完 `lenses/核查.md`（cwd 停在 `lenses/`）之后，
+用 `mkdir -p reports/{SYMBOL}_thesis_{日}/findings && cat > reports/{SYMBOL}_thesis_{日}/疑惑.md`
+写立疑清单，整棵树被建进了 `.claude/skills/equity-thesis-cn/lenses/reports/` 下面。
+
+三个放大因素让它一路漏到交付前：
+
+1. **自检失效**——同一条命令末尾的 `wc -c reports/.../疑惑.md` 解析的是**同一个坏相对路径**，
+   于是回报「写入成功、5512 字节」。**校验和写入在同一个坐标系里，校验就不可能发现问题。**
+2. **缺失被掩盖**——真正的 `findings/` 是子 agent 建的（它们 cwd 在仓库根、prompt 里写死了路径），
+   所以 run 文件夹看起来是齐的。
+3. **git 看不见**——`.gitignore` 当时是非锚定的 `reports/`，匹配任意层级，走失的树对 `git status` 完全隐形。
+   （已改为 `/reports/`。）
+
+所以两条：**写文件用绝对路径**；**要核对写没写成，用与写入不同的坐标系去核对**——
+写完之后 `ls` 绝对路径，而不是在同一条命令里 `wc -c` 同一个相对路径。
+`check_thesis.py` 的硬约束 6 现在会兜住这一类失败，但那是最后一道门，不是第一道。
+
 **为什么档案不进 run 文件夹**：假设记分板要连续多期演进，`positions/{SYMBOL}.md` 是"一个 symbol 一份、持续更新"的耐久记忆；塞进带日期的 run 文件夹会破坏这个本质。run 文件夹只装**本期产物**（成品 + 立疑 + 发现）。
 
 **子 agent 自己写 findings 文件**：每个子 agent 把完整发现写到 `reports/{SYMBOL}_thesis_{YYYYMMDD}/findings/{名}.md`，再把发现返回给编排器。文件是耐久副本（编排器上下文被截断也不丢），返回值供综合。这样发现可追溯、可复查，不再只活在 transcript 里。

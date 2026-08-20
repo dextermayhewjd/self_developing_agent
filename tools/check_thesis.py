@@ -8,10 +8,11 @@
     1 = 硬约束违反（结构缺失 / 档案未更新 / 体裁错配）——不合格
     2 = 软警告（配比偏低等）——可继续但应提示
 
-这个校验器把三类实际观测到的失败编码成硬门：
+这个校验器把四类实际观测到的失败编码成硬门：
     - 跳过"写回档案"这一步（档案 最近更新 != 报告日）
     - 长度失控 / 数据盖过判断（观点段字数 < 数据段的 1/3）
     - 残留卖方体裁（目标价 / 买入卖出评级）
+    - run 文件夹产物缺失（疑惑.md / findings 不在报告旁边）
 代码只能查形式，查不了判断质量——那仍靠模型。
 """
 import re
@@ -126,6 +127,32 @@ def main():
     # ---- 硬约束 5：无未替换占位符 ----
     if "{{" in report:
         hard.append("残留未替换占位符 {{...}}")
+
+    # ---- 硬约束 6：run 文件夹产物齐备 ----
+    # 2026-08-18 实测：立疑文件被写到了 .claude/skills/.../lenses/reports/ 下面——
+    # 当时 cwd 停在 lenses/（上一条命令 cd 进去读 lens），写入用了相对路径，
+    # 而同一条命令里的 wc -c 校验解析的是同一个坏相对路径，所以"写入成功"的自检也是假的。
+    # 报告内容本身完全正常，五份 findings 因为是子 agent 写的也都在——
+    # 缺失一路漏到交付前才被人工清点发现。这一条就是那个漏掉的门。
+    run_dir = Path(report_path).resolve().parent
+    if re.fullmatch(rf"{re.escape(symbol)}_thesis_\d{{8}}", run_dir.name):
+        if not (run_dir / "疑惑.md").exists():
+            hard.append(
+                f"run 文件夹缺 疑惑.md：{run_dir}/疑惑.md 不存在（步骤 2 的立疑清单没落到报告旁边）。"
+                "常见原因是写入用了相对路径而 cwd 不在仓库根——写产物一律用绝对路径"
+            )
+        findings_dir = run_dir / "findings"
+        n_findings = len(list(findings_dir.glob("*.md"))) if findings_dir.is_dir() else 0
+        if n_findings < 5:
+            hard.append(
+                f"findings 不足：{findings_dir} 下有 {n_findings} 个 .md，应为 5 份"
+                "（财务排雷/竞争/尽调/产业/战略驱动）"
+            )
+    else:
+        soft.append(
+            f"报告不在 run 文件夹里：{run_dir.name} 不匹配 {symbol}_thesis_YYYYMMDD，"
+            "无法校验 疑惑.md 与 findings/ 是否齐备（旧版扁平布局？）"
+        )
 
     # ---- 软约束：观点段 / 数据段 配比 >= 1/3 ----
     data_chars = char_count(blocks_after(report, SEG_DATA))

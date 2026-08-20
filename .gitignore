@@ -16,13 +16,14 @@ build/
 .claude/sessions/
 .claude/worktrees/
 
-# Generated files and outputs
-data/
-reports/
+# Generated files and outputs（一律锚定到仓库根：非锚定写法会匹配任意层级，
+# 曾导致误写到 .claude/skills/**/reports/ 的产物对 git status 完全隐形）
+/data/
+/reports/
 *.pdf
 
 # debug-equity-thesis 的跑测产物（transcript.jsonl 单个可达 9MB）
-debug/
+/debug/
 
 # Temporary/analysis files
 POSTMORTEM.md
