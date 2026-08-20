@@ -23,6 +23,9 @@
 \definecolor{rptaccent}{HTML}{1f6feb}
 \definecolor{rptmuted}{HTML}{6b7280}
 \definecolor{rpttable}{HTML}{0b3a52}
+% 正文加粗用深靛蓝而非纯黑：这类判断稿平均每段 5.4 处加粗、15% 是整句加粗，
+% 纯黑粗体密集出现会在页面上形成黑块。换成色相区分，密度不变但视觉噪音大降。
+\definecolor{rptbold}{HTML}{16324f}
 
 \usepackage{titlesec}
 \titleformat{\section}{\color{rpttitle}\sffamily\large\bfseries}{\thesection}{0.6em}{}
@@ -48,6 +51,13 @@
 \usepackage{tabularx}
 \usepackage{longtable}
 \setlength{\tabcolsep}{4pt}
+% booktabs 的黑色横线在 6-9 列宽表里比数字还重；降到标题色的浅调
+\usepackage{colortbl}
+\arrayrulecolor{rpttitle!45}
+% 表格统一降一号字：判断稿里 6–9 列的宽表在 A4 上按正文字号会挤到折行
+\usepackage{etoolbox}
+\AtBeginEnvironment{longtable}{\small\linespread{1.05}\selectfont}
+\AtBeginEnvironment{tabular}{\small}
 
 % --- 引用块（blockquote）美化 ---
 \usepackage[most]{tcolorbox}
@@ -62,8 +72,8 @@
 }{\end{tcolorbox}}
 
 % --- 段落与行距 ---
-\linespread{1.28}
-\setlength{\parskip}{0.45em}
+\linespread{1.34}
+\setlength{\parskip}{0.72em}
 \setlength{\parindent}{0pt}
 
 % --- 页眉页脚（轻量） ---
@@ -74,6 +84,9 @@
 \renewcommand{\headrule}{\hbox to\headwidth{\color{rptmuted}\leaders\hrule height \headrulewidth\hfill}}
 \fancyhead[L]{\small\color{rptmuted}Self-Developing-Agent · 自动研报}
 \fancyhead[R]{\small\color{rptmuted}\nouppercase{\leftmark}}
+% 十二节标题在 md 里是 ##（→\subsection），正文没有 \section，
+% 所以要让 subsection 来更新页眉，否则 \leftmark 会停在目录那一页的 mark 上。
+\renewcommand{\subsectionmark}[1]{\markboth{#1}{}}
 \fancyfoot[C]{\small\color{rptmuted}\thepage\ / \pageref{LastPage}}
 \usepackage{lastpage}
 
@@ -85,4 +98,77 @@
     urlcolor=rptaccent,
     citecolor=rptaccent,
   }
+}
+
+% --- 表格题注：中文「表 N-M」，按节编号，题注在表上方 ---
+\usepackage{caption}
+\renewcommand{\tablename}{表}
+% 判断稿的十二节标题在 md 里是 ##（→\subsection），正文没有 \section，
+% 于是 \thesection 恒为 0、全篇表号都是「表 0.x」。改成全文连续编号「表 N」，
+% 也不跟节标题自带的中文序号（「十二、评分」）打架。
+\captionsetup[table]{
+  labelfont={bf,sf,color=rpttitle},
+  textfont={sf,color=rpttitle},
+  font=small,
+  labelsep=quad,
+  justification=raggedright,
+  singlelinecheck=false,
+  skip=0.4em,
+}
+
+% --- 「观点总结 / 细节补充」小标题：左侧色条锚点，翻页时一眼可找 ---
+\titleformat{\paragraph}[block]
+  {\color{rpttitle}\sffamily\normalsize\bfseries}
+  {}{0pt}
+  {\textcolor{rptaccent}{\rule[-0.15em]{3.2pt}{1.05em}}\hspace{0.45em}}
+\titlespacing*{\paragraph}{0pt}{1.4em}{0.55em}
+
+% --- 斜体征用为「长加粗」的载体：着色但不加粗 ---
+% md 原文零使用斜体（实测），所以这里安全征用。md_to_pdf.py 把 >40 字的
+% 加粗降级成斜体，于是长强调保留色彩层次、不再结成粗体黑块。
+\renewcommand{\emph}[1]{\textcolor{rptbold}{#1}}
+
+% 正文加粗着色（放在最后，避免被前面的包重定义覆盖）
+\AtBeginDocument{%
+  \let\rptoldtextbf\textbf
+  \renewcommand{\textbf}[1]{\rptoldtextbf{\textcolor{rptbold}{#1}}}%
+}
+
+% --- 判断稿落点的视觉锚（由 md_to_pdf.py 的 style_thesis_anchors 触发） ---
+% 用宏而非环境名：pandoc 撞见 \begin{env} 会把整段吞成 raw LaTeX，
+% 里面的 **加粗** 就不解析了；宏则只占一行，后面的 markdown 照常走。
+\newcommand{\rptboxstart}{%
+  \begin{tcolorbox}[
+    enhanced, breakable,
+    colback=rpttitle!4, colframe=rpttitle!55,
+    boxrule=0pt, leftrule=3pt,
+    arc=1pt, top=8pt, bottom=8pt, left=10pt, right=10pt,
+  ]\setlength{\parskip}{0.75em}}
+\newcommand{\rptboxend}{\end{tcolorbox}}
+
+% 评级条：左边留原文的算式，右边一个大字母。文字由 py 侧原样传入。
+\newcommand{\rptratingbar}[2]{%
+  \par\vspace{0.5em}\noindent
+  \begin{tcolorbox}[
+    enhanced, nobeforeafter,
+    colback=rptaccent!6, colframe=rptaccent!55,
+    boxrule=0pt, leftrule=3pt,
+    arc=1pt, top=6pt, bottom=6pt, left=10pt, right=10pt,
+    width=\linewidth,
+  ]
+  \begin{minipage}[c]{0.68\linewidth}
+    {\sffamily\bfseries\color{rpttitle}#1}
+  \end{minipage}\hfill
+  \begin{minipage}[c]{0.26\linewidth}\centering
+    {\fontsize{30}{32}\selectfont\sffamily\bfseries\color{rptaccent}#2\par}
+    \vspace{0.25em}{\scriptsize\color{rptmuted}字母评级\par}
+  \end{minipage}
+  \end{tcolorbox}
+  \par\vspace{0.5em}
+}
+
+% --- 目录单独成页：原来目录尾部紧跟开篇结论与第一节，翻开第一页就是三层内容 ---
+\AtBeginDocument{%
+  \let\rptoldtoc\tableofcontents
+  \renewcommand{\tableofcontents}{\rptoldtoc\clearpage}%
 }
