@@ -1,0 +1,801 @@
+- generic [active] [ref=f8e1]:
+  - banner [ref=f8e2]:
+    - generic [ref=f8e3]:
+      - link [ref=f8e5] [cursor=pointer]:
+        - /url: /new/index
+      - list [ref=f8e6]:
+        - listitem [ref=f8e7]:
+          - link "首页" [ref=f8e8] [cursor=pointer]:
+            - /url: /new/index
+        - listitem [ref=f8e9]:
+          - generic [ref=f8e10]: 公告
+        - listitem [ref=f8e11]:
+          - generic [ref=f8e12]: 资讯
+        - listitem [ref=f8e13]:
+          - generic [ref=f8e14]: 数据
+        - listitem [ref=f8e15]:
+          - generic [ref=f8e16]: 服务
+      - generic [ref=f8e17]:
+        - generic:
+          - link "登录" [ref=f8e18] [cursor=pointer]:
+            - /url: https://owssso.szse.cn/sso/login?locale=zh&service=https://uc.cninfo.com.cn/api/callback?client_name=CasClient
+          - link "注册" [ref=f8e19] [cursor=pointer]:
+            - /url: https://www.szse.cn/application/register/?source=https://uc.cninfo.com.cn/api/callback&locale=zh
+      - text:     
+      - combobox [ref=f8e21]:
+        - generic [ref=f8e22]:
+          - textbox "代码/简称/拼音/关键字" [ref=f8e23]
+          - button "" [ref=f8e25] [cursor=pointer]
+  - generic [ref=f8e31]:
+    - text:  
+    - link [ref=f8e33] [cursor=pointer]:
+      - /url: https://v.wjx.cn/vm/hZq0RNC.aspx
+    - link [ref=f8e35] [cursor=pointer]:
+      - /url: https://www.szse.cn/sustainablefinance/index/index.html
+    - link [ref=f8e37] [cursor=pointer]:
+      - /url: https://list.cninfo.com.cn/
+  - list [ref=f8e42]:
+    - listitem [ref=f8e43]:
+      - link "深主板" [ref=f8e44] [cursor=pointer]:
+        - /url: /new/commonUrl?url=disclosure/list/notice#szseMain
+      - link "沪主板" [ref=f8e45] [cursor=pointer]:
+        - /url: /new/commonUrl?url=disclosure/list/notice#sseMain
+      - link "北交所" [ref=f8e46] [cursor=pointer]:
+        - /url: /new/commonUrl?url=disclosure/list/notice#bj
+      - link "基金" [ref=f8e47] [cursor=pointer]:
+        - /url: /new/commonUrl?url=disclosure/list/notice#fund
+      - link "创业板" [ref=f8e48] [cursor=pointer]:
+        - /url: /new/commonUrl?url=disclosure/list/notice#szseGem
+      - link "科创板" [ref=f8e49] [cursor=pointer]:
+        - /url: /new/commonUrl?url=disclosure/list/notice#sseKcp
+      - link "港股" [ref=f8e50] [cursor=pointer]:
+        - /url: /new/commonUrl?url=disclosure/list/notice#hke/1_hkeMain
+      - link "债券" [ref=f8e51] [cursor=pointer]:
+        - /url: /new/commonUrl?url=disclosure/list/notice#bond
+    - listitem [ref=f8e52]:
+      - link "发行上市" [ref=f8e53] [cursor=pointer]:
+        - /url: /new/commonUrl?url=disclosure/ipo/register
+      - link "IPO查询" [ref=f8e54] [cursor=pointer]:
+        - /url: /new/commonUrl?url=disclosure/ipo/area
+    - listitem [ref=f8e55]:
+      - link "个股F10" [ref=f8e56] [cursor=pointer]:
+        - /url: /new/disclosure/stock?tabName=data&f002v=001001&stockCode=000002&type=info
+      - link "融资融券" [ref=f8e57] [cursor=pointer]:
+        - /url: /new/commonUrl?url=data/rzrq-zjlx#rzrq
+      - link "大宗交易" [ref=f8e58] [cursor=pointer]:
+        - /url: /new/commonUrl?url=data/dzjy
+      - link "限售解禁" [ref=f8e59] [cursor=pointer]:
+        - /url: /new/commonUrl?url=data/person-stock-data-tables#xsjj
+      - link "公开信息" [ref=f8e60] [cursor=pointer]:
+        - /url: /new/commonUrl?url=data/public-information
+      - link "深市日历" [ref=f8e61] [cursor=pointer]:
+        - /url: /new/commonUrl?url=disclosure/tradingTips
+      - link "预约披露" [ref=f8e62] [cursor=pointer]:
+        - /url: /new/commonUrl?url=data/yypl
+      - link "公司要览" [ref=f8e63] [cursor=pointer]:
+        - /url: /new/snapshot/companyListCn
+    - listitem [ref=f8e64]:
+      - link "互动易" [ref=f8e65] [cursor=pointer]:
+        - /url: http://irm.cninfo.com.cn
+      - link "网络投票" [ref=f8e66] [cursor=pointer]:
+        - /url: http://wltp.cninfo.com.cn
+      - link "摇号抽签" [ref=f8e67] [cursor=pointer]:
+        - /url: /new/lottery/commonUrl?url=disclosure/lotteryList
+      - link "数据服务" [ref=f8e68] [cursor=pointer]:
+        - /url: http://webapi.cninfo.com.cn/#/home
+    - listitem [ref=f8e69]:
+      - paragraph [ref=f8e71]: 我的订阅
+  - list [ref=f8e76]
+  - generic [ref=f8e78]:
+    - generic [ref=f8e80]:
+      - list [ref=f8e81]:
+        - listitem [ref=f8e82]:
+          - link "最新公告" [ref=f8e83] [cursor=pointer]:
+            - /url: javascript:;
+        - link "更多" [ref=f8e84] [cursor=pointer]:
+          - /url: /new/commonUrl/pageOfSearch?url=disclosure/list/search
+      - generic [ref=f8e88]:
+        - list [ref=f8e90]:
+          - listitem [ref=f8e91]:
+            - link "董事会" [ref=f8e92] [cursor=pointer]:
+              - /url: /new/commonUrl/pageOfSearch?url=disclosure/list/search&checkedCategory=category_dshgg_szsh
+          - listitem [ref=f8e93]:
+            - link "日常经营" [ref=f8e94] [cursor=pointer]:
+              - /url: /new/commonUrl/pageOfSearch?url=disclosure/list/search&checkedCategory=category_rcjy_szsh
+          - listitem [ref=f8e95]:
+            - link "增发" [ref=f8e96] [cursor=pointer]:
+              - /url: /new/commonUrl/pageOfSearch?url=disclosure/list/search&checkedCategory=category_zf_szsh
+          - listitem [ref=f8e97]:
+            - link "半年报" [ref=f8e98] [cursor=pointer]:
+              - /url: /new/commonUrl/pageOfSearch?url=disclosure/list/search&checkedCategory=category_bndbg_szsh
+        - table [ref=f8e99]:
+          - rowgroup [ref=f8e105]:
+            - row [ref=f8e106]:
+              - columnheader "代码" [ref=f8e107]
+              - columnheader "简称" [ref=f8e108]
+              - columnheader "公告标题" [ref=f8e109]
+              - columnheader "日期" [ref=f8e110]
+          - rowgroup [ref=f8e111]:
+            - row [ref=f8e112]:
+              - cell [ref=f8e113]:
+                - link "002578" [ref=f8e114] [cursor=pointer]:
+                  - /url: /new/disclosure/stock?stockCode=002578&orgId=9900019314
+              - cell [ref=f8e115]:
+                - link "闽发铝业" [ref=f8e116] [cursor=pointer]:
+                  - /url: /new/disclosure/stock?stockCode=002578&orgId=9900019314
+              - cell [ref=f8e117]:
+                - generic "关于对外投资公司完成工商登记的公告" [ref=f8e118]:
+                  - link "关于对外投资公司完成工商登记的公告" [ref=f8e119] [cursor=pointer]:
+                    - /url: /new/disclosure/detail?stockCode=002578&orgId=9900019314&announcementId=1225484107&announcementTime=2026-08-20
+              - cell [ref=f8e120]:
+                - link "08-20" [ref=f8e122] [cursor=pointer]:
+                  - /url: /new/commonUrl/pageOfSearch?url=disclosure/list/search&code=002578&name=闽发铝业&orgId=9900019314&startDate=2026-08-20&endDate=2026-08-20
+            - row [ref=f8e123]:
+              - cell [ref=f8e124]:
+                - link "001203" [ref=f8e125] [cursor=pointer]:
+                  - /url: /new/disclosure/stock?stockCode=001203&orgId=9900023231
+              - cell [ref=f8e126]:
+                - link "大中矿业" [ref=f8e127] [cursor=pointer]:
+                  - /url: /new/disclosure/stock?stockCode=001203&orgId=9900023231
+              - cell [ref=f8e128]:
+                - generic "关于公司为全资子公司提供担保的进展公告" [ref=f8e129]:
+                  - link "关于公司为全资子公司提供担保的进展公告" [ref=f8e130] [cursor=pointer]:
+                    - /url: /new/disclosure/detail?stockCode=001203&orgId=9900023231&announcementId=1225484106&announcementTime=2026-08-20
+              - cell [ref=f8e131]:
+                - link "08-20" [ref=f8e133] [cursor=pointer]:
+                  - /url: /new/commonUrl/pageOfSearch?url=disclosure/list/search&code=001203&name=大中矿业&orgId=9900023231&startDate=2026-08-20&endDate=2026-08-20
+            - row [ref=f8e134]:
+              - cell [ref=f8e135]:
+                - link "000100" [ref=f8e136] [cursor=pointer]:
+                  - /url: /new/disclosure/stock?stockCode=000100&orgId=gssz0000100
+              - cell [ref=f8e137]:
+                - link "TCL科技" [ref=f8e138] [cursor=pointer]:
+                  - /url: /new/disclosure/stock?stockCode=000100&orgId=gssz0000100
+              - cell [ref=f8e139]:
+                - generic "关于收到中国证券监督管理委员会《关于同意TCL科技集团股份有限公司发行股份及支付现金购买资产注册的批复》的公告" [ref=f8e140]:
+                  - link "关于收到中国证券监督管理委员会《关于同意TCL科技集团股份有限公司发行股份及支付现金购买资产注册的批复》的公告" [ref=f8e141] [cursor=pointer]:
+                    - /url: /new/disclosure/detail?stockCode=000100&orgId=gssz0000100&announcementId=1225484090&announcementTime=2026-08-20
+              - cell [ref=f8e142]:
+                - link "08-20" [ref=f8e144] [cursor=pointer]:
+                  - /url: /new/commonUrl/pageOfSearch?url=disclosure/list/search&code=000100&name=TCL科技&orgId=gssz0000100&startDate=2026-08-20&endDate=2026-08-20
+            - row [ref=f8e145]:
+              - cell [ref=f8e146]:
+                - link "300048" [ref=f8e147] [cursor=pointer]:
+                  - /url: /new/disclosure/stock?stockCode=300048&orgId=9900009627
+              - cell [ref=f8e148]:
+                - link "合康新能" [ref=f8e149] [cursor=pointer]:
+                  - /url: /new/disclosure/stock?stockCode=300048&orgId=9900009627
+              - cell [ref=f8e150]:
+                - generic "关于2026年度向特定对象发行股票申请获得深圳证券交易所受理的公告" [ref=f8e151]:
+                  - link "关于2026年度向特定对象发行股票申请获得深圳证券交易所受理的公告" [ref=f8e152] [cursor=pointer]:
+                    - /url: /new/disclosure/detail?stockCode=300048&orgId=9900009627&announcementId=1225484084&announcementTime=2026-08-20
+              - cell [ref=f8e153]:
+                - link "08-20" [ref=f8e155] [cursor=pointer]:
+                  - /url: /new/commonUrl/pageOfSearch?url=disclosure/list/search&code=300048&name=合康新能&orgId=9900009627&startDate=2026-08-20&endDate=2026-08-20
+            - row [ref=f8e156]:
+              - cell [ref=f8e157]:
+                - link "300991" [ref=f8e158] [cursor=pointer]:
+                  - /url: /new/disclosure/stock?stockCode=300991&orgId=gfbj0835741
+              - cell [ref=f8e159]:
+                - link "创益通" [ref=f8e160] [cursor=pointer]:
+                  - /url: /new/disclosure/stock?stockCode=300991&orgId=gfbj0835741
+              - cell [ref=f8e161]:
+                - generic "关于2026年度向特定对象发行股票申请获得深圳证券交易所受理的公告" [ref=f8e162]:
+                  - link "关于2026年度向特定对象发行股票申请获得深圳证券交易所受理的公告" [ref=f8e163] [cursor=pointer]:
+                    - /url: /new/disclosure/detail?stockCode=300991&orgId=gfbj0835741&announcementId=1225484078&announcementTime=2026-08-20
+              - cell [ref=f8e164]:
+                - link "08-20" [ref=f8e166] [cursor=pointer]:
+                  - /url: /new/commonUrl/pageOfSearch?url=disclosure/list/search&code=300991&name=创益通&orgId=gfbj0835741&startDate=2026-08-20&endDate=2026-08-20
+            - row [ref=f8e167]:
+              - cell [ref=f8e168]:
+                - link "002036" [ref=f8e169] [cursor=pointer]:
+                  - /url: /new/disclosure/stock?stockCode=002036&orgId=gssz0002036
+              - cell [ref=f8e170]:
+                - link "联创电子" [ref=f8e171] [cursor=pointer]:
+                  - /url: /new/disclosure/stock?stockCode=002036&orgId=gssz0002036
+              - cell [ref=f8e172]:
+                - generic "2026年半年度报告" [ref=f8e173]:
+                  - link "2026年半年度报告" [ref=f8e174] [cursor=pointer]:
+                    - /url: /new/disclosure/detail?stockCode=002036&orgId=gssz0002036&announcementId=1225484062&announcementTime=2026-08-20
+              - cell [ref=f8e175]:
+                - link "08-20" [ref=f8e177] [cursor=pointer]:
+                  - /url: /new/commonUrl/pageOfSearch?url=disclosure/list/search&code=002036&name=联创电子&orgId=gssz0002036&startDate=2026-08-20&endDate=2026-08-20
+            - row [ref=f8e178]:
+              - cell [ref=f8e179]:
+                - link "002004" [ref=f8e180] [cursor=pointer]:
+                  - /url: /new/disclosure/stock?stockCode=002004&orgId=gssz0002004
+              - cell [ref=f8e181]:
+                - link "华邦健康" [ref=f8e182] [cursor=pointer]:
+                  - /url: /new/disclosure/stock?stockCode=002004&orgId=gssz0002004
+              - cell [ref=f8e183]:
+                - generic "关于会计政策变更的公告" [ref=f8e184]:
+                  - link "关于会计政策变更的公告" [ref=f8e185] [cursor=pointer]:
+                    - /url: /new/disclosure/detail?stockCode=002004&orgId=gssz0002004&announcementId=1225482541&announcementTime=2026-08-20
+              - cell [ref=f8e186]:
+                - link "08-20" [ref=f8e188] [cursor=pointer]:
+                  - /url: /new/commonUrl/pageOfSearch?url=disclosure/list/search&code=002004&name=华邦健康&orgId=gssz0002004&startDate=2026-08-20&endDate=2026-08-20
+            - row [ref=f8e189]:
+              - cell [ref=f8e190]:
+                - link "600746" [ref=f8e191] [cursor=pointer]:
+                  - /url: /new/disclosure/stock?stockCode=600746&orgId=gssh0600746
+              - cell [ref=f8e192]:
+                - link "江苏索普" [ref=f8e193] [cursor=pointer]:
+                  - /url: /new/disclosure/stock?stockCode=600746&orgId=gssh0600746
+              - cell [ref=f8e194]:
+                - generic "江苏索普化工股份有限公司2026年度向特定对象发行A股股票募集说明书（申报稿）" [ref=f8e195]:
+                  - link "江苏索普化工股份有限公司2026年度向特定对象发行A股股票募集说明书（申报稿）" [ref=f8e196] [cursor=pointer]:
+                    - /url: /new/disclosure/detail?stockCode=600746&orgId=gssh0600746&announcementId=1225484042&announcementTime=2026-08-20
+              - cell [ref=f8e197]:
+                - link "08-20" [ref=f8e199] [cursor=pointer]:
+                  - /url: /new/commonUrl/pageOfSearch?url=disclosure/list/search&code=600746&name=江苏索普&orgId=gssh0600746&startDate=2026-08-20&endDate=2026-08-20
+            - row [ref=f8e200]:
+              - cell [ref=f8e201]:
+                - link "002271" [ref=f8e202] [cursor=pointer]:
+                  - /url: /new/disclosure/stock?stockCode=002271&orgId=9900005238
+              - cell [ref=f8e203]:
+                - link "东方雨虹" [ref=f8e204] [cursor=pointer]:
+                  - /url: /new/disclosure/stock?stockCode=002271&orgId=9900005238
+              - cell [ref=f8e205]:
+                - generic "关于变更会计政策的公告" [ref=f8e206]:
+                  - link "关于变更会计政策的公告" [ref=f8e207] [cursor=pointer]:
+                    - /url: /new/disclosure/detail?stockCode=002271&orgId=9900005238&announcementId=1225483963&announcementTime=2026-08-20
+              - cell [ref=f8e208]:
+                - link "08-20" [ref=f8e210] [cursor=pointer]:
+                  - /url: /new/commonUrl/pageOfSearch?url=disclosure/list/search&code=002271&name=东方雨虹&orgId=9900005238&startDate=2026-08-20&endDate=2026-08-20
+            - row [ref=f8e211]:
+              - cell [ref=f8e212]:
+                - link "688286" [ref=f8e213] [cursor=pointer]:
+                  - /url: /new/disclosure/stock?stockCode=688286&orgId=gfbj0836736
+              - cell [ref=f8e214]:
+                - link "敏芯股份" [ref=f8e215] [cursor=pointer]:
+                  - /url: /new/disclosure/stock?stockCode=688286&orgId=gfbj0836736
+              - cell [ref=f8e216]:
+                - generic "苏州敏芯微电子技术股份有限公司第四届董事会第十八次会议决议公告" [ref=f8e217]:
+                  - link "苏州敏芯微电子技术股份有限公司第四届董事会第十八次会议决议公告" [ref=f8e218] [cursor=pointer]:
+                    - /url: /new/disclosure/detail?stockCode=688286&orgId=gfbj0836736&announcementId=1225483900&announcementTime=2026-08-20
+              - cell [ref=f8e219]:
+                - link "08-20" [ref=f8e221] [cursor=pointer]:
+                  - /url: /new/commonUrl/pageOfSearch?url=disclosure/list/search&code=688286&name=敏芯股份&orgId=gfbj0836736&startDate=2026-08-20&endDate=2026-08-20
+    - generic [ref=f8e223]:
+      - generic [ref=f8e226]:
+        - generic [ref=f8e229]:
+          - combobox [ref=f8e231]:
+            - textbox "代码/简称/拼音" [ref=f8e233]
+          - generic [ref=f8e234]:
+            - generic:
+              - text: 
+              - button "板块 " [ref=f8e235] [cursor=pointer]:
+                - generic [ref=f8e236]:
+                  - text: 板块
+                  - generic [ref=f8e237]: 
+        - generic [ref=f8e239]:
+          - generic [ref=f8e240]: 
+          - textbox "开始日期" [ref=f8e241]
+          - generic [ref=f8e242]: 至
+          - textbox "结束日期" [ref=f8e243]
+        - button "查询" [ref=f8e246] [cursor=pointer]
+      - generic [ref=f8e249]:
+        - link "深交所" [ref=f8e250] [cursor=pointer]:
+          - /url: https://www.szse.cn/disclosure/memo/index.html
+        - link "上交所" [ref=f8e252] [cursor=pointer]:
+          - /url: http://www.sse.com.cn/disclosure/dealinstruc/suspension/stock/
+        - link "北交所" [ref=f8e254] [cursor=pointer]:
+          - /url: https://www.bse.cn/disclosure/tradingtips.html
+      - link "更多" [ref=f8e258] [cursor=pointer]:
+        - /url: https://irm.cninfo.com.cn/views/interview?tab=1
+  - generic [ref=f8e260]:
+    - generic [ref=f8e262]:
+      - list [ref=f8e263]:
+        - listitem [ref=f8e264]:
+          - link "互动问答" [ref=f8e265] [cursor=pointer]:
+            - /url: javascript:;
+        - listitem [ref=f8e266]:
+          - link "调研信息" [ref=f8e267] [cursor=pointer]:
+            - /url: javascript:;
+        - link "更多" [ref=f8e268] [cursor=pointer]:
+          - /url: http://irm.cninfo.com.cn/ircs/index
+      - generic [ref=f8e272]:
+        - generic [ref=f8e273]:
+          - generic [ref=f8e274]:
+            - link "万里石[002785]" [ref=f8e275] [cursor=pointer]:
+              - /url: http://irm.cninfo.com.cn/ircs/company/companyDetail?stockcode=002785&orgId=9900023763
+            - generic [ref=f8e276]: 2026-08-19
+          - link "问 董秘您好，针对哈萨克斯坦项目，公司表示将严格按监管规则履行关联交易审议程序。请问若当地核心法规修订导致合作模式发生重大调整，公司是否已制定明确的风险隔离预案？大股东是否承诺承担由此产生的全部潜在损失，以杜绝向上市公司输送风险的可能？ 答 尊敬的投资者，您好！对外投资项目除开展必要尽职调查、严格履行境内外各项合规审批程序外，为筑牢交易风险防线、切实维护全体股东合法权益，公司在对外投资项目实施过程中，除持续跟踪项目所在国家 / 地区法律法规、产业政策及外资监管规则动态变化，及时识别政策变动带来的潜在影响外，同步聘请独立第三方专业机构全程参与交易各环节，借助外部专业力量识别、缓释潜在交易风险。感谢您对公司的关注，谢谢！" [ref=f8e277] [cursor=pointer]:
+            - /url: http://irm.cninfo.com.cn/ircs/question/questionDetail?questionId=2338594497199722496
+            - generic [ref=f8e278]:
+              - generic [ref=f8e279]: 问
+              - generic "董秘您好，针对哈萨克斯坦项目，公司表示将严格按监管规则履行关联交易审议程序。请问若当地核心法规修订导致合作模式发生重大调整，公司是否已制定明确的风险隔离预案？大股东是否承诺承担由此产生的全部潜在损失，以杜绝向上市公司输送风险的可能？" [ref=f8e280]
+            - generic [ref=f8e281]:
+              - generic [ref=f8e282]: 答
+              - generic "尊敬的投资者，您好！对外投资项目除开展必要尽职调查、严格履行境内外各项合规审批程序外，为筑牢交易风险防线、切实维护全体股东合法权益，公司在对外投资项目实施过程中，除持续跟踪项目所在国家 / 地区法律法规、产业政策及外资监管规则动态变化，及时识别政策变动带来的潜在影响外，同步聘请独立第三方专业机构全程参与交易各环节，借助外部专业力量识别、缓释潜在交易风险。感谢您对公司的关注，谢谢！" [ref=f8e283]
+        - generic [ref=f8e284]:
+          - generic [ref=f8e285]:
+            - link "万里石[002785]" [ref=f8e286] [cursor=pointer]:
+              - /url: http://irm.cninfo.com.cn/ircs/company/companyDetail?stockcode=002785&orgId=9900023763
+            - generic [ref=f8e287]: 2026-08-19
+          - link "问 董秘您好，请问公司近期是否有面向中小投资者的调研接待计划？作为公司股东，希望能有机会实地了解公司的经营状况和业务进展，谢谢。 答 尊敬的投资者，您好！您可在工作日通过公司投资者电话进行提前预约，后续公司将结合实际情况统筹安排投资者调研工作，感谢您对公司的关注，谢谢！" [ref=f8e288] [cursor=pointer]:
+            - /url: http://irm.cninfo.com.cn/ircs/question/questionDetail?questionId=2338595734184628224
+            - generic [ref=f8e289]:
+              - generic [ref=f8e290]: 问
+              - generic "董秘您好，请问公司近期是否有面向中小投资者的调研接待计划？作为公司股东，希望能有机会实地了解公司的经营状况和业务进展，谢谢。" [ref=f8e291]
+            - generic [ref=f8e292]:
+              - generic [ref=f8e293]: 答
+              - generic "尊敬的投资者，您好！您可在工作日通过公司投资者电话进行提前预约，后续公司将结合实际情况统筹安排投资者调研工作，感谢您对公司的关注，谢谢！" [ref=f8e294]
+        - generic [ref=f8e295]:
+          - generic [ref=f8e296]:
+            - link "万里石[002785]" [ref=f8e297] [cursor=pointer]:
+              - /url: http://irm.cninfo.com.cn/ircs/company/companyDetail?stockcode=002785&orgId=9900023763
+            - generic [ref=f8e298]: 2026-08-19
+          - link "问 董秘您好，注意到公司回复称纳米比亚铀矿收购审批正常推进，但未明确回应是否设置业绩承诺。请问在本次收购的最终协议中，是否包含针对铀矿储量、品位或未来产能的业绩对赌及资产减值补偿条款？若无相关保护性条款，公司如何向中小股东保障此次大额海外并购的投资安全？ 答 尊敬的投资者，您好！纳米比亚项目目前尚未完成股权交割。对于该项目的收益与风险，公司持客观理性的态度：收益方面，基于标的公司铀矿资源储量及行业长期前景，公司看好其投资价值；风险方面，公司在决策前已聘请境内外专业机构完成全面尽职调查，并在协议中约定了交割先决条件、交易对方陈述与保证等前置保护机制，同时设置了分期付款安排，将付款进度与交割等关键节点挂钩，控制资金风险敞口。若交割完成，公司亦充分行使股东知情权及重大事项审议等股东权利，确保能够及时获取经营信息并有效参与重大决策。本次投资系境外资源类项目，受国际政治环境、目标国法律政策、行业周期及汇率波动等因素影响，客观上存在一定的不确定性，敬请广大投资者充分关注相关投资风险，审慎决策，理性投资。感谢您对公司的关注，谢谢！" [ref=f8e299] [cursor=pointer]:
+            - /url: http://irm.cninfo.com.cn/ircs/question/questionDetail?questionId=2338594059147382784
+            - generic [ref=f8e300]:
+              - generic [ref=f8e301]: 问
+              - generic "董秘您好，注意到公司回复称纳米比亚铀矿收购审批正常推进，但未明确回应是否设置业绩承诺。请问在本次收购的最终协议中，是否包含针对铀矿储量、品位或未来产能的业绩对赌及资产减值补偿条款？若无相关保护性条款，公司如何向中小股东保障此次大额海外并购的投资安全？" [ref=f8e302]
+            - generic [ref=f8e303]:
+              - generic [ref=f8e304]: 答
+              - generic "尊敬的投资者，您好！纳米比亚项目目前尚未完成股权交割。对于该项目的收益与风险，公司持客观理性的态度：收益方面，基于标的公司铀矿资源储量及行业长期前景，公司看好其投资价值；风险方面，公司在决策前已聘请境内外专业机构完成全面尽职调查，并在协议中约定了交割先决条件、交易对方陈述与保证等前置保护机制，同时设置了分期付款安排，将付款进度与交割等关键节点挂钩，控制资金风险敞口。若交割完成，公司亦充分行使股东知情权及重大事项审议等股东权利，确保能够及时获取经营信息并有效参与重大决策。本次投资系境外资源类项目，受国际政治环境、目标国法律政策、行业周期及汇率波动等因素影响，客观上存在一定的不确定性，敬请广大投资者充分关注相关投资风险，审慎决策，理性投资。感谢您对公司的关注，谢谢！" [ref=f8e305]
+        - generic [ref=f8e306]:
+          - generic [ref=f8e307]:
+            - link "万里石[002785]" [ref=f8e308] [cursor=pointer]:
+              - /url: http://irm.cninfo.com.cn/ircs/company/companyDetail?stockcode=002785&orgId=9900023763
+            - generic [ref=f8e309]: 2026-08-19
+          - link "问 董秘您好，作为公司的长期关注者，我对万里石在新能源资源领域的战略转型高度认可。考虑到公司近期在纳米比亚铀矿收购及国内盐湖提锂业务上均有重要进展，请问公司近期是否有安排针对个人投资者的实地调研或反路演活动？希望能有机会走进公司，更直观地了解业务一线的真实情况。 答 尊敬的投资者，您好！您可在工作日通过公司投资者电话进行提前预约，后续公司将结合实际情况统筹安排投资者调研工作，感谢您对公司的关注，谢谢！" [ref=f8e310] [cursor=pointer]:
+            - /url: http://irm.cninfo.com.cn/ircs/question/questionDetail?questionId=2338595905948995584
+            - generic [ref=f8e311]:
+              - generic [ref=f8e312]: 问
+              - generic "董秘您好，作为公司的长期关注者，我对万里石在新能源资源领域的战略转型高度认可。考虑到公司近期在纳米比亚铀矿收购及国内盐湖提锂业务上均有重要进展，请问公司近期是否有安排针对个人投资者的实地调研或反路演活动？希望能有机会走进公司，更直观地了解业务一线的真实情况。" [ref=f8e313]
+            - generic [ref=f8e314]:
+              - generic [ref=f8e315]: 答
+              - generic "尊敬的投资者，您好！您可在工作日通过公司投资者电话进行提前预约，后续公司将结合实际情况统筹安排投资者调研工作，感谢您对公司的关注，谢谢！" [ref=f8e316]
+        - generic [ref=f8e317]:
+          - generic [ref=f8e318]:
+            - link "同 同兴科技[003027]" [ref=f8e319] [cursor=pointer]:
+              - /url: http://irm.cninfo.com.cn/ircs/company/companyDetail?stockcode=003027&orgId=9900039712
+              - generic [ref=f8e320]: 同
+              - text: 同兴科技[003027]
+            - generic [ref=f8e321]: 2026-08-19
+          - link "问 董秘您好，国家油气 “十五五” 规划明确 2030 年 CCUS 年注入 CO₂达 1000 万吨，行业迎来规模化发展机遇。想请教：公司 CCUS 吸附等核心材料技术储备情况；面向油气驱油封存场景，现有 CCUS 项目落地、项目拓展进展如何？如何看待油气 CCUS 赛道市场前景？公司捕集药剂、吸附材料现有产能，能否匹配未来油气行业大规模释放的市场需求，有无扩产规划？谢谢。 答 您好！对于吸收剂产品，公司核心技术包括核心材料TX系列、稳定性技术TX-S、核心工艺TXio。公司 TX-1系列碳捕集吸收剂采用功能导向设计，兼顾低能耗、抗降解与运行稳定性。针对传统湿法碳捕集系统蒸汽消耗较高、水平衡控制困难及预处理废水排放量较大等问题，公司 TXio二氧化碳湿法捕集工艺通过预处理功能分区、再生气洗涤、二级喷淋及再生塔顶潜热回收等设计，实现系统水平衡控制和热量高效利用。相关项目进展具体情况请关注公司公告。感谢关注。" [ref=f8e322] [cursor=pointer]:
+            - /url: http://irm.cninfo.com.cn/ircs/question/questionDetail?questionId=2339736133866737664
+            - generic [ref=f8e323]:
+              - generic [ref=f8e324]: 问
+              - generic "董秘您好，国家油气 “十五五” 规划明确 2030 年 CCUS 年注入 CO₂达 1000 万吨，行业迎来规模化发展机遇。想请教：公司 CCUS 吸附等核心材料技术储备情况；面向油气驱油封存场景，现有 CCUS 项目落地、项目拓展进展如何？如何看待油气 CCUS 赛道市场前景？公司捕集药剂、吸附材料现有产能，能否匹配未来油气行业大规模释放的市场需求，有无扩产规划？谢谢。" [ref=f8e325]
+            - generic [ref=f8e326]:
+              - generic [ref=f8e327]: 答
+              - generic "您好！对于吸收剂产品，公司核心技术包括核心材料TX系列、稳定性技术TX-S、核心工艺TXio。公司 TX-1系列碳捕集吸收剂采用功能导向设计，兼顾低能耗、抗降解与运行稳定性。针对传统湿法碳捕集系统蒸汽消耗较高、水平衡控制困难及预处理废水排放量较大等问题，公司 TXio二氧化碳湿法捕集工艺通过预处理功能分区、再生气洗涤、二级喷淋及再生塔顶潜热回收等设计，实现系统水平衡控制和热量高效利用。相关项目进展具体情况请关注公司公告。感谢关注。" [ref=f8e328]
+    - generic [ref=f8e330]:
+      - link "更多" [ref=f8e332] [cursor=pointer]:
+        - /url: https://irm.cninfo.com.cn/views/interview?tab=2
+      - generic [ref=f8e335]:
+        - link "焕新质促升级·构筑产业整合新优势 举办时间：2026-05-26 15:00-17:00" [ref=f8e336] [cursor=pointer]:
+          - /url: http://irm.cninfo.com.cn/interview/collective/collectiveInfo?cid=2270643235485052928
+          - heading "焕新质促升级·构筑产业整合新优势" [level=3] [ref=f8e338]
+          - generic [ref=f8e339]: 举办时间：2026-05-26 15:00-17:00
+        - link "深研发求精进·积蓄医药成长新动能 举办时间：2026-05-21 15:00-17:00" [ref=f8e340] [cursor=pointer]:
+          - /url: http://irm.cninfo.com.cn/interview/collective/collectiveInfo?cid=2265382192743280640
+          - heading "深研发求精进·积蓄医药成长新动能" [level=3] [ref=f8e342]
+          - generic [ref=f8e343]: 举办时间：2026-05-21 15:00-17:00
+        - link "拓市场谋发展·新消费强引擎 举办时间：2026-05-13 15:00-17:00" [ref=f8e344] [cursor=pointer]:
+          - /url: http://irm.cninfo.com.cn/interview/collective/collectiveInfo?cid=2252964566117216256
+          - heading "拓市场谋发展·新消费强引擎" [level=3] [ref=f8e346]
+          - generic [ref=f8e347]: 举办时间：2026-05-13 15:00-17:00
+  - generic [ref=f8e349]:
+    - generic [ref=f8e351]:
+      - list [ref=f8e352]:
+        - listitem [ref=f8e353]:
+          - link "公开信息" [ref=f8e354] [cursor=pointer]:
+            - /url: javascript:;
+        - listitem [ref=f8e355]:
+          - link "融资融券" [ref=f8e356] [cursor=pointer]:
+            - /url: javascript:;
+        - listitem [ref=f8e357]:
+          - link "大宗交易" [ref=f8e358] [cursor=pointer]:
+            - /url: javascript:;
+        - listitem [ref=f8e361]:
+          - link "限售解禁" [ref=f8e362] [cursor=pointer]:
+            - /url: javascript:;
+        - link "更多" [ref=f8e363] [cursor=pointer]:
+          - /url: /new/commonUrl?url=data/dzjy
+      - generic [ref=f8e367]:
+        - generic [ref=f8e368]: 交易日：2026-08-19
+        - table [ref=f8e369]:
+          - rowgroup [ref=f8e378]:
+            - row [ref=f8e379]:
+              - columnheader "代码" [ref=f8e380]
+              - columnheader "简称" [ref=f8e381]
+              - columnheader "成交价格 （元）" [ref=f8e382]
+              - columnheader "成交量 （万股）" [ref=f8e383]
+              - columnheader "成交金额 （万元）" [ref=f8e384]
+              - columnheader "买方营业部" [ref=f8e385]
+              - columnheader "卖方营业部" [ref=f8e386]
+          - rowgroup [ref=f8e387]:
+            - row [ref=f8e388]:
+              - cell "002109" [ref=f8e389]
+              - cell "ST兴化" [ref=f8e390]
+              - cell "2.63" [ref=f8e391]
+              - cell "50.00" [ref=f8e392]
+              - cell "131.50" [ref=f8e393]
+              - cell "开源证券股份有限公司西安高新分公司" [ref=f8e394]
+              - cell "机构专用" [ref=f8e396]
+              - cell
+            - row [ref=f8e398]:
+              - cell "002356" [ref=f8e399]
+              - cell "鹏飞绿能" [ref=f8e400]
+              - cell "2.60" [ref=f8e401]
+              - cell "660.00" [ref=f8e402]
+              - cell "1716.00" [ref=f8e403]
+              - cell "山西证券股份有限公司临汾北洪家楼证券营业部" [ref=f8e404]
+              - cell "山西证券股份有限公司临汾北洪家楼证券营业部" [ref=f8e406]
+              - cell
+            - row [ref=f8e408]:
+              - cell "300005" [ref=f8e409]
+              - cell "探路者" [ref=f8e410]
+              - cell "10.82" [ref=f8e411]
+              - cell "66.35" [ref=f8e412]
+              - cell "717.91" [ref=f8e413]
+              - cell "招商证券交易单元(052300)" [ref=f8e414]
+              - cell "机构专用" [ref=f8e416]
+              - cell
+            - row [ref=f8e418]:
+              - cell "300056" [ref=f8e419]
+              - cell "中创环保" [ref=f8e420]
+              - cell "8.40" [ref=f8e421]
+              - cell "187.76" [ref=f8e422]
+              - cell "1577.18" [ref=f8e423]
+              - cell "招商证券交易单元(052300)" [ref=f8e424]
+              - cell "机构专用" [ref=f8e426]
+              - cell
+            - row [ref=f8e428]:
+              - cell "300274" [ref=f8e429]
+              - cell "阳光电源" [ref=f8e430]
+              - cell "111.49" [ref=f8e431]
+              - cell "7.30" [ref=f8e432]
+              - cell "813.88" [ref=f8e433]
+              - cell "机构专用" [ref=f8e434]
+              - cell "中信证券股份有限公司上海浦东新区东方路证券营业部" [ref=f8e436]
+              - cell
+            - row [ref=f8e438]:
+              - cell "300285" [ref=f8e439]
+              - cell "国瓷材料" [ref=f8e440]
+              - cell "64.12" [ref=f8e441]
+              - cell "4.00" [ref=f8e442]
+              - cell "256.48" [ref=f8e443]
+              - cell "机构专用" [ref=f8e444]
+              - cell "机构专用" [ref=f8e446]
+              - cell
+            - row [ref=f8e448]:
+              - cell "300672" [ref=f8e449]
+              - cell "国科微" [ref=f8e450]
+              - cell "162.44" [ref=f8e451]
+              - cell "40.00" [ref=f8e452]
+              - cell "6497.60" [ref=f8e453]
+              - cell "西南证券股份有限公司湖南分公司" [ref=f8e454]
+              - cell "中信证券股份有限公司长沙金星中路证券营业部" [ref=f8e456]
+              - cell
+            - row [ref=f8e458]:
+              - cell "300840" [ref=f8e459]
+              - cell "酷特智能" [ref=f8e460]
+              - cell "16.20" [ref=f8e461]
+              - cell "49.00" [ref=f8e462]
+              - cell "793.80" [ref=f8e463]
+              - cell "中信证券（山东）有限责任公司青岛海口路证券营业部" [ref=f8e464]
+              - cell "中信证券（山东）有限责任公司青岛秦岭路证券营业部" [ref=f8e466]
+              - cell
+            - row [ref=f8e468]:
+              - cell "301031" [ref=f8e469]
+              - cell "中熔电气" [ref=f8e470]
+              - cell "88.47" [ref=f8e471]
+              - cell "10.19" [ref=f8e472]
+              - cell "901.69" [ref=f8e473]
+              - cell "机构专用" [ref=f8e474]
+              - cell "中信证券股份有限公司上海浦东新区东方路证券营业部" [ref=f8e476]
+              - cell
+            - row [ref=f8e478]:
+              - cell "301297" [ref=f8e479]
+              - cell "富乐德" [ref=f8e480]
+              - cell "34.02" [ref=f8e481]
+              - cell "6.50" [ref=f8e482]
+              - cell "221.13" [ref=f8e483]
+              - cell "中信建投证券股份有限公司甘肃分公司" [ref=f8e484]
+              - cell "国投证券股份有限公司福州分公司" [ref=f8e486]
+              - cell
+            - row [ref=f8e488]:
+              - cell "600613" [ref=f8e489]
+              - cell "神奇制药" [ref=f8e490]
+              - cell "7.31" [ref=f8e491]
+              - cell "450.00" [ref=f8e492]
+              - cell "3289.50" [ref=f8e493]
+              - cell "机构专用" [ref=f8e494]
+              - cell "中信建投证券股份有限公司深圳深南中路证券营业部" [ref=f8e496]
+              - cell
+            - row [ref=f8e498]:
+              - cell "603120" [ref=f8e499]
+              - cell "肯特催化" [ref=f8e500]
+              - cell "48.21" [ref=f8e501]
+              - cell "4.30" [ref=f8e502]
+              - cell "207.30" [ref=f8e503]
+              - cell "中信证券华南股份有限公司江门启超大道证券营业部" [ref=f8e504]
+              - cell "国金证券股份有限公司杭州利一路证券营业部" [ref=f8e506]
+              - cell
+            - row [ref=f8e508]:
+              - cell "603120" [ref=f8e509]
+              - cell "肯特催化" [ref=f8e510]
+              - cell "48.21" [ref=f8e511]
+              - cell "4.20" [ref=f8e512]
+              - cell "202.48" [ref=f8e513]
+              - cell "机构专用" [ref=f8e514]
+              - cell "中信证券股份有限公司南京洪武北路证券营业部" [ref=f8e516]
+              - cell
+    - generic [ref=f8e519]:
+      - generic [ref=f8e520]:
+        - text: (2026-08-20)
+        - link [ref=f8e522] [cursor=pointer]:
+          - /url: /new/commonUrl?url=disclosure/tradingTips
+      - generic [ref=f8e526]:
+        - generic [ref=f8e527]:
+          - text: 新股发行日
+          - link "更多 >" [ref=f8e528] [cursor=pointer]:
+            - /url: /new/commonUrl?url=disclosure/tradingTips
+        - list [ref=f8e529]:
+          - listitem [ref=f8e530]:
+            - generic "2026年8月20日为首发新股网上发行日，发行数量3333.3334万股，发行价格26.33元/股，发行市盈率19.8倍，申购代码301688\\301688"
+            - link "301688" [ref=f8e531] [cursor=pointer]:
+              - /url: /new/disclosure/stock?f002v=001001&stockCode=301688
+            - generic "格林生物" [ref=f8e532]:
+              - link "格林生物" [ref=f8e533] [cursor=pointer]:
+                - /url: /new/disclosure/stock?f002v=001001&stockCode=301688
+      - generic [ref=f8e534]:
+        - generic [ref=f8e535]:
+          - text: 新发股份上市日
+          - link "更多 >" [ref=f8e536] [cursor=pointer]:
+            - /url: /new/commonUrl?url=disclosure/tradingTips
+        - list [ref=f8e537]:
+          - listitem [ref=f8e538]:
+            - generic "2026年8月20日6834.1235万股首发新股上市，发行价格8.5元/股，发行市盈率27.56倍，本次流通数量4496.8188万股"
+            - link "301655" [ref=f8e539] [cursor=pointer]:
+              - /url: /new/disclosure/stock?f002v=001001&stockCode=301655
+            - generic "绿控传动" [ref=f8e540]:
+              - link "绿控传动" [ref=f8e541] [cursor=pointer]:
+                - /url: /new/disclosure/stock?f002v=001001&stockCode=301655
+      - generic [ref=f8e542]:
+        - generic [ref=f8e543]:
+          - text: 股东会召开日
+          - link "更多 >" [ref=f8e544] [cursor=pointer]:
+            - /url: /new/commonUrl?url=disclosure/tradingTips
+        - list [ref=f8e545]:
+          - listitem [ref=f8e546]:
+            - generic "2026年8月20日召开3次临时股东会"
+            - link "000089" [ref=f8e547] [cursor=pointer]:
+              - /url: /new/disclosure/stock?f002v=001001&stockCode=000089
+            - generic "深圳机场" [ref=f8e548]:
+              - link "深圳机场" [ref=f8e549] [cursor=pointer]:
+                - /url: /new/disclosure/stock?f002v=001001&stockCode=000089
+          - listitem [ref=f8e550]:
+            - generic "2026年8月20日召开2次临时股东会"
+            - link "001236" [ref=f8e551] [cursor=pointer]:
+              - /url: /new/disclosure/stock?f002v=001001&stockCode=001236
+            - generic "弘业期货" [ref=f8e552]:
+              - link "弘业期货" [ref=f8e553] [cursor=pointer]:
+                - /url: /new/disclosure/stock?f002v=001001&stockCode=001236
+      - generic [ref=f8e554]:
+        - generic [ref=f8e555]:
+          - text: 分红转增派息登记日
+          - link "更多 >" [ref=f8e556] [cursor=pointer]:
+            - /url: /new/commonUrl?url=disclosure/tradingTips
+        - list [ref=f8e557]:
+          - listitem [ref=f8e558]:
+            - generic "2025年12月31日利润分配10派0.5元(含税)，2026年8月20日股权登记，2026年8月21日除权，2026年8月21日派息"
+            - link "000601" [ref=f8e559] [cursor=pointer]:
+              - /url: /new/disclosure/stock?f002v=001001&stockCode=000601
+            - generic "韶能股份" [ref=f8e560]:
+              - link "韶能股份" [ref=f8e561] [cursor=pointer]:
+                - /url: /new/disclosure/stock?f002v=001001&stockCode=000601
+      - generic [ref=f8e562]:
+        - generic [ref=f8e563]:
+          - text: 分红转增派息除权除息日
+          - link "更多 >" [ref=f8e564] [cursor=pointer]:
+            - /url: /new/commonUrl?url=disclosure/tradingTips
+        - list [ref=f8e565]:
+          - listitem [ref=f8e566]:
+            - generic "2025年12月31日利润分配10派0.36元(含税)，2026年8月19日股权登记，2026年8月20日除权，2026年8月20日派息"
+            - link "000035" [ref=f8e567] [cursor=pointer]:
+              - /url: /new/disclosure/stock?f002v=001001&stockCode=000035
+            - generic "中国天楹" [ref=f8e568]:
+              - link "中国天楹" [ref=f8e569] [cursor=pointer]:
+                - /url: /new/disclosure/stock?f002v=001001&stockCode=000035
+          - listitem [ref=f8e570]:
+            - generic "2026年6月30日利润分配10派1.5元(含税)，2026年8月19日股权登记，2026年8月20日除权，2026年8月20日派息"
+            - link "002458" [ref=f8e571] [cursor=pointer]:
+              - /url: /new/disclosure/stock?f002v=001001&stockCode=002458
+            - generic "益生股份" [ref=f8e572]:
+              - link "益生股份" [ref=f8e573] [cursor=pointer]:
+                - /url: /new/disclosure/stock?f002v=001001&stockCode=002458
+      - generic [ref=f8e574]:
+        - generic [ref=f8e575]:
+          - text: 最新调研
+          - link "更多 >" [ref=f8e576] [cursor=pointer]:
+            - /url: /new/commonUrl?url=disclosure/list/notice#dy%2F1
+        - list [ref=f8e577]:
+          - listitem [ref=f8e578]:
+            - link "002749" [ref=f8e579] [cursor=pointer]:
+              - /url: /new/disclosure/stock?orgId=9900023788&stockCode=002749
+            - generic "国光股份" [ref=f8e580]:
+              - link "国光股份" [ref=f8e581] [cursor=pointer]:
+                - /url: /new/disclosure/stock?orgId=9900023788&stockCode=002749
+          - listitem [ref=f8e582]:
+            - link "000739" [ref=f8e583] [cursor=pointer]:
+              - /url: /new/disclosure/stock?orgId=gssz0000739&stockCode=000739
+            - generic "普洛药业" [ref=f8e584]:
+              - link "普洛药业" [ref=f8e585] [cursor=pointer]:
+                - /url: /new/disclosure/stock?orgId=gssz0000739&stockCode=000739
+  - generic [ref=f8e587]:
+    - generic [ref=f8e589]:
+      - list [ref=f8e590]:
+        - listitem [ref=f8e591]:
+          - generic [ref=f8e592]: 网络投票
+          - generic [ref=f8e593]: (互联网投票时间： 开始日 9:15 - 结束日 15:00)
+        - link "更多" [ref=f8e594] [cursor=pointer]:
+          - /url: http://wltp.cninfo.com.cn/shareHolderMeetingList
+      - table [ref=f8e599]:
+        - rowgroup [ref=f8e605]:
+          - row [ref=f8e606]:
+            - columnheader "会议名称" [ref=f8e607]
+            - columnheader "互联网投票时间" [ref=f8e608]
+            - columnheader "提案内容" [ref=f8e609]
+            - columnheader [ref=f8e610]
+        - rowgroup [ref=f8e611]:
+          - row [ref=f8e612]:
+            - cell "深圳机场2026年第三次临时股东会" [ref=f8e613]
+            - cell "2026-08-20 - 2026-08-20" [ref=f8e615]
+            - cell "关于投资开发深圳机场A116-0013宗地项目的议案" [ref=f8e616]
+            - cell [ref=f8e618]:
+              - link "查看" [ref=f8e619] [cursor=pointer]:
+                - /url: https://wltp.cninfo.com.cn/meetingMaterial/129723
+          - row [ref=f8e620]:
+            - cell "弘业期货2026年第二次临时股东会" [ref=f8e621]
+            - cell "2026-08-20 - 2026-08-20" [ref=f8e623]
+            - cell "关于聘任公司2026年度会计师事务所及其酬金的议案" [ref=f8e624]
+            - cell [ref=f8e626]:
+              - link "查看" [ref=f8e627] [cursor=pointer]:
+                - /url: https://wltp.cninfo.com.cn/meetingMaterial/129746
+          - row [ref=f8e628]:
+            - cell "成飞集成2026年第四次临时股东会" [ref=f8e629]
+            - cell "2026-08-20 - 2026-08-20" [ref=f8e631]
+            - cell "关于与中航工业集团财务有限责任公司签订金融服务协议的议案" [ref=f8e632]
+            - cell [ref=f8e634]:
+              - link "查看" [ref=f8e635] [cursor=pointer]:
+                - /url: https://wltp.cninfo.com.cn/meetingMaterial/129664
+          - row [ref=f8e636]:
+            - cell "禾盛新材2026年第三次临时股东会" [ref=f8e637]
+            - cell "2026-08-20 - 2026-08-20" [ref=f8e639]
+            - cell "《关于增补黄海清先生为公司第七届董事会非独立董事的议案》" [ref=f8e640]
+            - cell [ref=f8e642]:
+              - link "查看" [ref=f8e643] [cursor=pointer]:
+                - /url: https://wltp.cninfo.com.cn/meetingMaterial/129758
+          - row [ref=f8e644]:
+            - cell "毅昌科技2026年第二次临时股东会" [ref=f8e645]
+            - cell "2026-08-20 - 2026-08-20" [ref=f8e647]
+            - cell "《关于变更注册资本、增加经营范围暨修订＜公司章程＞的议案》" [ref=f8e648]
+            - cell [ref=f8e650]:
+              - link "查看" [ref=f8e651] [cursor=pointer]:
+                - /url: https://wltp.cninfo.com.cn/meetingMaterial/129743
+          - row [ref=f8e652]:
+            - cell "中化岩土2026年第五次临时股东会" [ref=f8e653]
+            - cell "2026-08-20 - 2026-08-20" [ref=f8e655]
+            - cell "关于拟向金融资产管理公司申请融资的议案" [ref=f8e656]
+            - cell [ref=f8e658]:
+              - link "查看" [ref=f8e659] [cursor=pointer]:
+                - /url: https://wltp.cninfo.com.cn/meetingMaterial/129772
+          - row [ref=f8e660]:
+            - cell "通宇通讯2026年第四次临时股东会" [ref=f8e661]
+            - cell "2026-08-20 - 2026-08-20" [ref=f8e663]
+            - cell "《关于拟出售部分闲置厂房及土地使用权的议案》" [ref=f8e664]
+            - cell [ref=f8e666]:
+              - link "查看" [ref=f8e667] [cursor=pointer]:
+                - /url: https://wltp.cninfo.com.cn/meetingMaterial/129776
+          - row [ref=f8e668]:
+            - cell "凯莱英2026年第三次临时股东会" [ref=f8e669]
+            - cell "2026-08-20 - 2026-08-20" [ref=f8e671]
+            - cell "《关于公司〈2026年A股限制性股票激励计划（草案）〉及其摘要的议案》" [ref=f8e672]
+            - cell [ref=f8e674]:
+              - link "查看" [ref=f8e675] [cursor=pointer]:
+                - /url: https://wltp.cninfo.com.cn/meetingMaterial/129711
+          - row [ref=f8e676]:
+            - cell "开普检测2026年第一次临时股东会" [ref=f8e677]
+            - cell "2026-08-20 - 2026-08-20" [ref=f8e679]
+            - cell "《关于选举公司第四届董事会非独立董事的议案》" [ref=f8e680]
+            - cell [ref=f8e682]:
+              - link "查看" [ref=f8e683] [cursor=pointer]:
+                - /url: https://wltp.cninfo.com.cn/meetingMaterial/129751
+          - row [ref=f8e684]:
+            - cell "和顺电气2026年第一次临时股东会" [ref=f8e685]
+            - cell "2026-08-20 - 2026-08-20" [ref=f8e687]
+            - cell "关于董事会换届选举暨选举第六届董事会非独立董事的议案" [ref=f8e688]
+            - cell [ref=f8e690]:
+              - link "查看" [ref=f8e691] [cursor=pointer]:
+                - /url: https://wltp.cninfo.com.cn/meetingMaterial/129771
+    - generic [ref=f8e698]:
+      - generic [ref=f8e699]: 深市投票专区
+      - list [ref=f8e701]:
+        - listitem [ref=f8e702]:
+          - link " 投资者服务专区" [ref=f8e703] [cursor=pointer]:
+            - /url: http://wltp.cninfo.com.cn
+            - generic [ref=f8e704]: 
+            - text: 投资者服务专区
+        - listitem [ref=f8e706]:
+          - link " 上市公司服务专区" [ref=f8e707] [cursor=pointer]:
+            - /url: https://list.cninfo.com.cn
+            - generic [ref=f8e708]: 
+            - text: 上市公司服务专区
+      - generic [ref=f8e710]: 网投快捷入口
+      - list [ref=f8e712]:
+        - listitem [ref=f8e713]:
+          - link " 深市规则" [ref=f8e714] [cursor=pointer]:
+            - /url: http://wltp.cninfo.com.cn/regular
+            - generic [ref=f8e715]: 
+            - generic [ref=f8e716]: 深市规则
+        - listitem [ref=f8e717]:
+          - link " 沪市规则" [ref=f8e718] [cursor=pointer]:
+            - /url: http://vote.sseinfo.com/bizRules
+            - generic [ref=f8e719]: 
+            - generic [ref=f8e720]: 沪市规则
+        - listitem [ref=f8e721]:
+          - link " 深市投票" [ref=f8e722] [cursor=pointer]:
+            - /url: http://wltp.cninfo.com.cn/shareHolderMeetingList
+            - generic [ref=f8e723]: 
+            - generic [ref=f8e724]: 深市投票
+        - listitem [ref=f8e725]:
+          - link " 沪市投票" [ref=f8e726] [cursor=pointer]:
+            - /url: http://vote.sseinfo.com/home/meetingListByTime
+            - generic [ref=f8e727]: 
+            - generic [ref=f8e728]: 沪市投票
+  - text:    
+  - contentinfo [ref=f8e730]:
+    - generic [ref=f8e731]:
+      - generic [ref=f8e732]:
+        - paragraph [ref=f8e733]: 关于我们
+        - generic [ref=f8e734]: 巨潮资讯网是深圳证券交易所法定信息披露平台，由深交所全资子公司深圳证券信息有限公司运营，平台始终致力于保护投资者的知情权和参与权，为投资者提供一站式的证券市场信息服务。
+        - list [ref=f8e735]:
+          - listitem [ref=f8e736]:
+            - link:
+              - /url: http://www.szsi.cn/gywm/gsjs/gsjj/
+          - listitem [ref=f8e737]:
+            - link:
+              - /url: http://www.szsi.cn/cpfw/jczxw/
+      - generic [ref=f8e738]:
+        - paragraph [ref=f8e739]: 友情链接
+        - list [ref=f8e740]:
+          - listitem [ref=f8e741]:
+            - link "深圳证券交易所" [ref=f8e742] [cursor=pointer]:
+              - /url: http://www.szse.cn/
+            - link "上海证券交易所" [ref=f8e743] [cursor=pointer]:
+              - /url: http://www.sse.com.cn/
+            - link "深圳证券信息有限公司" [ref=f8e744] [cursor=pointer]:
+              - /url: http://www.szsi.cn/
+          - listitem [ref=f8e745]:
+            - link "国证指数" [ref=f8e746] [cursor=pointer]:
+              - /url: http://www.cnindex.com.cn/
+            - link "科融通" [ref=f8e747] [cursor=pointer]:
+              - /url: https://www.chinahtz.com/index.do
+            - link "V-Next" [ref=f8e748] [cursor=pointer]:
+              - /url: https://www.v-next.cn/index.do
+          - listitem [ref=f8e749]:
+            - link "深证信数据服务平台" [ref=f8e750] [cursor=pointer]:
+              - /url: http://webapi.cninfo.com.cn/
+            - link "CNINFO Data Service" [ref=f8e751] [cursor=pointer]:
+              - /url: http://webapi.cninfo.com.cn/#/home-en
+      - generic [ref=f8e752]:
+        - paragraph [ref=f8e753]: 关注我们
+        - list [ref=f8e754]:
+          - listitem [ref=f8e755]:
+            - generic [ref=f8e757]: 公众号
+          - listitem [ref=f8e758]:
+            - generic [ref=f8e760]: APP
+    - generic [ref=f8e761]:
+      - generic [ref=f8e762]:
+        - link "粤公网安备 44030002001497 号" [ref=f8e763] [cursor=pointer]:
+          - /url: http://www.beian.gov.cn/portal/registerSystemInfo?recordcode=44030002001497
+        - text: 深圳证券信息有限公司 版权所有
+        - link "粤B2-20050313号" [ref=f8e764] [cursor=pointer]:
+          - /url: https://beian.miit.gov.cn
+        - generic [ref=f8e765]: 免责声明 
+      - generic [ref=f8e766]: 建议使用IE11及以上浏览器，1280*800以上分辨率 本网站支持ipv6访问

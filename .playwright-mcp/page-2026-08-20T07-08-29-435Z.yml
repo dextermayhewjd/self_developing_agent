@@ -1,0 +1,267 @@
+- generic [ref=f10e2]:
+  - banner [ref=f10e3]:
+    - generic [ref=f10e4]:
+      - link "小乐财报首页" [ref=f10e6] [cursor=pointer]:
+        - /url: /
+        - img "小乐财报 - 专业的股票数据分析平台" [ref=f10e7]
+      - list [ref=f10e8]:
+        - listitem [ref=f10e9]:
+          - link "首页" [ref=f10e10] [cursor=pointer]:
+            - /url: /
+        - listitem [ref=f10e11]:
+          - link "演示体验" [ref=f10e12] [cursor=pointer]:
+            - /url: /stock/600519.SH
+        - listitem [ref=f10e13]:
+          - button [ref=f10e14] [cursor=pointer]
+        - listitem [ref=f10e18]:
+          - link "学习教程" [ref=f10e19] [cursor=pointer]:
+            - /url: /learn
+        - listitem [ref=f10e20]:
+          - link "联系站长" [ref=f10e21] [cursor=pointer]:
+            - /url: /contact
+      - combobox [ref=f10e24]:
+        - textbox "输入代码或名称" [ref=f10e31]
+      - button "登录" [ref=f10e33] [cursor=pointer]
+      - img "小乐财报公众号" [ref=f10e36]
+  - generic [ref=f10e37]:
+    - navigation [ref=f10e38]:
+      - generic [ref=f10e39]:
+        - generic [ref=f10e41]:
+          - generic [ref=f10e42]: 小乐财报
+          - generic [ref=f10e43]: 发现好公司，排除坏公司
+        - generic [ref=f10e44] [cursor=pointer]:
+          - link "综合分析「评分」" [ref=f10e45]:
+            - /url: /stock/600549.SH
+          - generic [ref=f10e46]: 专属
+          - text: PRO
+        - generic [ref=f10e47]:
+          - generic [ref=f10e48]:
+            - generic [ref=f10e49]: 估值
+            - generic [ref=f10e50] [cursor=pointer]:
+              - link "市盈率(PE)" [ref=f10e51]:
+                - /url: /stock/sh600549/pe
+              - generic [ref=f10e52]: "28.18"
+            - generic [ref=f10e53] [cursor=pointer]:
+              - link "市净率(PB)" [ref=f10e54]:
+                - /url: /stock/sh600549/pb
+              - generic [ref=f10e55]: "4.83"
+            - generic [ref=f10e56] [cursor=pointer]:
+              - link "市销率(PS)" [ref=f10e57]:
+                - /url: /stock/sh600549/ps
+              - generic [ref=f10e58]: "1.59"
+            - generic [ref=f10e59] [cursor=pointer]:
+              - link "市现率(PCF)" [ref=f10e60]:
+                - /url: /stock/sh600549/pcf
+              - generic [ref=f10e61]: 109.7%
+            - generic [ref=f10e62] [cursor=pointer]:
+              - link "股息率" [ref=f10e63]:
+                - /url: /stock/sh600549/dividend
+              - generic [ref=f10e64]: 1.09%
+          - generic [ref=f10e65]:
+            - generic [ref=f10e66]: 盈利
+            - generic [ref=f10e67] [cursor=pointer]:
+              - link "净资产收益率(ROE)" [ref=f10e68]:
+                - /url: /stock/sh600549/ROE
+              - generic [ref=f10e69]: 17.48%
+            - generic [ref=f10e70] [cursor=pointer]:
+              - link "总资产收益率(ROA)" [ref=f10e71]:
+                - /url: /stock/sh600549/ROA
+              - generic [ref=f10e72]: 8.14%
+            - generic [ref=f10e73] [cursor=pointer]:
+              - link "投入资本回报率(ROIC)" [ref=f10e74]:
+                - /url: /stock/sh600549/ROIC
+              - generic [ref=f10e75]: 11.87%
+            - generic [ref=f10e76] [cursor=pointer]:
+              - link "毛利率" [ref=f10e77]:
+                - /url: /stock/sh600549/grossMARgin
+              - generic [ref=f10e78]: 21%
+            - generic [ref=f10e79] [cursor=pointer]:
+              - link "核心利润率" [ref=f10e80]:
+                - /url: /stock/sh600549/cpMARgin
+              - generic [ref=f10e81]: 16.73%
+            - generic [ref=f10e82] [cursor=pointer]:
+              - link "净利润率" [ref=f10e83]:
+                - /url: /stock/sh600549/npMARgin
+              - generic [ref=f10e84]: 10.68%
+            - generic [ref=f10e85] [cursor=pointer]:
+              - link "营业收现率" [ref=f10e86]:
+                - /url: /stock/sh600549/oicr
+              - generic [ref=f10e87]: 85.26%
+            - generic [ref=f10e88] [cursor=pointer]:
+              - link "净利润含金量" [ref=f10e89]:
+                - /url: /stock/sh600549/npcashMARgin
+              - generic [ref=f10e90]: 17.48%
+          - generic [ref=f10e91]:
+            - generic [ref=f10e92]: 成长
+            - generic [ref=f10e93] [cursor=pointer]:
+              - link "营业总收入" [ref=f10e94]:
+                - /url: /stock/sh600549/revenue
+              - generic [ref=f10e95]:
+                - text: 157.43亿
+                - generic [ref=f10e96]: ↗
+            - generic [ref=f10e97] [cursor=pointer]:
+              - link "核心利润" [ref=f10e98]:
+                - /url: /stock/sh600549/Coreprofit
+              - generic [ref=f10e99]:
+                - text: 26.34亿
+                - generic [ref=f10e100]: ↗
+            - generic [ref=f10e101] [cursor=pointer]:
+              - link "净利润" [ref=f10e102]:
+                - /url: /stock/sh600549/NIncomeAttrP
+              - generic [ref=f10e103]:
+                - text: 16.82亿
+                - generic [ref=f10e104]: ↗
+            - generic [ref=f10e105] [cursor=pointer]:
+              - link "自由现金流" [ref=f10e106]:
+                - /url: /stock/sh600549/FreeCash
+              - generic [ref=f10e107]:
+                - text: "-30.99亿"
+                - generic [ref=f10e108]: ↘
+            - generic [ref=f10e109] [cursor=pointer]:
+              - link "总资产" [ref=f10e110]:
+                - /url: /stock/sh600549/ta
+              - generic [ref=f10e111]:
+                - text: 639.28亿
+                - generic [ref=f10e112]: ↗
+            - generic [ref=f10e113] [cursor=pointer]:
+              - link "净资产" [ref=f10e114]:
+                - /url: /stock/sh600549/toe
+              - generic [ref=f10e115]:
+                - text: 283.73亿
+                - generic [ref=f10e116]: ↗
+            - generic [ref=f10e117] [cursor=pointer]:
+              - link "现金增额资产比" [ref=f10e118]:
+                - /url: /stock/sh600549/ciaar
+              - generic [ref=f10e119]: 2.47%
+          - generic [ref=f10e120]:
+            - generic [ref=f10e121]: 运营
+            - generic [ref=f10e122] [cursor=pointer]:
+              - link "总资产周转率" [ref=f10e123]:
+                - /url: /stock/sh600549/taTurnover
+              - generic [ref=f10e124]: 0.98次
+            - generic [ref=f10e125] [cursor=pointer]:
+              - link "应收账款周转率" [ref=f10e126]:
+                - /url: /stock/sh600549/ARTurnover
+              - generic [ref=f10e127]: 8.27次
+            - generic [ref=f10e128] [cursor=pointer]:
+              - link "应收款项周转率" [ref=f10e129]:
+                - /url: /stock/sh600549/RETurnover
+              - generic [ref=f10e130]: 7.92次
+            - generic [ref=f10e131] [cursor=pointer]:
+              - link "流动资产周转率" [ref=f10e132]:
+                - /url: /stock/sh600549/caTurnover
+              - generic [ref=f10e133]: 1.68次
+            - generic [ref=f10e134] [cursor=pointer]:
+              - link "固定资产周转率" [ref=f10e135]:
+                - /url: /stock/sh600549/faTurnover
+              - generic [ref=f10e136]: 4.12次
+            - generic [ref=f10e137] [cursor=pointer]:
+              - link "净资产现金回收率" [ref=f10e138]:
+                - /url: /stock/sh600549/nacrr
+              - generic [ref=f10e139]: 2.93次
+            - generic [ref=f10e140] [cursor=pointer]:
+              - link "存货周转率" [ref=f10e141]:
+                - /url: /stock/sh600549/invenTurnover
+              - generic [ref=f10e142]: 3.02次
+            - generic [ref=f10e143] [cursor=pointer]:
+              - link "存货资产比" [ref=f10e144]:
+                - /url: /stock/sh600549/invar
+              - generic [ref=f10e145]: 30.86%
+            - generic [ref=f10e146] [cursor=pointer]:
+              - link "营运资金周转率" [ref=f10e147]:
+                - /url: /stock/sh600549/wcTurnover
+              - generic [ref=f10e148]: 6.37%
+          - generic [ref=f10e149]:
+            - generic [ref=f10e150]: 风控
+            - generic [ref=f10e151] [cursor=pointer]:
+              - link "总资产负债率" [ref=f10e152]:
+                - /url: /stock/sh600549/assetLiabRatio
+              - generic [ref=f10e153]: 55.62%
+            - generic [ref=f10e154] [cursor=pointer]:
+              - link "有息负债比率" [ref=f10e155]:
+                - /url: /stock/sh600549/idTa
+              - generic [ref=f10e156]: 23.93%
+            - generic [ref=f10e157] [cursor=pointer]:
+              - link "现金流动负债比率" [ref=f10e158]:
+                - /url: /stock/sh600549/cashCL
+              - generic [ref=f10e159]: 20.35%
+            - generic [ref=f10e160] [cursor=pointer]:
+              - link "流动比率" [ref=f10e161]:
+                - /url: /stock/sh600549/currenTRatio
+              - generic [ref=f10e162]: 126.71%
+            - generic [ref=f10e163] [cursor=pointer]:
+              - link "速动比率" [ref=f10e164]:
+                - /url: /stock/sh600549/quickRatio
+              - generic [ref=f10e165]: 54.8%
+            - generic [ref=f10e166] [cursor=pointer]:
+              - link "利息保障倍数" [ref=f10e167]:
+                - /url: /stock/sh600549/timesInteEBIT
+              - generic [ref=f10e168]: 23.54倍
+            - generic [ref=f10e169] [cursor=pointer]:
+              - link "现金流量利息保障倍数" [ref=f10e170]:
+                - /url: /stock/sh600549/timesInteCF
+              - generic [ref=f10e171]: "-34.44倍"
+            - generic [ref=f10e172] [cursor=pointer]:
+              - link "经营现金流量债务比" [ref=f10e173]:
+                - /url: /stock/sh600549/nCFOpaLiab
+              - generic [ref=f10e174]: 3.3%
+            - generic [ref=f10e175] [cursor=pointer]:
+              - link "虚资财产比" [ref=f10e176]:
+                - /url: /stock/sh600549/fpar
+              - generic [ref=f10e177]: 3.14%
+          - generic [ref=f10e178]:
+            - generic [ref=f10e179]: 原始报表
+            - link "资产负债表" [ref=f10e181] [cursor=pointer]:
+              - /url: /stock/sh600549/ZCFZB
+            - link "利润表" [ref=f10e183] [cursor=pointer]:
+              - /url: /stock/sh600549/LRB
+            - link "现金流量表" [ref=f10e185] [cursor=pointer]:
+              - /url: /stock/sh600549/XJLLB
+    - main [ref=f10e186]:
+      - heading "厦门钨业市盈率(PE)" [level=1] [ref=f10e187]
+      - generic [ref=f10e188]:
+        - generic [ref=f10e189]:
+          - generic [ref=f10e190]:
+            - generic [ref=f10e191]:
+              - generic [ref=f10e192]: 当前值
+              - generic [ref=f10e195]: "28.18"
+              - generic [ref=f10e196]: 日期 · 2026-08-19
+            - generic [ref=f10e197]:
+              - generic [ref=f10e198]: 分位点
+              - generic [ref=f10e205]: 百分位：77%
+            - generic [ref=f10e206]:
+              - generic [ref=f10e207]: 中位值
+              - generic [ref=f10e210]: "18.8"
+              - generic [ref=f10e211]: 中位值 · 波动性 40.87
+            - generic [ref=f10e212]:
+              - generic [ref=f10e213]: 机会值
+              - generic [ref=f10e216]: "16.44"
+              - generic [ref=f10e217]: 机会值 · 低于历史20%
+            - generic [ref=f10e218]:
+              - generic [ref=f10e219]: 危险值
+              - generic [ref=f10e222]: "29.58"
+              - generic [ref=f10e223]: 危险值 · 高于历史80%
+            - generic [ref=f10e224]:
+              - generic [ref=f10e225]: 最大值
+              - generic [ref=f10e228]: "59.33"
+              - generic [ref=f10e229]: 日期 · 2026-03-04
+            - generic [ref=f10e230]:
+              - generic [ref=f10e231]: 最小值
+              - generic [ref=f10e234]: "12.66"
+              - generic [ref=f10e235]: 日期 · 2024-08-23
+          - generic [ref=f10e237]:
+            - button "PE 方便算" [ref=f10e239] [cursor=pointer]
+            - generic [ref=f10e241]:
+              - button "3年" [ref=f10e242] [cursor=pointer]
+              - button "5年" [ref=f10e244] [cursor=pointer]
+              - button "10年" [ref=f10e246] [cursor=pointer]
+              - button "ALL" [ref=f10e248] [cursor=pointer]
+        - generic [ref=f10e253]:
+          - heading "市盈率(PE)" [level=2] [ref=f10e254]
+          - paragraph [ref=f10e255]: 市盈率（PE-TTM）使用TTM算法。市盈率 = 总市值 / 归属于母公司所有者的净利润（TTM）。 市盈率是一个重要财务指标，亦称本益比，是最常用来评估股价水平是否合理的指标之一。 一般认为市盈率越高，股价越被高估。
+      - generic [ref=f10e256]: © Leetab 小乐财报 皖ICP备12017932号-2 本站数据均来自互联网,仅供参考之用,不构成投资建议,不得据此投资。
+  - generic [ref=f10e258]:
+    - button "关闭" [ref=f10e259] [cursor=pointer]
+    - heading "全新版本已上线" [level=2] [ref=f10e268]
+    - paragraph [ref=f10e269]: 我们对网站进行了全面升级，带来更流畅的体验和更强大的功能。 立即前往体验，探索全新站点！
+    - button "立即体验新版" [ref=f10e270] [cursor=pointer]

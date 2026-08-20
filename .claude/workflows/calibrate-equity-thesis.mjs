@@ -21,15 +21,20 @@ const DOCS = [
   { code: '乐鑫', file: '9月-乐鑫科技-汤智尧.pdf', pages: 13 },
 ]
 
+// 仓库根：可由 args.root 覆盖，以便在不同 worktree 跑同一个 workflow。
+// 不传则沿用原路径，既有调用方式不受影响。
+const ROOT = args?.root ?? '/home/hongshi/projects/sda-dev'
+const SKILL = `${ROOT}/.claude/skills`
+
 const SKILL_FILES = [
-  '/home/hongshi/projects/sda-dev/.claude/skills/equity-thesis-cn/SKILL.md',
-  '/home/hongshi/projects/sda-dev/.claude/skills/equity-thesis-cn/framework.md',
-  '/home/hongshi/projects/sda-dev/.claude/skills/equity-thesis-cn/lenses/产业.md',
-  '/home/hongshi/projects/sda-dev/.claude/skills/equity-thesis-cn/lenses/竞争.md',
-  '/home/hongshi/projects/sda-dev/.claude/skills/equity-thesis-cn/lenses/战略驱动.md',
-  '/home/hongshi/projects/sda-dev/.claude/skills/equity-thesis-cn/lenses/尽调.md',
-  '/home/hongshi/projects/sda-dev/.claude/skills/equity-thesis-cn/lenses/核查.md',
-  '/home/hongshi/projects/sda-dev/.claude/skills/financial-redflags-cn/SKILL.md',
+  `${SKILL}/equity-thesis-cn/SKILL.md`,
+  `${SKILL}/equity-thesis-cn/framework.md`,
+  `${SKILL}/equity-thesis-cn/lenses/产业.md`,
+  `${SKILL}/equity-thesis-cn/lenses/竞争.md`,
+  `${SKILL}/equity-thesis-cn/lenses/战略驱动.md`,
+  `${SKILL}/equity-thesis-cn/lenses/尽调.md`,
+  `${SKILL}/equity-thesis-cn/lenses/核查.md`,
+  `${SKILL}/financial-redflags-cn/SKILL.md`,
 ]
 
 // 中性输出目录：不含被审计 skill 的名字，避免路径本身泄露审计对象

@@ -1,0 +1,804 @@
+- generic [ref=f5e3]:
+  - banner [ref=f5e4]:
+    - generic [ref=f5e6]:
+      - link [ref=f5e7] [cursor=pointer]:
+        - /url: /
+        - img "价值大师网GuruFocus提供巴菲特价值投资策略，全能筛选器，公司质量评级等选股利器，使您减少投资错误，提高回报。" [ref=f5e8]
+      - generic [ref=f5e12]:
+        - combobox [ref=f5e15]
+        - generic [ref=f5e16]: search
+      - link "首页" [ref=f5e19] [cursor=pointer]:
+        - /url: /
+      - generic [ref=f5e21] [cursor=pointer]:
+        - link "选股利器" [ref=f5e22]:
+          - /url: /screener/table
+        - generic [ref=f5e23]: arrow_drop_down
+      - generic [ref=f5e25] [cursor=pointer]:
+        - link "大师仓位" [ref=f5e26]:
+          - /url: /guru
+        - generic [ref=f5e27]: arrow_drop_down
+      - generic [ref=f5e29] [cursor=pointer]:
+        - link "内部交易" [ref=f5e30]:
+          - /url: /insider/summary
+        - generic [ref=f5e31]: arrow_drop_down
+      - generic [ref=f5e33] [cursor=pointer]:
+        - link "市场分析" [ref=f5e34]:
+          - /url: /indicator/global_market_valuation/all
+        - generic [ref=f5e35]: arrow_drop_down
+      - generic [ref=f5e37] [cursor=pointer]:
+        - link "大师讲堂" [ref=f5e38]:
+          - /url: /video/gallery/interview
+        - generic [ref=f5e39]: arrow_drop_down
+      - generic [ref=f5e41] [cursor=pointer]:
+        - link "价投社区" [ref=f5e42]:
+          - /url: /article/list
+        - generic [ref=f5e43]: arrow_drop_down
+      - generic [ref=f5e45] [cursor=pointer]:
+        - link "帮助" [ref=f5e46]:
+          - /url: /tutorial
+        - generic [ref=f5e47]: arrow_drop_down
+      - generic: notifications
+      - generic: 1 card_giftcard
+      - link "免费试用" [ref=f5e50] [cursor=pointer]:
+        - /url: /membership/plan
+      - link "登录/注册" [ref=f5e53] [cursor=pointer]:
+        - /url: /login
+  - main [ref=f5e55]:
+    - generic [ref=f5e56]:
+      - generic [ref=f5e58]:
+        - link "价值大师" [ref=f5e60] [cursor=pointer]:
+          - /url: /
+        - generic [ref=f5e61]: /
+        - link "股票列表" [ref=f5e63] [cursor=pointer]:
+          - /url: /stocks?page=1
+        - generic [ref=f5e64]: /
+        - link "中国大陆" [ref=f5e66] [cursor=pointer]:
+          - /url: /stocks/region/CHN?page=1
+        - generic [ref=f5e67]: /
+        - link "SZSE" [ref=f5e69] [cursor=pointer]:
+          - /url: /stocks/exchange/SZSE?page=1
+        - generic [ref=f5e70]: /
+        - link "中钨高新(SZSE:000657)" [ref=f5e72] [cursor=pointer]:
+          - /url: /stock/SZSE:000657/summary
+        - generic [ref=f5e73]: /
+        - generic [ref=f5e74]: 参数详解
+      - generic [ref=f5e76]:
+        - generic [ref=f5e77]:
+          - generic [ref=f5e83]:
+            - heading "中钨高新 (SZSE:000657)" [level=1] [ref=f5e85]:
+              - generic [ref=f5e86]: 中钨高新
+              - generic [ref=f5e87]: (SZSE:000657)
+            - generic [ref=f5e88]:
+              - text: ¥64.33
+              - generic [ref=f5e89]: ▼-1.83( -2.77%)
+          - generic [ref=f5e91]:
+            - generic [ref=f5e92]:
+              - generic [ref=f5e93]: "13.7"
+              - generic [ref=f5e94]: 市净率
+            - generic [ref=f5e95]:
+              - generic [ref=f5e96]: "76.5"
+              - generic [ref=f5e97]: 市盈率
+            - generic [ref=f5e98]:
+              - generic [ref=f5e99]: "0.33"
+              - generic [ref=f5e100]: 股息率 ％
+            - generic [ref=f5e101]:
+              - generic [ref=f5e102]: ¥1,465亿
+              - generic [ref=f5e105]:
+                - text: 总市值
+                - generic [ref=f5e106]: help
+          - generic [ref=f5e109]:
+            - generic [ref=f5e113] [cursor=pointer]:
+              - text: 股价被严重高估
+              - generic [ref=f5e114]: help
+            - link "检测到1个危险信号, 点击订阅查看详情" [ref=f5e115] [cursor=pointer]:
+              - /url: /membership/plan
+              - generic [ref=f5e117]:
+                - text: 检测到1个危险信号,
+                - generic [ref=f5e118]: 点击订阅查看详情
+        - generic [ref=f5e119]: "价值大师评分 : 67 /100"
+        - generic [ref=f5e127]:
+          - generic [ref=f5e128]:
+            - generic [ref=f5e129] [cursor=pointer]: 1月
+            - generic [ref=f5e130] [cursor=pointer]: 3月
+            - generic [ref=f5e131] [cursor=pointer]: 6月
+            - generic [ref=f5e132] [cursor=pointer]: 今年
+            - generic [ref=f5e133] [cursor=pointer]: 1年
+            - generic [ref=f5e134] [cursor=pointer]: 3年
+            - generic [ref=f5e135] [cursor=pointer]: 5年
+            - generic [ref=f5e136] [cursor=pointer]: 10年
+            - generic [ref=f5e137] [cursor=pointer]: 15年
+            - generic [ref=f5e138] [cursor=pointer]: 全部
+          - generic [ref=f5e140]: 3年:+578.59%
+    - tablist [ref=f5e148]:
+      - generic [ref=f5e149]:
+        - tab "基本面概览" [ref=f5e150] [cursor=pointer]
+        - tab "大师交易" [ref=f5e154] [cursor=pointer]
+        - tab "内部交易" [ref=f5e158] [cursor=pointer]
+        - tab "30年财报" [ref=f5e162] [cursor=pointer]
+        - tab "股票报告" [ref=f5e166] [cursor=pointer]
+        - tab "互动图" [ref=f5e170] [cursor=pointer]
+        - tab "股东研究" [ref=f5e174] [cursor=pointer]
+        - tab "DCF计算器" [ref=f5e178] [cursor=pointer]
+        - tab "参数详解" [selected] [ref=f5e182] [cursor=pointer]
+        - tab "杜邦分析" [ref=f5e186] [cursor=pointer]
+        - tab "讨论" [ref=f5e190] [cursor=pointer]
+      - generic [ref=f5e194] [cursor=pointer]: chevron_left
+      - generic [ref=f5e195] [cursor=pointer]: chevron_right
+    - generic [ref=f5e197]:
+      - generic [ref=f5e198]:
+        - textbox [ref=f5e203]:
+          - /placeholder: 搜索
+        - generic [ref=f5e205]:
+          - generic [ref=f5e207] [cursor=pointer]:
+            - generic [ref=f5e208]: play_arrow
+            - generic [ref=f5e209]: 重要指标
+          - generic [ref=f5e212] [cursor=pointer]:
+            - generic [ref=f5e213]: play_arrow
+            - generic [ref=f5e214]: 财务指标
+          - generic [ref=f5e216]:
+            - generic [ref=f5e217] [cursor=pointer]:
+              - generic [ref=f5e218]: play_arrow
+              - generic [ref=f5e219]: 估值指标
+            - generic [ref=f5e222]:
+              - link "市盈率" [ref=f5e226] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/pe_ratio
+              - link "市盈率（TTM）" [ref=f5e230] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/pettm
+              - link "持续经营市盈率" [ref=f5e234] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/penri
+              - link "预估市盈率" [ref=f5e238] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/forwardPE
+              - link "席勒市盈率" [ref=f5e242] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/shiller_pe_ratio
+              - link "市销率" [ref=f5e246] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/ps_ratio
+              - link "Cyclically Adjusted PS Ratio" [ref=f5e250] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/cyclically_adjusted_ps_ratio
+              - link "市净率" [ref=f5e254] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/pb_ratio
+              - link "Cyclically Adjusted PB Ratio" [ref=f5e258] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/cyclically_adjusted_pb_ratio
+              - link "市盈增长比" [ref=f5e262] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/peg_ratio
+              - link "股价／自由现金流" [ref=f5e266] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/price_to_free_cash_flow
+              - link "股价／每股营运现金流（FFO for REITs）" [ref=f5e270] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/price_to_ffo
+              - link "股价／每股有形账面价值" [ref=f5e274] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/price_to_tangible_book
+              - link "企业价值倍数" [ref=f5e278] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/enterprise_value_to_ebitda
+              - link "企业价值／收入" [ref=f5e282] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/enterprise_value_to_revenue
+              - link "企业价值／息税前利润" [ref=f5e286] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/enterprise_value_to_ebit
+              - link "收益率 ％" [ref=f5e290] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/earning_yield
+              - link "乔尔·格林布拉特收益率 ％" [ref=f5e294] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/earning_yield_greenblatt
+              - link "唐纳德·亚克曼收益率 ％" [ref=f5e298] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/rate_of_return_value
+              - link "资产收益率 ROA ％" [ref=f5e302] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/roa
+              - link "有形资产收益率 ％" [ref=f5e306] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/return_on_tangible_asset
+              - link "股本回报率 ROE ％" [ref=f5e310] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/roe
+              - link "有形股本回报率 ％" [ref=f5e314] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/return_on_tangible_equity
+              - link "股本回报率 ROE ％／市净率" [ref=f5e318] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/roe_adj
+              - link "资本回报率 ％" [ref=f5e322] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/roic
+              - link "资本回报率 ROC (ROIC) ％" [ref=f5e326] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/roc
+              - link "乔尔·格林布拉特资本回报率 ％" [ref=f5e330] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/roc_joel
+              - link "加权平均资本成本 WACC ％" [ref=f5e334] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/wacc
+              - link "存货／收入" [ref=f5e338] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/inventory_to_revenue
+              - link "营业成本／收入 ％" [ref=f5e342] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/cost_of_goods_sold_to_revenue
+              - link "存货周转天数" [ref=f5e346] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/days_inventory
+              - link "应付账款周转天数" [ref=f5e350] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/days_payable
+              - link "应收账款周转天数" [ref=f5e354] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/days_sales_outstanding
+              - link "现金循环周期" [ref=f5e358] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/cash_conversion_cycle
+              - link "存货周转率" [ref=f5e362] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/inventory_turnover
+              - link "资产周转率" [ref=f5e366] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/turnover
+              - link "流动比率" [ref=f5e370] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/current_ratio
+              - link "速动比率" [ref=f5e374] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/quick_ratio
+              - link "现金比率" [ref=f5e378] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/cash_ratio
+              - link "利息保障倍数" [ref=f5e382] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/interest_coverage
+              - link "商誉／总资产 ％" [ref=f5e386] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/goodwill_to_asset
+              - link "毛利润／总资产 ％" [ref=f5e390] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/gross_profit_to_asset
+              - link "长期借款和资本化租赁债务／总资产 ％" [ref=f5e394] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/long_term_debt_and_capital_lease_obligation_to_asset
+              - link "斯隆比率 ％" [ref=f5e398] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/sloan_ratio
+              - link "现金负债率" [ref=f5e402] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/cash_to_debt
+              - link "资产有息负债率" [ref=f5e406] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/debt_to_asset
+              - link "资产负债率" [ref=f5e410] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/liabilities_to_assets
+              - link "实际借款利率 ％" [ref=f5e414] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/effective_interest_rate
+              - link "股东权益比率" [ref=f5e418] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/equity_to_asset
+              - link "债务股本比率" [ref=f5e422] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/debt_to_equity
+              - link "债务收入比率" [ref=f5e426] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/debt_to_revenue
+              - link "债务／税息折旧及摊销前利润" [ref=f5e430] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/debt_to_ebitda
+              - link "资本开支／收入" [ref=f5e434] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/capex_to_revenue
+              - link "股票回购率 ％" [ref=f5e438] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/share_buyback_ratio
+              - link "股票回购收益率 ％" [ref=f5e442] [cursor=pointer]:
+                - /url: /stock/SZSE:000657/term/buyback_yield
+          - generic [ref=f5e444] [cursor=pointer]:
+            - generic [ref=f5e445]: play_arrow
+            - generic [ref=f5e446]: 股价指标
+          - generic [ref=f5e449] [cursor=pointer]:
+            - generic [ref=f5e450]: play_arrow
+            - generic [ref=f5e451]: 股利指标
+          - generic [ref=f5e454] [cursor=pointer]:
+            - generic [ref=f5e455]: play_arrow
+            - generic [ref=f5e456]: 利润表
+          - generic [ref=f5e459] [cursor=pointer]:
+            - generic [ref=f5e460]: play_arrow
+            - generic [ref=f5e461]: 资产负债表
+          - generic [ref=f5e464] [cursor=pointer]:
+            - generic [ref=f5e465]: play_arrow
+            - generic [ref=f5e466]: 现金流量表
+      - generic [ref=f5e468]:
+        - generic [ref=f5e469]:
+          - button [ref=f5e470] [cursor=pointer]:
+            - img [ref=f5e473]: menu
+          - tablist [ref=f5e474]:
+            - generic [ref=f5e475]:
+              - tab "简要介绍" [selected] [ref=f5e476] [cursor=pointer]
+              - tab "历史数据" [ref=f5e480] [cursor=pointer]
+              - tab "行业比较" [ref=f5e484] [cursor=pointer]
+              - tab "分布区间" [ref=f5e488] [cursor=pointer]
+              - tab "计算方法" [ref=f5e492] [cursor=pointer]
+              - tab "解释说明" [ref=f5e496] [cursor=pointer]
+              - tab "相关词条" [ref=f5e500] [cursor=pointer]
+            - generic: chevron_left
+            - generic [ref=f5e504] [cursor=pointer]: chevron_right
+        - generic [ref=f5e506]:
+          - heading [level=1] [ref=f5e507]:
+            - strong [ref=f5e508]: 中钨高新
+            - strong [ref=f5e509]: 市销率
+            - text: ": 7.19 (今日)"
+          - generic [ref=f5e510]: "* 除每股数值，比率，百分比，其他数据单位均为百万。数据的货币单位均为当地股票的交易货币单位。"
+          - paragraph [ref=f5e511]:
+            - strong [ref=f5e512]: 中钨高新
+            - strong [ref=f5e513]: 市销率
+            - text: （PS Ratio）的相关内容及计算方法如下：
+          - generic [ref=f5e514]:
+            - strong [ref=f5e515]: 市销率
+            - text: 由 当前股价 除以该公司 最近12个月 的
+            - link "每股收入" [ref=f5e516] [cursor=pointer]:
+              - /url: /stock/SZSE:000657/term/revenue_per_share
+            - text: 而得。截至今日，
+            - strong [ref=f5e517]: 中钨高新
+            - text: 的 当前股价 为 ¥65.87， 最近12个月
+            - link "每股收入" [ref=f5e518] [cursor=pointer]:
+              - /url: /stock/SZSE:000657/term/revenue_per_share
+            - text: 为 ¥ 9.16，所以
+            - strong [ref=f5e519]: 中钨高新
+            - text: 今日的
+            - strong [ref=f5e520]: 市销率
+            - text: 为 7.19。
+          - paragraph [ref=f5e521]:
+            - strong [ref=f5e522]: 中钨高新
+            - strong [ref=f5e523]: 市销率
+            - text: 或其相关指标的历史排名和行业排名结果如下所示：
+          - generic [ref=f5e524]:
+            - generic [ref=f5e526]:
+              - generic [ref=f5e527]: ★ ★ ★ ★ ★
+              - generic [ref=f5e528]:
+                - text: 在过去十年内，
+                - strong [ref=f5e529]: 中钨高新
+                - text: 的
+                - strong [ref=f5e530]: 市销率
+              - generic [ref=f5e531]: 最小值：0.54 中位数：1.1 最大值：10.87
+              - generic [ref=f5e532]: 当前值：7.15
+            - generic [ref=f5e534]:
+              - generic [ref=f5e535]: ★ ★ ★ ★ ★
+              - generic [ref=f5e536]: 在金属与开采内的 478 家公司中
+              - generic [ref=f5e537]:
+                - strong [ref=f5e538]: 中钨高新
+                - text: 的
+                - strong [ref=f5e539]: 市销率
+                - text: 排名低于同行业 74.27% 的公司。
+              - generic [ref=f5e540]: 当前值：7.15 行业中位数：2.84
+          - generic [ref=f5e541]:
+            - text: 截至2026年3月，
+            - strong [ref=f5e542]: 中钨高新
+            - generic [ref=f5e543]: 过去一季度
+            - link "每股收入" [ref=f5e544] [cursor=pointer]:
+              - /url: /stock/SZSE:000657/term/revenue_per_share
+            - text: 为 ¥ 3.04，
+            - strong [ref=f5e545]: 中钨高新
+            - text: 最近12个月
+            - link "每股收入" [ref=f5e546] [cursor=pointer]:
+              - /url: /stock/SZSE:000657/term/revenue_per_share
+            - text: 为 ¥ 9.16。
+          - generic [ref=f5e547]:
+            - strong [ref=f5e548]: 中钨高新
+            - text: 1年每股收入增长率 ％ 为 21.70％。
+            - strong [ref=f5e549]: 中钨高新
+            - text: 3年每股收入增长率 ％ 为 -4.90％。
+            - strong [ref=f5e550]: 中钨高新
+            - text: 5年每股收入增长率 ％ 为 -2.30％。
+            - strong [ref=f5e551]: 中钨高新
+            - text: 10年每股收入增长率 ％ 为 4.70％。
+          - generic [ref=f5e552]:
+            - text: 在过去十年内，
+            - strong [ref=f5e553]: 中钨高新
+            - text: 的 3年每股收入增长率 ％ 最大值为 102.10％, 最小值为 -27.00％, 中位数为 5.40％。
+          - paragraph [ref=f5e554]:
+            - text: 点击上方“历史数据”快速查看
+            - strong [ref=f5e555]: 中钨高新
+            - strong [ref=f5e556]: 市销率
+            - text: 的历史走势； 点击上方“解释说明”快速查看关于
+            - strong [ref=f5e557]: 中钨高新
+            - strong [ref=f5e558]: 市销率
+            - text: 的详细说明; 点击上方“相关词条”快速查看与
+            - strong [ref=f5e559]: 市销率
+            - text: 相关的其他指标。
+          - separator [ref=f5e560]
+          - heading [level=2] [ref=f5e561]:
+            - strong [ref=f5e562]: 中钨高新
+            - strong [ref=f5e563]: 市销率
+            - text: （000657
+            - strong [ref=f5e564]: 市销率
+            - text: ） 历史数据
+          - generic [ref=f5e565]:
+            - strong [ref=f5e566]: 中钨高新
+            - strong [ref=f5e567]: 市销率
+            - text: 的历史年度，季度/半年度走势如下：
+          - generic [ref=f5e568]:
+            - generic [ref=f5e577]:
+              - generic [ref=f5e578]: 市销率 历史数据 (年度)
+              - generic [ref=f5e580]: 市销率 历史数据 (季度)
+            - table [ref=f5e583]:
+              - rowgroup [ref=f5e584]:
+                - row [ref=f5e585]:
+                  - columnheader [ref=f5e586]:
+                    - generic [ref=f5e587]:
+                      - strong [ref=f5e588]: 中钨高新
+                      - strong [ref=f5e589]: 市销率
+                      - text: 年度数据
+                - row [ref=f5e590]:
+                  - columnheader "日期" [ref=f5e591]
+                  - columnheader "2016-12" [ref=f5e592]
+                  - columnheader "2017-12" [ref=f5e593]
+                  - columnheader "2018-12" [ref=f5e594]
+                  - columnheader "2019-12" [ref=f5e595]
+                  - columnheader "2020-12" [ref=f5e596]
+                  - columnheader "2021-12" [ref=f5e597]
+                  - columnheader "2022-12" [ref=f5e598]
+                  - columnheader "2023-12" [ref=f5e599]
+                  - columnheader "2024-12" [ref=f5e600]
+                  - columnheader "2025-12" [ref=f5e601]
+              - rowgroup [ref=f5e602]:
+                - row [ref=f5e603]:
+                  - cell [ref=f5e604]:
+                    - strong [ref=f5e605]: 市销率
+                  - cell "1.76" [ref=f5e606]
+                  - cell "1.16" [ref=f5e607]
+                  - cell "0.57" [ref=f5e608]
+                  - cell "0.69" [ref=f5e609]
+                  - cell "0.70" [ref=f5e610]
+                  - cell "1.46" [ref=f5e611]
+                  - cell "1.31" [ref=f5e612]
+                  - cell "1.27" [ref=f5e613]
+                  - cell "1.29" [ref=f5e614]
+                  - cell "3.47" [ref=f5e615]
+                - row [ref=f5e616]:
+                  - cell [ref=f5e617]
+                  - cell [ref=f5e618]
+                  - cell [ref=f5e619]
+                  - cell [ref=f5e620]
+                  - cell [ref=f5e621]
+                  - cell [ref=f5e622]
+                  - cell [ref=f5e623]
+                  - cell [ref=f5e624]
+                  - cell [ref=f5e625]
+                  - cell [ref=f5e626]
+                  - cell [ref=f5e627]
+            - table [ref=f5e629]:
+              - rowgroup [ref=f5e630]:
+                - row [ref=f5e631]:
+                  - columnheader [ref=f5e632]:
+                    - generic [ref=f5e633]:
+                      - strong [ref=f5e634]: 中钨高新
+                      - strong [ref=f5e635]: 市销率
+                      - text: 季度数据
+                - row [ref=f5e636]:
+                  - columnheader "日期" [ref=f5e637]
+                  - columnheader "2023-12" [ref=f5e638]
+                  - columnheader "2024-03" [ref=f5e639]
+                  - columnheader "2024-06" [ref=f5e640]
+                  - columnheader "2024-09" [ref=f5e641]
+                  - columnheader "2024-12" [ref=f5e642]
+                  - columnheader "2025-03" [ref=f5e643]
+                  - columnheader "2025-06" [ref=f5e644]
+                  - columnheader "2025-09" [ref=f5e645]
+                  - columnheader "2025-12" [ref=f5e646]
+                  - columnheader "2026-03" [ref=f5e647]
+              - rowgroup [ref=f5e648]:
+                - row [ref=f5e649]:
+                  - cell [ref=f5e650]:
+                    - strong [ref=f5e651]: 市销率
+                  - cell "1.27" [ref=f5e652]
+                  - cell "1.25" [ref=f5e653]
+                  - cell "1.16" [ref=f5e654]
+                  - cell "1.31" [ref=f5e655]
+                  - cell "1.29" [ref=f5e656]
+                  - cell "1.32" [ref=f5e657]
+                  - cell "1.66" [ref=f5e658]
+                  - cell "2.49" [ref=f5e659]
+                  - cell "3.47" [ref=f5e660]
+                  - cell "5.21" [ref=f5e661]
+          - generic [ref=f5e662]: "* 除每股数值，比率，百分比，其他数据单位均为百万。数据的货币单位均为当地股票的交易货币单位。"
+          - separator [ref=f5e663]
+          - heading [level=2] [ref=f5e664]:
+            - strong [ref=f5e665]: 中钨高新
+            - strong [ref=f5e666]: 市销率
+            - text: （000657
+            - strong [ref=f5e667]: 市销率
+            - text: ） 行业比较
+          - generic [ref=f5e668]:
+            - text: 在
+            - generic [ref=f5e669]: 其他工业金属与开采
+            - text: （三级行业）中，
+            - strong [ref=f5e670]: 中钨高新
+            - strong [ref=f5e671]: 市销率
+            - text: 与其他类似公司的比较如下：
+          - generic [ref=f5e672]:
+            - text: "* 选自同一行业，市值最接近的公司；x轴代表市值，y轴代表"
+            - strong [ref=f5e673]: 市销率
+            - text: 数值；点越大，公司市值越大。
+          - table [ref=f5e692]:
+            - rowgroup [ref=f5e693]:
+              - row [ref=f5e694]:
+                - columnheader "公司" [ref=f5e695]
+                - columnheader "股票符号" [ref=f5e699]
+                - columnheader "总市值（¥）" [ref=f5e703]
+                - columnheader "市销率" [ref=f5e707]
+              - row:
+                - columnheader
+            - rowgroup [ref=f5e711]:
+              - row [ref=f5e712]:
+                - cell [ref=f5e713]:
+                  - link "珍酒李渡" [ref=f5e714] [cursor=pointer]:
+                    - /url: /stock/HKSE:06979/summary
+                - cell [ref=f5e715]:
+                  - link "HK:06979" [ref=f5e718] [cursor=pointer]:
+                    - /url: /stock/HKSE:06979/summary
+                - cell "231.88亿" [ref=f5e719]
+                - cell "6.63" [ref=f5e721]
+              - row [ref=f5e723]:
+                - cell [ref=f5e724]:
+                  - link "五粮液" [ref=f5e725] [cursor=pointer]:
+                    - /url: /stock/SZSE:000858/summary
+                - cell [ref=f5e726]:
+                  - link "000858" [ref=f5e729] [cursor=pointer]:
+                    - /url: /stock/SZSE:000858/summary
+                - cell "2,815.80亿" [ref=f5e730]
+                - cell "6.05" [ref=f5e732]
+              - row [ref=f5e734]:
+                - cell [ref=f5e735]:
+                  - link "山西汾酒" [ref=f5e736] [cursor=pointer]:
+                    - /url: /stock/SHSE:600809/summary
+                - cell [ref=f5e737]:
+                  - link "600809" [ref=f5e740] [cursor=pointer]:
+                    - /url: /stock/SHSE:600809/summary
+                - cell "1,455.53亿" [ref=f5e741]
+                - cell "3.90" [ref=f5e743]
+              - row [ref=f5e745]:
+                - cell [ref=f5e746]:
+                  - link "泸州老窖" [ref=f5e747] [cursor=pointer]:
+                    - /url: /stock/SZSE:000568/summary
+                - cell [ref=f5e748]:
+                  - link "000568" [ref=f5e751] [cursor=pointer]:
+                    - /url: /stock/SZSE:000568/summary
+                - cell "1,276.41亿" [ref=f5e752]
+                - cell "5.19" [ref=f5e754]
+              - row [ref=f5e756]:
+                - cell [ref=f5e757]:
+                  - link "洋河股份" [ref=f5e758] [cursor=pointer]:
+                    - /url: /stock/SZSE:002304/summary
+                - cell [ref=f5e759]:
+                  - link "002304" [ref=f5e762] [cursor=pointer]:
+                    - /url: /stock/SZSE:002304/summary
+                - cell "598.20亿" [ref=f5e763]
+                - cell "3.61" [ref=f5e765]
+              - row [ref=f5e767]:
+                - cell [ref=f5e768]:
+                  - link "今世缘" [ref=f5e769] [cursor=pointer]:
+                    - /url: /stock/SHSE:603369/summary
+                - cell [ref=f5e770]:
+                  - link "603369" [ref=f5e773] [cursor=pointer]:
+                    - /url: /stock/SHSE:603369/summary
+                - cell "360.78亿" [ref=f5e774]
+                - cell "3.71" [ref=f5e776]
+              - row [ref=f5e778]:
+                - cell [ref=f5e779]:
+                  - link "古井贡酒" [ref=f5e780] [cursor=pointer]:
+                    - /url: /stock/SZSE:000596/summary
+                - cell [ref=f5e781]:
+                  - link "000596" [ref=f5e784] [cursor=pointer]:
+                    - /url: /stock/SZSE:000596/summary
+                - cell "441.46亿" [ref=f5e785]
+                - cell "2.88" [ref=f5e787]
+              - row [ref=f5e789]:
+                - cell [ref=f5e790]:
+                  - link "Brown-Forman Corp" [ref=f5e791] [cursor=pointer]:
+                    - /url: /stock/BF.B/summary
+                - cell [ref=f5e792]:
+                  - link "BF.B" [ref=f5e795] [cursor=pointer]:
+                    - /url: /stock/BF.B/summary
+                - cell "892.71亿" [ref=f5e796]
+                - cell "3.43" [ref=f5e798]
+              - row [ref=f5e800]:
+                - cell [ref=f5e801]:
+                  - link "迎驾贡酒" [ref=f5e802] [cursor=pointer]:
+                    - /url: /stock/SHSE:603198/summary
+                - cell [ref=f5e803]:
+                  - link "603198" [ref=f5e806] [cursor=pointer]:
+                    - /url: /stock/SHSE:603198/summary
+                - cell "322.02亿" [ref=f5e807]
+                - cell "5.19" [ref=f5e809]
+              - row [ref=f5e811]:
+                - cell [ref=f5e812]:
+                  - link "百润股份" [ref=f5e813] [cursor=pointer]:
+                    - /url: /stock/SZSE:002568/summary
+                - cell [ref=f5e814]:
+                  - link "002568" [ref=f5e817] [cursor=pointer]:
+                    - /url: /stock/SZSE:002568/summary
+                - cell "194.12亿" [ref=f5e818]
+                - cell "6.32" [ref=f5e820]
+              - row [ref=f5e822]:
+                - cell [ref=f5e823]:
+                  - link "贵州茅台" [ref=f5e824] [cursor=pointer]:
+                    - /url: /stock/SHSE:600519/summary
+                - cell [ref=f5e825]:
+                  - link "600519" [ref=f5e828] [cursor=pointer]:
+                    - /url: /stock/SHSE:600519/summary
+                - cell "16,261.21亿" [ref=f5e829]
+                - cell "9.34" [ref=f5e831]
+          - separator [ref=f5e833]
+          - heading [level=2] [ref=f5e834]:
+            - strong [ref=f5e835]: 中钨高新
+            - strong [ref=f5e836]: 市销率
+            - text: （000657
+            - strong [ref=f5e837]: 市销率
+            - text: ） 分布区间
+          - generic [ref=f5e838]:
+            - text: 在
+            - generic [ref=f5e839]: 金属与开采
+            - text: （二级行业）和
+            - generic [ref=f5e840]: 基础材料
+            - text: （一级行业）中，
+            - strong [ref=f5e841]: 中钨高新
+            - strong [ref=f5e842]: 市销率
+            - text: 的分布区间如下：
+          - generic [ref=f5e843]:
+            - text: "* x轴代表"
+            - strong [ref=f5e844]: 市销率
+            - text: 数值，y轴代表落入该
+            - strong [ref=f5e845]: 市销率
+            - text: 区间的公司数量；红色柱状图代表
+            - strong [ref=f5e846]: 中钨高新
+            - text: 的市销率所在的区间。
+          - separator [ref=f5e856]
+          - heading [level=2] [ref=f5e857]:
+            - strong [ref=f5e858]: 中钨高新
+            - strong [ref=f5e859]: 市销率
+            - text: （000657
+            - strong [ref=f5e860]: 市销率
+            - text: ） 计算方法
+          - generic [ref=f5e861]:
+            - strong [ref=f5e862]: 市销率
+            - text: 是由当前股价除以最近12个月的
+            - link "每股收入" [ref=f5e863] [cursor=pointer]:
+              - /url: /stock/SZSE:000657/term/revenue_per_share
+            - text: 而得。
+          - generic [ref=f5e864]:
+            - text: 截至
+            - generic [ref=f5e865]: 今日
+            - text: ，
+            - strong [ref=f5e866]: 中钨高新
+            - text: 的
+            - strong [ref=f5e867]: 市销率
+            - text: 为：
+          - table [ref=f5e869]:
+            - rowgroup [ref=f5e870]:
+              - row [ref=f5e871]:
+                - cell [ref=f5e872]:
+                  - strong [ref=f5e873]: 市销率
+                - cell "=" [ref=f5e874]
+                - cell "今日 当前股价" [ref=f5e875]
+                - cell / [ref=f5e876]
+                - cell [ref=f5e877]:
+                  - text: 最近12个月
+                  - link "每股收入" [ref=f5e878] [cursor=pointer]:
+                    - /url: /stock/SZSE:000657/term/revenue_per_share
+              - row [ref=f5e879]:
+                - cell [ref=f5e880]
+                - cell "=" [ref=f5e881]
+                - cell "¥65.87" [ref=f5e882]
+                - cell / [ref=f5e883]
+                - cell "9.16" [ref=f5e884]
+              - row [ref=f5e885]:
+                - cell [ref=f5e886]
+                - cell "=" [ref=f5e887]
+                - cell "7.19" [ref=f5e888]
+                - cell [ref=f5e889]
+                - cell [ref=f5e890]
+          - generic [ref=f5e891]: "* 除每股数值，比率，百分比，其他数据单位均为百万。数据的货币单位均为当地股票的交易货币单位。"
+          - separator [ref=f5e892]
+          - heading [level=2] [ref=f5e893]:
+            - strong [ref=f5e894]: 中钨高新
+            - strong [ref=f5e895]: 市销率
+            - text: （000657
+            - strong [ref=f5e896]: 市销率
+            - text: ） 解释说明
+          - generic [ref=f5e897]:
+            - text: 如果要将股票与其历史估值或同一行业的股票进行比较，
+            - strong [ref=f5e898]: 市销率
+            - text: 是一个很好的估值指标。
+            - strong [ref=f5e899]: 市销率
+            - text: 在比较股票的当前估值和历史估值时表现最佳。相对于
+            - link "市盈率（TTM）" [ref=f5e900] [cursor=pointer]:
+              - /url: /stock/SZSE:000657/term/pettm
+            - text: ，
+            - strong [ref=f5e901]: 市销率
+            - text: 是衡量周期性企业的绝佳评估工具。因为随着时间的流逝，公司的利润率往往会回归均值。
+          - generic [ref=f5e902]:
+            - text: 就股票市场整体而言，
+            - strong [ref=f5e903]: 市销率
+            - text: 可以用于衡量当前市场估值和市场预期收益。此时，价格是市场上交易的所有股票的总市值，而销售额是该国的GDP。这也是沃伦·巴菲特（Warren Buffett）估算整体市场估值和预测未来收益的方法。
+          - generic [ref=f5e904]:
+            - text: 类似于
+            - strong [ref=f5e905]: 市销率
+            - text: ，
+            - link "股价／每股经营现金流" [ref=f5e906] [cursor=pointer]:
+              - /url: /stock/SZSE:000657/term/pocf
+            - text: 或
+            - link "股价／自由现金流" [ref=f5e907] [cursor=pointer]:
+              - /url: /stock/SZSE:000657/term/pfcf
+            - text: ，
+            - link "市盈率（TTM）" [ref=f5e908] [cursor=pointer]:
+              - /url: /stock/SZSE:000657/term/pettm
+            - text: 根据公司的盈利能力来衡量估值。这与
+            - link "市净率" [ref=f5e909] [cursor=pointer]:
+              - /url: /stock/SZSE:000657/term/pb
+            - text: 不同，后者根据公司的资产负债表衡量估值。
+          - separator [ref=f5e910]
+          - heading [level=2] [ref=f5e911]:
+            - strong [ref=f5e912]: 中钨高新
+            - strong [ref=f5e913]: 市销率
+            - text: （000657
+            - strong [ref=f5e914]: 市销率
+            - text: ） 注意事项
+          - generic [ref=f5e915]:
+            - strong [ref=f5e916]: 市销率
+            - text: 不能判断股票贵贱与否。它不能用于比较不同行业的公司。
+          - generic [ref=f5e917]:
+            - strong [ref=f5e918]: 市销率
+            - text: 对同一行业内的公司比较更有效，因为这些公司往往具有相似的资本结构和利润率。在将公司自身与其过去进行比较时，
+            - strong [ref=f5e919]: 市销率
+            - text: 的表现最好。
+          - separator [ref=f5e920]
+          - heading [level=2] [ref=f5e921]:
+            - strong [ref=f5e922]: 中钨高新
+            - strong [ref=f5e923]: 市销率
+            - text: （000657
+            - strong [ref=f5e924]: 市销率
+            - text: ） 相关词条
+          - paragraph [ref=f5e925]:
+            - text: 感谢查看价值大师中文站为您提供的
+            - strong [ref=f5e926]: 中钨高新
+            - strong [ref=f5e927]: 市销率
+            - text: 的详细介绍，请点击以下链接查看与
+            - strong [ref=f5e928]: 中钨高新
+            - strong [ref=f5e929]: 市销率
+            - text: 相关的其他词条：
+          - link "每股收入" [ref=f5e932] [cursor=pointer]:
+            - /url: /stock/SZSE:000657/term/revenue_per_share
+          - link "市盈率（TTM）" [ref=f5e935] [cursor=pointer]:
+            - /url: /stock/SZSE:000657/term/pettm
+          - link "扣非市盈率" [ref=f5e938] [cursor=pointer]:
+            - /url: /stock/SZSE:000657/term/penri
+          - link "市净率" [ref=f5e941] [cursor=pointer]:
+            - /url: /stock/SZSE:000657/term/pb
+          - link "市盈增长比" [ref=f5e944] [cursor=pointer]:
+            - /url: /stock/SZSE:000657/term/peg
+          - link "席勒市盈率" [ref=f5e947] [cursor=pointer]:
+            - /url: /stock/SZSE:000657/term/ShillerPE
+          - link "股价／每股经营现金流" [ref=f5e950] [cursor=pointer]:
+            - /url: /stock/SZSE:000657/term/pocf
+          - link "股价／自由现金流" [ref=f5e953] [cursor=pointer]:
+            - /url: /stock/SZSE:000657/term/pfcf
+          - separator [ref=f5e954]
+          - heading [level=2] [ref=f5e955]:
+            - strong [ref=f5e956]: 中钨高新
+            - text: （000657） 公司简介
+          - generic [ref=f5e957]: 一级行业：基础材料 二级行业：金属与开采 公司网站：www.minmetalstungsten.com 公司地址：湖南省株洲市荷塘区钻石路288号钻石大厦10-12楼 公司简介：公司是在深圳证券交易所上市的高技术制造企业，是世界500强企业中国五矿集团有限公司旗下专业发展钨产业的企业。公司前身为海南金海股份有限公司，1996年12月在深圳证券交易所挂牌上市，2000年6月更名为中钨高新材料股份有限公司。公司从事的主要业务包括硬质合金和钨、钼、钽、铌等有色金属及其深加工产品和装备的研制、开发、生产、销售及贸易业务等。公司是中国五矿钨产业的运营管理平台，管理运营着集矿山、冶炼、加工、贸易于一体的完整钨产业链。公司产品广泛应用于汽车制造、航空航天、轨道交通、船舶、海洋工程装备、军工、矿山开采、掘进、机械模具加工、集成电路、钢铁冶金、半导体等制造加工领域。公司确立了“矿山是保障，冶炼是基础，合金是方向”的战略定位，全体中钨人将牢记“中国制造用中钨工具，世界制造有中国工具”的战略使命，秉承“诚信、专业、创新、高效”的共同价值观，发扬“千提百炼，其利断金”的企业精神，为建设具有全球竞争力的世界一流钨产业集团而不懈奋斗！
+        - text: menu chevron_left chevron_right
+    - generic: chevron_left chevron_right
+  - contentinfo [ref=f5e959]:
+    - generic [ref=f5e962]:
+      - generic [ref=f5e963]:
+        - generic [ref=f5e964]:
+          - generic [ref=f5e965]:
+            - img "价值大师网GuruFocus提供巴菲特价值投资策略，全能筛选器，公司质量评级等选股利器，使您减少投资错误，提高回报。" [ref=f5e966]
+            - generic [ref=f5e967]: 价值大师
+          - generic [ref=f5e968]: 投资证券市场有风险，一切后果由用户自负。过往投资的表现是未来表现的不良指标。本网站及其相关新闻通讯中的信息无意构成或也不构成投资建议或指导。本网站上的信息概不保证其完整性，准确性。
+        - generic [ref=f5e970]:
+          - generic [ref=f5e971]:
+            - button [ref=f5e972] [cursor=pointer]:
+              - link "使用条款" [ref=f5e975]:
+                - /url: /term_of_use
+            - button [ref=f5e976] [cursor=pointer]:
+              - link "隐私权声明" [ref=f5e979]:
+                - /url: /privacy_policy
+            - button [ref=f5e980] [cursor=pointer]:
+              - link "常见问题" [ref=f5e983]:
+                - /url: /qa
+            - button [ref=f5e984] [cursor=pointer]:
+              - link "网站导航" [ref=f5e987]:
+                - /url: /site_map
+            - button [ref=f5e988] [cursor=pointer]:
+              - link "免责声明" [ref=f5e991]:
+                - /url: /disclaimer
+            - button [ref=f5e992] [cursor=pointer]:
+              - link "关于我们" [ref=f5e995]:
+                - /url: /about_us
+            - button [ref=f5e996] [cursor=pointer]:
+              - link "联系我们" [ref=f5e999]:
+                - /url: /contact_us
+            - button [ref=f5e1000] [cursor=pointer]:
+              - link "English" [ref=f5e1003]:
+                - /url: https://www.gurufocus.com
+            - button [ref=f5e1004] [cursor=pointer]:
+              - link "Tushare" [ref=f5e1007]:
+                - /url: https://tushare.pro/
+            - button [ref=f5e1008] [cursor=pointer]:
+              - link "ADV Part 2A" [ref=f5e1011]:
+                - /url: https://gurufocusinvestments.com/GuruFocusADVPart2A.pdf
+            - button [ref=f5e1012] [cursor=pointer]:
+              - link "ADV Part 2B" [ref=f5e1015]:
+                - /url: https://gurufocusinvestments.com/GuruFocusADVPart2B.pdf
+            - button [ref=f5e1016] [cursor=pointer]:
+              - link "ADV Part 3" [ref=f5e1019]:
+                - /url: https://gurufocusinvestments.com/GuruFocusADVPart3.pdf
+          - generic [ref=f5e1020]:
+            - img "价值大师网GuruFocus提供巴菲特价值投资策略，全能筛选器，公司质量评级等选股利器，使您减少投资错误，提高回报。 wechat" [ref=f5e1021]
+            - text: 微信公众号GuruFocus价值大师
+      - separator [ref=f5e1022]
+      - generic [ref=f5e1023]:
+        - generic [ref=f5e1024]: ©2020-2026价值大师
+        - generic [ref=f5e1025]: 用户协议
+        - link "陕ICP备2020016500号-1" [ref=f5e1027] [cursor=pointer]:
+          - /url: https://beian.miit.gov.cn

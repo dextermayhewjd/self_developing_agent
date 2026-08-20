@@ -10,7 +10,13 @@ export const meta = {
   ],
 }
 
-const SKILL = '/home/hongshi/projects/sda-dev/.claude/skills'
+// 仓库根：可由 args.root 覆盖，以便在不同 worktree（如港股分支）跑同一个 workflow。
+// 不传则沿用原路径，既有调用方式不受影响。
+// 为什么不用相对路径：workflow 脚本没有文件系统 API，拿不到 cwd；把裸相对路径写进
+// prompt 就等于赌每个 agent 的 cwd 不漂。而 agent 在流程中会 cd 去读 guide 和 data，
+// cwd 漂了不报错，产物会静静落在别处——SKILL.md 里那条「一律用绝对路径」正是为此。
+const ROOT = args?.root ?? '/home/hongshi/projects/sda-dev'
+const SKILL = `${ROOT}/.claude/skills`
 const LENSES = [
   { key: '财务排雷', guide: `${SKILL}/financial-redflags-cn/SKILL.md`, sections: '第四节' },
   { key: '尽调',     guide: `${SKILL}/equity-thesis-cn/lenses/尽调.md`,     sections: '第一、二、三节' },
@@ -22,7 +28,6 @@ const LENSES = [
 const SYMBOL = args?.symbol
 const DATE = args?.date
 if (!SYMBOL || !DATE) throw new Error('必须传 args: { symbol, date }，例如 { symbol: "601678", date: "20260819" }')
-const ROOT = '/home/hongshi/projects/sda-dev'
 const RUN = `${ROOT}/reports/${SYMBOL}_thesis_${DATE}`
 const DATA = `${ROOT}/data/${SYMBOL}`
 
