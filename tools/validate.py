@@ -58,7 +58,10 @@ def main():
     fa = obj["financials_annual"]
     rev = fa.get("revenue") or {}
     # 至少有 3 年营收数据
-    non_null_years = sum(1 for v in rev.values() if v)
+    # 注意用 `is not None` 而不是 `if v`：营收合法地等于 0 是存在的
+    # （港股 03858 佳鑫国际，矿山 2025 年才投产，2021-2024 营收就是 0），
+    # 用真值判断会把这些年错判成缺数据。
+    non_null_years = sum(1 for v in rev.values() if v is not None)
     if non_null_years < 3:
         issues.append(f"年度营收 only {non_null_years} 个年份有数据（要 ≥3）")
     val = obj["valuation"]
@@ -71,8 +74,12 @@ def main():
         for i in issues:
             print(f"  - {i}")
         sys.exit(2)
+    # 港股的行情与市值是港元，A 股是人民币；别用硬编码的 ¥ 糊弄过去
+    cur = (obj.get("currency") or {}).get("quote_and_mcap")
+    sym_cur = {"HKD": "HK$", "USD": "US$"}.get(cur, "¥")
     print(f"OK  {symbol}: all core fields present, {non_null_years} years of revenue data")
-    print(f"     close=¥{val['close']} mcap=¥{val['total_mcap_yuan']/1e8:.1f}亿 PE(TTM)={val['pe_ttm']:.1f}x")
+    print(f"     close={sym_cur}{val['close']} mcap={sym_cur}{val['total_mcap_yuan']/1e8:.1f}亿 "
+          f"PE(TTM)={val['pe_ttm']:.1f}x")
 
 
 if __name__ == "__main__":

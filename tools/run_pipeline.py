@@ -16,7 +16,7 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
-from lib import Collector, DATA_DIR, REPORTS_DIR, detect_market, board_name, symbol_dir  # noqa: E402
+from lib import Collector, DATA_DIR, REPORTS_DIR, detect_market, board_name, normalize_symbol, symbol_dir  # noqa: E402
 
 
 def _fetch_hist_qfq_sina(symbol: str, market: str) -> pd.DataFrame:
@@ -337,15 +337,22 @@ def run_subprocess(script: str, symbol: str):
 
 def main():
     if len(sys.argv) < 2:
-        print("usage: run_pipeline.py <6-digit symbol> [--skip-extras]", file=sys.stderr)
+        print("usage: run_pipeline.py <symbol> [--skip-extras]   # A股6位 / 港股5位", file=sys.stderr)
         sys.exit(2)
-    symbol = sys.argv[1].strip().lstrip("sh").lstrip("sz").lstrip("bj")
-    skip_extras = "--skip-extras" in sys.argv
     try:
-        detect_market(symbol)
+        symbol = normalize_symbol(sys.argv[1])
+        market = detect_market(symbol)
     except Exception as e:
         print(f"ERROR: {e}", file=sys.stderr)
         sys.exit(2)
+    skip_extras = "--skip-extras" in sys.argv
+
+    # 港股（5 位代码）走另一条管道：数据源完全不同，但产出的 aggregate.json 同 schema，
+    # 所以下游的 validate.py / 判断稿 skill / check_thesis.py 都不用改。
+    if market == "hk":
+        import run_pipeline_hk
+        sys.argv[1] = symbol
+        return run_pipeline_hk.main()
 
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)

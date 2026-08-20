@@ -18,11 +18,31 @@ def symbol_dir(symbol: str) -> Path:
     return d
 
 
+def normalize_symbol(symbol: str) -> str:
+    """把用户各种写法归一成本仓内部代码。
+
+    A 股 6 位原样返回；港股统一补齐到 5 位（"700"/"0700"/"03858.HK" → "00700"/"03858"）。
+    港股与 A 股靠位数区分：A 股恒为 6 位，港股恒为 5 位，不冲突。
+    """
+    s = symbol.strip().upper()
+    for suffix in (".HK", ".SS", ".SZ", ".SH"):
+        if s.endswith(suffix):
+            s = s[: -len(suffix)]
+    s = s.lstrip("SH").lstrip("SZ").lstrip("BJ").lstrip("HK")
+    if not s.isdigit():
+        raise ValueError(f"Invalid symbol: {symbol}")
+    if len(s) == 6:
+        return s
+    if len(s) <= 5:
+        return s.zfill(5)
+    raise ValueError(f"Invalid symbol: {symbol}")
+
+
 def detect_market(symbol: str) -> str:
-    """6 位数字 → sh/sz/bj"""
-    s = symbol.strip().lstrip("sh").lstrip("sz").lstrip("bj")
-    if not s.isdigit() or len(s) != 6:
-        raise ValueError(f"Invalid A-share symbol: {symbol}")
+    """6 位数字 → sh/sz/bj；5 位数字 → hk"""
+    s = normalize_symbol(symbol)
+    if len(s) == 5:
+        return "hk"
     if s.startswith(("60", "68", "90", "11")):
         return "sh"
     if s.startswith(("00", "30", "20")):
@@ -33,6 +53,8 @@ def detect_market(symbol: str) -> str:
 
 
 def board_name(symbol: str) -> str:
+    if detect_market(symbol) == "hk":
+        return "香港交易所主板"     # GEM 由 aggregate 用 security_profile 覆盖
     p = symbol[:2]
     return {
         "60": "上交所主板", "68": "上交所科创板",
