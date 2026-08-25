@@ -85,6 +85,16 @@ JSON 路径 `financials_annual.<metric>` 是 `{"20211231": value, ...}` 的字�
 | `{{EPS_NEXT2_LO}}` / `{{EPS_NEXT2_HI}}` / `{{EPS_NEXT2_MEDIAN}}` | 2027E EPS |
 | `{{NEXT_YEAR}}` / `{{NEXT2_YEAR}}` | 当前年 / 当前年+1 |
 
+**先看 `research_coverage`，再看数组** —— 它决定这一节怎么写：
+
+| `research_coverage` | 含义 | 写法 |
+|---|---|---|
+| `"covered"` | 有券商覆盖 | 按上表填区间 + 中位 |
+| `"none"` | 已核实无任何券商研报（东财 `hits=0`） | 所有 EPS 占位符写「无券商覆盖」，注明"无 EPS 预测 / 评级 / 目标价" |
+| `"unknown"` | 研报接口取数失败 | 所有 EPS 占位符写「未取得，原因：研报接口取数失败」 |
+
+`"none"` 与 `"unknown"` 措辞不可互换：前者是已核实的客观事实，后者是我们没拿到。
+
 ## 股东（截至 `top10_free_as_of`）
 
 JSON 数组 `top10_free`，每项含 `名次 / 股东名称 / 股份类型 / 占总流通股本持股比例 / 变动比率`。

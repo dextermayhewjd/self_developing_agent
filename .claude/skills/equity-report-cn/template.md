@@ -71,6 +71,12 @@
 
 > **共识 EPS（机构研报中位）**：{{NEXT_YEAR}}E ¥{{EPS_NEXT_MEDIAN}}（区间 ¥{{EPS_NEXT_LO}}–{{EPS_NEXT_HI}}），{{NEXT2_YEAR}}E ¥{{EPS_NEXT2_MEDIAN}}（区间 ¥{{EPS_NEXT2_LO}}–{{EPS_NEXT2_HI}}）。
 
+<!-- 无覆盖时（aggregate.json 的 research_coverage == "none"）整行替换为下面这句，
+     不要留空占位符、不要写 "¥–"：
+> **共识 EPS**：该股无券商研报覆盖（东财 reportapi 返回 0 条），无 EPS 预测 / 评级 / 目标价。
+> 下表情景 EPS 由本报告依据历史财务自行推演，缺少卖方共识作为交叉验证，置信度相应下调。
+     research_coverage == "unknown" 时改写为「未取得，原因：研报接口取数失败」。 -->
+
 | 情景 | 核心假设 | 估值方法 | 估值区间（前瞻 PE） | EPS（{{NEXT2_YEAR}}E） | 目标价区间 | 较现价隐含回报 |
 |---|---|---|---|---|---|---|
 | Bear | {{BEAR_ASSUMPTION}} | PE | {{BEAR_PE_LO}}–{{BEAR_PE_HI}}x | {{BEAR_EPS}} | ¥{{BEAR_PRICE_LO}}–{{BEAR_PRICE_HI}} | {{BEAR_RETURN}} |

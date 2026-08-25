@@ -13,6 +13,7 @@ from pathlib import Path
 
 import akshare as ak
 import pandas as pd
+import requests
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
@@ -69,6 +70,49 @@ def fetch_basic(symbol: str) -> Collector:
     return c
 
 
+def _fetch_research_report(symbol: str) -> pd.DataFrame:
+    """券商研报（含 EPS 共识）。无覆盖时返回空表，而不是让 akshare 崩掉。
+
+    akshare 1.18.60 的 stock_research_report_em：东财 reportapi 返回
+    {"hits":0,"TotalPage":0} 时分页循环一次都不进，big_df 是空 DataFrame，
+    第 71 行 big_df["infoCode"] 直接抛 KeyError: 'infoCode'。
+    小盘股没有券商覆盖是常态（300877 金春股份即是），属于客观事实而非取数失败，
+    不该把整条流水线掐死 —— 这里把它翻译成"空表"，由 fetch_governance
+    记成 coverage="none"，下游据此在报告里明示"无券商覆盖"。
+
+    不能只凭 KeyError 就断定"无覆盖"：akshare 未钉版本，升级后若改了列名，
+    同样抛 KeyError('infoCode')，那会把每只票都误判成无覆盖，且报告照出、
+    悄无声息。所以捕获后必须回源确认 hits==0，拿不到确认就把异常抛回去，
+    宁可记成 coverage="unknown"（未取得），也不谎称"已核实无覆盖"。
+    """
+    try:
+        return ak.stock_research_report_em(symbol=symbol).head(30)
+    except KeyError as e:
+        if "infoCode" not in str(e):
+            raise
+        if _eastmoney_report_hits(symbol) != 0:
+            raise  # 有研报却崩了 → akshare 侧真的坏了，不许当成"无覆盖"吞掉
+        return pd.DataFrame()
+
+
+def _eastmoney_report_hits(symbol: str):
+    """回源问东财该股有多少条研报。返回 int；问不到返回 None（视作未确认）。"""
+    try:
+        r = requests.get(
+            "https://reportapi.eastmoney.com/report/list",
+            params={"industryCode": "*", "pageSize": "1", "industry": "*",
+                    "rating": "*", "ratingChange": "*", "beginTime": "2000-01-01",
+                    "endTime": "2030-01-01", "pageNo": "1", "fields": "",
+                    "qType": "0", "orgCode": "", "code": symbol, "rcode": "",
+                    "p": "1", "pageNum": "1", "pageNumber": "1"},
+            timeout=20,
+        )
+        return int(r.json().get("hits"))
+    except Exception as ex:
+        print(f"  research hits probe failed: {ex}", file=sys.stderr)
+        return None
+
+
 def fetch_governance(symbol: str) -> Collector:
     c = Collector("governance")
     print(f"\n[governance] {symbol}", file=sys.stderr)
@@ -101,8 +145,15 @@ def fetch_governance(symbol: str) -> Collector:
         except Exception:
             continue
 
-    c.safe("research_report",
-           lambda: ak.stock_research_report_em(symbol=symbol).head(30))
+    c.safe("research_report", lambda: _fetch_research_report(symbol))
+    # 区分"确认无覆盖"和"没取到" —— 报告里的措辞完全不同，不能混为一谈
+    if "research_report" in c.ERR:
+        c.OUT["research_report_coverage"] = "unknown"
+    elif c.OUT.get("research_report"):
+        c.OUT["research_report_coverage"] = "covered"
+    else:
+        c.OUT["research_report_coverage"] = "none"
+    print(f"  --- research coverage: {c.OUT['research_report_coverage']}", file=sys.stderr)
     c.dump(symbol)
     return c
 
@@ -297,6 +348,7 @@ def aggregate(symbol: str) -> Path:
     agg["top10_free"] = raw["governance"].get("top10_free_em")
     agg["top10_free_as_of"] = raw["governance"].get("top10_free_em_as_of")
     agg["research_reports"] = raw["governance"].get("research_report")
+    agg["research_coverage"] = raw["governance"].get("research_report_coverage") or "unknown"
 
     # 公告、新闻、业绩快报
     agg["announcements_recent"] = (raw["news"].get("notice_individual") or [])[:100]
