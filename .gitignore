@@ -36,3 +36,6 @@ WORKTREE.md
 # OS files
 .DS_Store
 Thumbs.db
+
+# MCP 调试残留：playwright 的页面可访问性树转储，非产物
+.playwright-mcp/
