@@ -67,9 +67,19 @@ const FINDINGS = {
       description: '你这份里最承重的数字：错了会让某一节判断方向反过来的那几个',
       items: {
         type: 'object',
-        required: ['what', 'value', 'source'],
+        required: ['what', 'value', 'source', 'benchmark'],
         properties: {
           what: { type: 'string' }, value: { type: 'string' }, source: { type: 'string' },
+          // source 记录「数从哪来」，benchmark 记录「跟什么比才有意义」——这是两件事。
+          // 03858 实测：五条承重数字全部回原文核实通过，但没有一条比过外部同口径，
+          // 于是「2.31–3.25 倍 NAV 算不算贵」这个全篇最承重的判断始终悬空。
+          benchmark: {
+            type: 'string',
+            description:
+              '这个数的参照系：跟什么比才有意义。不是它值多少，是拿它跟谁比。' +
+              '例：「市值 = ITR 税后 NPV 的 2.31–3.25 倍」的参照系应是同板块在产矿企的 P/NAV 中位数。' +
+              '想不出外部参照系就写「想不到外部参照系」——不要编一个出来。',
+          },
         },
       },
     },
@@ -85,12 +95,24 @@ const VERIFIED = {
       type: 'array',
       items: {
         type: 'object',
-        required: ['what', 'verdict', 'verified_value', 'source'],
+        required: ['what', 'verdict', 'verified_value', 'source', 'benchmark_type'],
         properties: {
           what: { type: 'string' },
           verdict: { enum: ['确认无误', '修正', '未披露', '未查到'] },
           verified_value: { type: 'string', description: '含单位与正负号；修正的填修正后的值' },
           source: { type: 'string', description: '年报 p.XX / {file}.json 字段' },
+          // 核查的第二个动作。verdict 回答「抄对没有」，benchmark_type 回答「这个数在外面算什么水平」。
+          // 只有前者时，一份全部「确认无误」的核查照样可以支撑一个悬空的判断。
+          // 私有基准 = 标的公司自己或其委托方产出的数：独立技术报告、招股章程里的委托咨询、
+          // 公司自己的规划与指引。抄对了不等于可以拿来当尺子。
+          benchmark_type: {
+            enum: ['外部同口径', '外部但口径存疑', '私有基准', '无参照系'],
+            description:
+              '判据只看这个数的参照系来自哪里，与数本身对错无关：' +
+              '外部同口径=有可比同业/同板块的同一口径数可比；' +
+              '外部但口径存疑=有外部数但口径不一致或来源单一；' +
+              '私有基准=参照系由标的公司或其委托方产生；无参照系=压根没有可比对象。',
+          },
         },
       },
     },
@@ -194,8 +216,11 @@ const lensResults = await pipeline(
 读 ${l.guide} 并严格遵循它的关键动作与输出契约。数据在 ${DATA}/。
 
 把完整发现写到 ${RUN}/findings/${l.key}.md（先 mkdir -p）。
-**文件末尾必须留一节 \`## 承重数字（待核查）\`**，逐条写 what / value / source，共 1–6 条，
-判据是"这个数错了，某一节的判断方向会反过来"。**核查子 agent 只认这一节**——
+**文件末尾必须留一节 \`## 承重数字（待核查）\`**，逐条写 what / value / source / benchmark，共 1–6 条，
+判据是"这个数错了，某一节的判断方向会反过来"。
+**benchmark 是参照系**：这个数跟什么比才有意义（例：单位成本要跟同板块成本曲线比，
+估值倍数要跟同板块同口径倍数比）。想不出外部参照系就写"想不到外部参照系"，不要编。
+**核查子 agent 只认这一节**——
 写在正文里而没进这一节，等于没提交。
 返回值给同样的摘要（判断要点、不确定项、承重数字），但下游一律以文件为准。
 查不到的直说，不要填满。`,
@@ -210,7 +235,15 @@ const lensResults = await pipeline(
           `你是核查子 agent。读 ${SKILL}/equity-thesis-cn/lenses/核查.md 并遵循。
 
 **先 Read ${RUN}/findings/${l.key}.md 末尾的 \`## 承重数字（待核查）\` 一节**，
-把那一节里的每个数逐条回原文核实，逐字抄原文，含单位与正负号。
+把那一节里的每个数逐条**做两件事**：
+
+**动作一：回原文核**——逐字抄原文，含单位与正负号。这回答"抄对没有"。
+**动作二：判参照系类型**——这回答"这个数在外面算什么水平"。四选一：
+外部同口径 / 外部但口径存疑 / 私有基准 / 无参照系。
+**只看参照系来自哪里，与数本身对错无关**：由标的公司或其委托方产出的数（独立技术报告、
+招股章程里的委托咨询、公司自己的规划与指引）一律是「私有基准」，哪怕它逐字核实无误。
+这一步不要去搜外部数据（你不 WebSearch），只做归类；归类结果会让成稿 agent 知道
+哪些判断是悬空的。
 
 数据在 ${DATA}/（年报 PDF 在 ${DATA}/annual_pdf/）。
 **表格看不清就用 pdftoppm -r 400 渲染成图再 Read 逐格比对**——负号丢失和列错位正是 pdftotext 最常见的失败模式。
@@ -218,7 +251,8 @@ const lensResults = await pipeline(
 区分「公司没披露」与「我没查到」，说不清就写"无法区分"。
 核完如有修正，就地改 ${RUN}/findings/${l.key}.md，改处标"（${DATE} 复核修正）"。
 **核查结论必须落盘到 ${RUN}/核查/${l.key}.md（先 mkdir -p）**：一行一条，格式
-\`- [判定] what ｜ 核实值（含单位与正负号） ｜ 出处\`，判定取「确认无误／修正／未披露／未查到」。
+\`- [判定][参照系类型] what ｜ 核实值（含单位与正负号） ｜ 出处\`，
+判定取「确认无误／修正／未披露／未查到」，参照系类型取「外部同口径／外部但口径存疑／私有基准／无参照系」。
 落盘是硬要求——成稿 agent 只读这个文件，不落盘等于这一轮核查白做。
 不写报告、不发挥、不 WebSearch。`,
           { label: `核查:${l.key}`, phase: '核查', schema: VERIFIED }
