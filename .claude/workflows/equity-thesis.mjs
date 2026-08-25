@@ -107,10 +107,52 @@ const REPORT = {
   },
 }
 
+// ── 步骤 1.5：盘点（跨会话续跑的关键）──────────────────────────────
+// 为什么要专门花一个 agent 去做 ls：workflow 脚本没有文件系统 API，而 resumeFromRunId 的
+// journal 是按「会话目录」存的——会话一换（例如本次被切成后台 job，session-id 变了），
+// 缓存整个消失，只能从头重跑。而且 resume 只认「最长未变前缀」：pipeline 的 stage-2 是按
+// stage-1 完成先后发起的，两次跑的发起顺序天然不同，前缀一断后面全部重跑（20260821 实测
+// 5 个核查 agent 命中 2 个、重跑 3 个，prompt 逐字节相同也没用）。
+// 所以韧性不在 journal，在三件套：产物落到 reports/ 下（不随会话 ID 漂）+ 开跑前盘一次 +
+// 已完成的阶段直接跳过。三缺一都不成立——尤其是「只存盘不盘点」，脚本读不回来，照跑不误。
+const INVENTORY = {
+  type: 'object',
+  required: ['has_doubt', 'findings_done', 'checked_done'],
+  properties: {
+    has_doubt: { type: 'boolean', description: '疑惑.md 存在且字节数 > 200' },
+    findings_done: {
+      type: 'array', items: { type: 'string' },
+      description: 'findings/ 下已存在且字节数 > 200 的 lens 名（不含 .md 后缀）',
+    },
+    checked_done: {
+      type: 'array', items: { type: 'string' },
+      description: '核查/ 下已存在且字节数 > 200 的 lens 名（不含 .md 后缀）',
+    },
+  },
+}
+
+phase('盘点')
+const inv = await agent(
+  `只做一件事：盘点 ${RUN}/ 下已有的产物。不做任何分析、不读文件内容、不修改任何文件。
+
+跑 \`ls -la ${RUN}/ ${RUN}/findings/ ${RUN}/核查/ 2>&1\`，对存在的文件再跑 \`wc -c\`。
+判据：**存在且字节数 > 200 才算已完成**，其余一律算未完成；目录不存在就是全空。
+lens 名只可能是这五个：${LENSES.map((l) => l.key).join('、')}。`,
+  { label: '盘点', phase: '盘点', schema: INVENTORY, model: 'haiku', effort: 'low' }
+)
+const doneDoubt = inv?.has_doubt === true
+const doneFindings = new Set(inv?.findings_done ?? [])
+const doneChecked = new Set(inv?.checked_done ?? [])
+if (doneDoubt || doneFindings.size || doneChecked.size)
+  log(
+    `盘点：疑惑 ${doneDoubt ? '✓' : '✗'}／findings ${doneFindings.size}/${LENSES.length}` +
+      `／核查 ${doneChecked.size}/${LENSES.length} —— 已完成的跳过，不重跑`
+  )
+
 // ── 步骤 2：立疑（判断由 agent 做，不写死）──────────────────────────
 phase('立疑')
 log(`${SYMBOL} 立疑：先看财务全景，再从数字里逼出疑惑`)
-const doubt = await agent(
+const doubt = doneDoubt ? (log('立疑：疑惑.md 已在，跳过'), null) : await agent(
   `你为 ${SYMBOL} 做判断型研究的立疑工序。报告日 ${DATE}。
 
 先读 ${DATA}/aggregate.json 的 financials_annual / financials_quarterly，把近三年+最新季报的
@@ -121,6 +163,8 @@ const doubt = await agent(
 1. 判本票属于哪一类（读 ${SKILL}/equity-thesis-cn/framework.md 开篇原则三的行业映射表）。
    这个类别会传给每个 lens，用来选对阈值、TAM 口径和估值方法。判错会让五个 lens 一起错。
 2. 立 2–4 条疑惑，写进 ${RUN}/疑惑.md（先 mkdir -p）。
+   **该文件第一行必须是 \`行业类别：<你的判定>\`**，第二行起才写疑惑——
+   下游五个 lens 与成稿都只从这个文件读类别与疑惑，不经我转手。
 
 **疑惑要是"决策形状"的，不是"审计形状"的。** 判据：这个问题的答案会不会直接改变我买不买。
 "这家公司的<某条业务线>能不能<达到某个量级/增速>？"是好形状——可证伪、有量级、答案直接决定估值。
@@ -129,7 +173,7 @@ const doubt = await agent(
   { label: '立疑', phase: '立疑', schema: DOUBT }
 )
 
-log(`行业类别：${doubt?.industry_class ?? '未判定'}；疑惑 ${doubt?.doubts?.length ?? 0} 条`)
+if (doubt) log(`行业类别：${doubt.industry_class}；疑惑 ${doubt.doubts?.length ?? 0} 条`)
 
 // ── 步骤 3+3.5：pipeline——每份 findings 一产出就核查，不等其他 lens ──
 // round4/5 实测：核查排在第 265/298 次调用，之后已无预算写稿。
@@ -139,35 +183,43 @@ const doubtBrief = (doubt?.doubts ?? []).map((d, i) => `${i + 1}. ${d.question}�
 const lensResults = await pipeline(
   LENSES,
   (l) =>
-    agent(
+    doneFindings.has(l.key)
+      ? { written_file: `${RUN}/findings/${l.key}.md`, skipped: true }
+      : agent(
       `你是 ${SYMBOL} 的${l.key}子 agent，覆盖${l.sections}。报告日 ${DATE}。
-行业类别：${doubt?.industry_class ?? '未判定'}——按这个类别选阈值/口径/方法。
+
+**先 Read ${RUN}/疑惑.md**：第一行是行业类别，按这个类别选阈值/口径/方法（判错会让五个 lens 一起错）；
+其余是本次要回答的疑惑——不必全答，答与你这一节相关的。
 
 读 ${l.guide} 并严格遵循它的关键动作与输出契约。数据在 ${DATA}/。
 
-本次要回答的疑惑（不必全答，答与你这一节相关的）：
-${doubtBrief || '（无）'}
-
 把完整发现写到 ${RUN}/findings/${l.key}.md（先 mkdir -p）。
-返回值只给摘要：判断要点、不确定项、以及**你这份里最承重的 1–6 个数字**——
-判据是"这个数错了，某一节的判断方向会反过来"。承重数字会被立刻拿去回原文核实。
+**文件末尾必须留一节 \`## 承重数字（待核查）\`**，逐条写 what / value / source，共 1–6 条，
+判据是"这个数错了，某一节的判断方向会反过来"。**核查子 agent 只认这一节**——
+写在正文里而没进这一节，等于没提交。
+返回值给同样的摘要（判断要点、不确定项、承重数字），但下游一律以文件为准。
 查不到的直说，不要填满。`,
       { label: `挖掘:${l.key}`, phase: '挖掘', schema: FINDINGS }
     ),
   (f, l) =>
     f == null
       ? null
+      : doneChecked.has(l.key)
+      ? { lens: l.key, findings: f, checked: [], skipped: true }
       : agent(
           `你是核查子 agent。读 ${SKILL}/equity-thesis-cn/lenses/核查.md 并遵循。
 
-把下面这些数字逐条回原文核实，逐字抄原文，含单位与正负号：
-${JSON.stringify(f.load_bearing, null, 1)}
+**先 Read ${RUN}/findings/${l.key}.md 末尾的 \`## 承重数字（待核查）\` 一节**，
+把那一节里的每个数逐条回原文核实，逐字抄原文，含单位与正负号。
 
 数据在 ${DATA}/（年报 PDF 在 ${DATA}/annual_pdf/）。
 **表格看不清就用 pdftoppm -r 400 渲染成图再 Read 逐格比对**——负号丢失和列错位正是 pdftotext 最常见的失败模式。
 先扫一遍找不可能的数（投入期业务 70% 净利率、分部加总不等于合计、增长率与前后两期绝对值算不出来），再逐条核。
 区分「公司没披露」与「我没查到」，说不清就写"无法区分"。
-核完如有修正，就地改 ${f.written_file}，改处标"（${DATE} 复核修正）"。
+核完如有修正，就地改 ${RUN}/findings/${l.key}.md，改处标"（${DATE} 复核修正）"。
+**核查结论必须落盘到 ${RUN}/核查/${l.key}.md（先 mkdir -p）**：一行一条，格式
+\`- [判定] what ｜ 核实值（含单位与正负号） ｜ 出处\`，判定取「确认无误／修正／未披露／未查到」。
+落盘是硬要求——成稿 agent 只读这个文件，不落盘等于这一轮核查白做。
 不写报告、不发挥、不 WebSearch。`,
           { label: `核查:${l.key}`, phase: '核查', schema: VERIFIED }
         ).then((v) => ({ lens: l.key, findings: f, checked: v?.checked ?? [] }))
@@ -189,18 +241,16 @@ const report = await agent(
 - ${SKILL}/equity-thesis-cn/style_guide.md（单位、口径、语气）
 
 **你的输入只有两样：**
-1. ${RUN}/findings/ 下的 ${ok.length} 份 findings（用 Read 读，这是子 agent 把几百页年报读完浓缩的成品）
-2. 下面这张「已核实清单」——${allChecked.length} 条已回原文核过的数字
-
-${JSON.stringify(allChecked, null, 1)}
+1. ${RUN}/findings/ 下的 ${LENSES.length} 份 findings（用 Read 读全部，这是子 agent 把几百页年报读完浓缩的成品）
+2. ${RUN}/核查/ 下的 ${LENSES.length} 份核查结论（用 Read 读全部）——已回原文核过的数字，
+   判定分「确认无误／修正／未披露／未查到」四种，**只有前两种能当硬数字用**
 
 **数字纪律**：清单里的数直接用；findings 里但没核过的可以用、正文标一句「未核实」。
 **不要自己去刨年报、不要 pdftotext/grep 年报正文、不要 WebSearch**——
 包括"先 pdftotext 导到 /tmp 再 grep 那个文件"这条绕路，判据看内容不看路径。
 估值需要的行情/财务数字读 ${DATA}/aggregate.json。
 
-要回收的疑惑（每条用"现在回答开篇的问题 N："销账，答不出的明写答不出）：
-${doubtBrief || '（无）'}
+要回收的疑惑：读 ${RUN}/疑惑.md，每条用"现在回答开篇的问题 N："销账，答不出的明写答不出。
 
 出口：市值区间不给目标价、赔率区间精度到十位数并折成"几年一倍"、
 概率没把握就写"我判断不了"、五维均分映射 A/B/C、决定性变量写成正反两栏并给行动触发条件。
@@ -213,7 +263,16 @@ return {
   run_dir: RUN,
   industry_class: doubt?.industry_class ?? null,
   doubts: (doubt?.doubts ?? []).map((d) => d.question),
-  lenses: ok.map((r) => ({ lens: r.lens, file: r.findings?.written_file, checked: r.checked.length })),
+  lenses: ok.map((r) => ({
+    lens: r.lens,
+    file: r.findings?.written_file,
+    checked: r.checked.length,
+    // 分阶段标注：跳过 = 产物在 reports/ 下已存在，不是没做。两段要分开看，
+    // 否则「挖掘跳过但核查真跑了」会被误读成整条 lens 没动。
+    skipped_findings: r.findings?.skipped === true,
+    skipped_checked: r.skipped === true,
+  })),
+  // 注意：只统计**本轮新核**的条数；跳过的那些在 核查/ 目录里，不在这个数里
   checked_total: allChecked.length,
   report: report ?? null,
   编排器待办: [
