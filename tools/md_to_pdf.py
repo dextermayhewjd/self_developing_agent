@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""md_to_pdf.py — strip the 附:自动化流程缺失项 appendix and convert a report MD to PDF.
+"""md_to_pdf.py — convert a report MD to PDF.
 
 Usage:
     python tools/md_to_pdf.py <SYMBOL>          # uses today's report under reports/{SYMBOL}_{YYYYMMDD}.md
@@ -109,23 +109,6 @@ def output_stem(md_path: pathlib.Path) -> str:
     if re.match(r"^\d{6}[_-]", parent):
         return parent
     return stem
-
-
-def strip_appendix(md_text: str) -> str:
-    """Drop the `## 附：自动化流程缺失项` block but keep the disclaimer paragraph."""
-    # Excise from the appendix heading up to (not including) the disclaimer line.
-    new = re.sub(
-        r"## 附：自动化流程缺失项.*?(?=\*\*报告口径声明\*\*)",
-        "",
-        md_text,
-        count=1,
-        flags=re.DOTALL,
-    )
-    # Remove any stranded `---` separator that the cut left dangling.
-    new = re.sub(r"---\s*\n+(?=\*\*报告口径声明\*\*)", "", new)
-    # Re-insert one clean separator before the disclaimer for visual break.
-    new = re.sub(r"(?=\*\*报告口径声明\*\*)", "---\n\n", new, count=1)
-    return new
 
 
 def promote_header_to_yaml(md_text: str) -> str:
@@ -352,7 +335,6 @@ def build_pdf(md_path: pathlib.Path) -> pathlib.Path:
     out_pdf = PDF_OUT_DIR / (output_stem(md_path) + ".pdf")
 
     text = md_path.read_text(encoding="utf-8")
-    text = strip_appendix(text)
     cover_tex = build_cover_tex(text)
     footer_tex = build_footer_tex(text)
     cover_title = ""

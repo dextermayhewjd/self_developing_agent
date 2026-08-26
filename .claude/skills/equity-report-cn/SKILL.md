@@ -114,12 +114,12 @@ data/{SYMBOL}/
 
 该脚本会：
 1. 读取 `reports/{SYMBOL}_{YYYYMMDD}.md`；
-2. **删除末尾"附：自动化流程缺失项"表格**（保留"报告口径声明"段）；
+2. **保留末尾"附：自动化流程缺失项"表格** —— 交付出去的就是 PDF，缺口清单必须跟着一起到读者手上，不能只留在 .md 里；
 3. 把开头 4 行（公司名称/副标题/报告日期/分析师）提升为 pandoc YAML 元数据，渲染真·标题页；
 4. 用 `tools/pdf_header.tex` 作为 LaTeX preamble（`ctexart` + 强制 SC 字形 + Noto CJK SC + DejaVu 西文 + 彩色章节标题 + booktabs 表格 + 引用块 tcolorbox + 页眉脚），通过 `pandoc --pdf-engine=xelatex` 生成 PDF；
 5. 输出到 `reports/pdf/{SYMBOL}_{YYYYMMDD}.pdf`。
 
-**注意**：原始 .md 保留完整附录（含"自动化流程缺失项"），便于追溯；只有 PDF 版剥离附录。脚本依赖 `pandoc + texlive-xetex + texlive-lang-chinese`，缺则脚本会用清晰错误信息退出；本地未装时执行 `sudo apt install -y pandoc texlive-xetex texlive-lang-chinese`。
+**注意**：PDF 与 .md 内容一致，均含完整附录。曾经 PDF 会剥掉"自动化流程缺失项"表格，导致收报告的人看不到这份报告到底缺了什么 —— 已改为保留，勿回退。脚本依赖 `pandoc + texlive-xetex + texlive-lang-chinese`，缺则脚本会用清晰错误信息退出；本地未装时执行 `sudo apt install -y pandoc texlive-xetex texlive-lang-chinese`。
 
 ## 强制约束（7 条，违反任何一条即失败）
 
@@ -148,7 +148,7 @@ data/{SYMBOL}/
 | `reasoning_protocol.md` | 合成推理顺序、可证伪先于结论 |
 | `style_guide.md` | 中文金融术语、单位（亿元）、CY 口径 |
 | `data_contract.md` | 占位符 → JSON 字段的映射 |
-| `../../tools/md_to_pdf.py` | 步骤 5：剥附录 + 生成 PDF |
+| `../../tools/md_to_pdf.py` | 步骤 5：生成 PDF（含完整附录） |
 | `../../tools/pdf_header.tex` | LaTeX preamble：强制 SC 字形 + 排版美化 |
 
 ## 已知限制（必须在报告"附：缺失项"中明示）
