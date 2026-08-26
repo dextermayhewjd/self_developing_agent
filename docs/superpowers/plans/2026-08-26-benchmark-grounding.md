@@ -617,10 +617,16 @@ Expected: 7 tests PASS
 
 - [ ] **Step 6: 端到端验证（需网络与 .venv）**
 
-Run: `.venv/bin/python tools/discover_peers.py 03858 --force`
+Run: `.venv/bin/python tools/discover_peers.py 03858 --terms 钨 --force`
 Expected: `data/03858/peers_curated.json` 生成，`peers` 含 600549 / 000657 / 002378 / 002842，
 `中位数.PE_TTM` 在 33 附近、`中位数.PB` 在 9.4 附近（Spec 第九节实测基线）。
-若 03858 的 `data/` 不在本机，改用 `600549` 自检通道是否打通。
+若 03858 的 `data/` 不在本机，改用 `600549 --terms 钨` 自检通道是否打通。
+
+**注（Ruling T3-6）**：`--terms` 是给调用方的**主路径**，不是可选覆盖。脚本自带的正则
+`extract_product_terms` 只作兜底——实测对 03858 真实 `aggregate.json` 吐出
+`['钨矿','资料','地下钨矿)','设计钨矿产能','2025年']`，而 A 股钨业四家简称
+（中钨高新/章源钨业/翔鹭钨业/厦门钨业）无一含「钨矿」，自动路径必得 0 候选。
+品种词提取的责任在 Task 5 的 agent，不在脚本。
 
 - [ ] **Step 7: 提交**
 
@@ -855,6 +861,9 @@ git commit -m "check_thesis 硬约束 7：开篇结论压在私有基准上而�
 
 **Interfaces:**
 - Consumes: `valuation_archetypes.md`（Task 1）、`discover_peers.py` CLI（Task 3）、参照系行格式（Task 2）
+- **注（Ruling T3-6）**：板块基准 agent 负责品种词提取——先读主营描述挑出品种词，
+  再以 `python3 <ROOT>/tools/discover_peers.py <SYMBOL> --terms <品种词>` 调用。
+  不要依赖脚本的正则自动提取，它实测会吐出「资料」「2025年」这类噪声词并导致零候选。
 - Produces: `参照系/板块基准.md`、`参照系/补.md`，供 Task 4 的硬门与成稿 agent 消费
 
 - [ ] **Step 1: 立疑 schema 改 archetype**
