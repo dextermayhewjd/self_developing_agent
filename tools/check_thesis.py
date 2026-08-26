@@ -152,19 +152,28 @@ def check_opening_benchmark(report, bench, values=None):
     # 开篇散文里的条目，必须被声明块点名——点名别的安全数字不能替代对它的声明。
     # 只做字面 in 判断，不做归一化：漏判可接受，误判才是问题（评审 Ruling T4-2）。
     #
-    # value 匹配只是这条的附加触发器（主键仍是 what），而短 value（"20%"
-    # "3.1 年"这类）在开篇散文里因完全无关的原因重复出现的概率不小——所得税率
-    # 20%、上市 3.1 年——都会被逐字命中，逼作者去声明一个根本没引用的东西。
-    # 误判比漏判更糟（Ruling T4-2 自己定的原则），所以短 value 不参与 value 匹配，
-    # 退化为只靠 what 串（Ruling T4-4）。原始案例"2.31–3.25 倍"长 10，仍在覆盖内。
-    _MIN_VALUE_MATCH_LEN = 6
+    # 短串不参与字面匹配——**what 与 value 一视同仁**。短 value（"20%""3.1 年"
+    # 这类）在开篇散文里因完全无关的原因逐字出现的概率不小（所得税率 20%、上市
+    # 3.1 年），会逼作者去声明一个根本没引用的东西；Ruling T4-4 为此给 value 加了
+    # 下限，但当时**只做了一半，what 侧没加**。
+    #
+    # 复审（最终修复波）实测：真实核查文件里的 what 短到 5–6 字很常见（"现金"
+    # "产量"），而 03858 的真实开篇里有「现金既不对冲价格」「产量峰值」——两条
+    # 都会被逐字命中并误拦。C1 把 what 的来源从"精选的几条参照系条目"扩到了
+    # "核查文件的每一行"，暴露面比加这条下限之前更大，所以必须同源同下限。
+    #
+    # 取舍与 T4-2/T4-4 一致：**漏判可接受（少触发一次覆盖性检查），误判不可接受
+    # （门一旦老是误拦，作者学会的是绕过它，不是声明）。** 原始案例
+    # 「市值 / ITR 税后 NPV」长 16、"2.31–3.25 倍"长 10，都仍在覆盖内。
+    _MIN_LITERAL_MATCH_LEN = 6
     prose = opening[:decl.start()]
     for what, strength in bench.items():
         if strength not in benchmark_lib.MUST_DOWNGRADE or what in named:
             continue
         value = values.get(what)
-        value_hit = value and len(value) >= _MIN_VALUE_MATCH_LEN and value in prose
-        if (what in prose) or value_hit:
+        what_hit = len(what) >= _MIN_LITERAL_MATCH_LEN and what in prose
+        value_hit = value and len(value) >= _MIN_LITERAL_MATCH_LEN and value in prose
+        if what_hit or value_hit:
             errs.append(
                 f"开篇散文字面引用了「{what}」（参照系类型「{strength}」），"
                 "但声明块未点名它——点名别的安全数字不能替代对它的声明"

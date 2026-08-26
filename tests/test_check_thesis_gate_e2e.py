@@ -223,5 +223,42 @@ class TestC2LoudFailures(unittest.TestCase):
         self.assertIn("[WARN]", out)
 
 
+# ── 最终修复波复审（Important）：短 what 的误拦 ────────────────────────
+# C1 把 what 的来源扩到"核查文件的每一行"，而真实核查里 what 短到 5–6 字很常见。
+# 这里走的是完整链路：核查/ 落盘 → 合并 → 覆盖性检查，用 03858 的真实开篇措辞。
+CHECK_SHORT_WHAT = (
+    f"# 财务排雷 —— 承重数字核查结论\n\n"
+    f"- [确认无误][{PRIVATE}] 现金 {BAR} 12.4 亿港元 {BAR} 2025 年报 资产负债表\n"
+    f"- [确认无误][{PRIVATE}] 产量 {BAR} 5,008 吨 {BAR} 2025 年报 P.7\n"
+    f"- [确认无误][{TRACEABLE}] 钨业板块 PE(TTM) 中位数 {BAR} 33.23 {BAR} peers_curated.json\n"
+)
+OPENING_REAL_PROSE = """手上的现金既不对冲价格下行，也买不来第二座矿；产量峰值出现在 2027 年之后就一路下台阶。
+
+> **参照系声明**
+> 核心结论对照「钨业板块 PE(TTM) 中位数」——参照系类型 **外部·可回溯**。"""
+
+
+class TestShortWhatNotFalseBlocked(unittest.TestCase):
+    def test_short_whats_in_real_prose_do_not_block(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            rp = build_run(tmp, OPENING_REAL_PROSE,
+                            bench_files={"板块基准.md": BENCH_ONLY_SECTOR},
+                            check_files={"财务排雷.md": CHECK_SHORT_WHAT})
+            code, out = run_check(tmp, rp)
+        self.assertEqual(code, 0, f"「现金」「产量」这类短 what 不得误拦，实际 exit {code}\n{out}")
+
+    def test_long_what_still_blocks_through_the_full_chain(self):
+        """同一条链路上，长 what 的覆盖必须仍然生效——别把这条一起关掉。"""
+        with tempfile.TemporaryDirectory() as tmp:
+            rp = build_run(
+                tmp, OPENING_FAIL_OPEN,
+                bench_files={"板块基准.md": BENCH_ONLY_SECTOR},
+                check_files={"尽调.md": CHECK_PRIVATE},
+            )
+            code, out = run_check(tmp, rp)
+        self.assertEqual(code, 1)
+        self.assertIn("市值 / ITR 税后 NPV", out)
+
+
 if __name__ == "__main__":
     unittest.main()

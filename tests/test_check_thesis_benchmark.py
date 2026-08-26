@@ -233,5 +233,85 @@ class TestOpeningBenchmark(unittest.TestCase):
         self.assertTrue(any("市值 / ITR 税后 NPV" in e for e in errs))
 
 
+# ---- 最终修复波复审（Important）：what 侧也要有长度下限 ----
+# T4-4 只给 value 加了 ≥6 下限，what 侧没加。而 C1 把 what 的来源从"精选的几条
+# 参照系条目"扩到了"核查文件的每一行"——真实核查里 what 短到 5–6 字很常见。
+# 下面这组用 03858 的真实开篇措辞构造：核查若把「现金」「产量」判为私有基准，
+# 散文里的「现金既不对冲价格」「产量峰值」会逐字命中，误拦两条。
+
+BENCH_SHORT_WHAT = {
+    "现金": "私有基准",
+    "产量": "私有基准",
+    "钨业板块 PE(TTM) 中位数": "外部·可回溯",
+}
+VALUES_SHORT_WHAT = {
+    "现金": "12.4 亿港元",
+    "产量": "5,008 吨",
+    "钨业板块 PE(TTM) 中位数": "33.23",
+}
+OPENING_REAL_PROSE_SHORT_WHAT = """## 〇、开篇结论
+
+手上的现金既不对冲价格下行，也买不来第二座矿；产量峰值出现在 2027 年之后就一路下台阶。
+
+> **参照系声明**
+> 核心结论对照「钨业板块 PE(TTM) 中位数」——参照系类型 **外部·可回溯**。
+
+## 一、公司简介
+"""
+
+# 反向：长 what 逐字出现在散文里、声明块没点名它——这条覆盖必须仍然生效，
+# 不能被上面的下限一起关掉。注意这里的 value 是短串（"2.31 倍"长 7 也够长，
+# 故意换成明显更短的），确保触发的确实是 what 侧而不是 value 侧。
+BENCH_LONG_WHAT = {
+    "市值 / ITR 税后 NPV": "私有基准",
+    "钨业板块 PE(TTM) 中位数": "外部·可回溯",
+}
+VALUES_LONG_WHAT = {"市值 / ITR 税后 NPV": "2.3x", "钨业板块 PE(TTM) 中位数": "33.23"}
+OPENING_NAMES_LONG_WHAT_IN_PROSE = """## 〇、开篇结论
+
+本篇的贵贱判断压在市值 / ITR 税后 NPV 这个比值上，它高得离谱。
+
+> **参照系声明**
+> 核心结论对照「钨业板块 PE(TTM) 中位数」——参照系类型 **外部·可回溯**。
+
+## 一、公司简介
+"""
+
+
+class TestWhatLengthFloor(unittest.TestCase):
+    def test_short_what_does_not_false_positive(self):
+        """「现金」「产量」这类短 what 因无关原因出现在散文里，不得误拦。"""
+        self.assertEqual(
+            check_thesis.check_opening_benchmark(
+                OPENING_REAL_PROSE_SHORT_WHAT, BENCH_SHORT_WHAT, VALUES_SHORT_WHAT
+            ),
+            [],
+        )
+
+    def test_long_what_coverage_still_triggers(self):
+        """加了下限不等于把这条覆盖关掉：长 what 字面出现在散文里仍必须点名。"""
+        errs = check_thesis.check_opening_benchmark(
+            OPENING_NAMES_LONG_WHAT_IN_PROSE, BENCH_LONG_WHAT, VALUES_LONG_WHAT
+        )
+        self.assertTrue(errs)
+        self.assertTrue(any("市值 / ITR 税后 NPV" in e for e in errs))
+
+    def test_short_what_still_checked_when_actually_named(self):
+        """下限只管"要不要逼你点名"，不管"点了名之后配不配降级措辞"——
+        短 what 一旦被声明块点名，缺降级措辞照样要拦，这条不能被下限捎带放松。"""
+        opening = """## 〇、开篇结论
+
+手上的现金既不对冲价格下行。
+
+> **参照系声明**
+> 核心结论压在「现金」——参照系类型 **私有基准**。
+
+## 一、公司简介
+"""
+        errs = check_thesis.check_opening_benchmark(opening, BENCH_SHORT_WHAT, VALUES_SHORT_WHAT)
+        self.assertTrue(errs)
+        self.assertTrue(any("现金" in e for e in errs))
+
+
 if __name__ == "__main__":
     unittest.main()
