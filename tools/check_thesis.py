@@ -76,9 +76,36 @@ _DECL_RE = re.compile(r">\s*\*\*参照系声明\*\*(.*?)(?=\n(?!\s*>)|\Z)", re.S
 _NAMED_RE = re.compile(r"「([^」]+)」")
 # 降级措辞关键词——命中任意一个即认为已声明限制
 _DOWNGRADE_WORDS = ("无法回答", "未取得", "绝对口径", "不可得", "悬空", "无法判断")
+# T4-3：判定"降级措辞是否与某个 what 就近关联"的句子切分。按中文句末标点
+# （。！？）切，不按「；」——手写声明常见"先摆 what/强度，用；接一句降级措辞"
+# 的写法，这种情况下 what 与降级词属于同一句。
+_SENTENCE_SPLIT_RE = re.compile(r"[。！？]")
 
 
-def check_opening_benchmark(report, bench):
+def _joined_decl_prose(decl_text):
+    """去掉声明块每行开头的 `>` 续行标记，拼回连续散文。
+
+    Markdown 引用块换行是排版折行，不是句子边界——同一句降级措辞常因为折行
+    被切到下一个 `>` 行，逐行找会把它和它要修饰的 what 错误拆开。
+    """
+    return "".join(line.strip().lstrip(">").strip() + " " for line in decl_text.splitlines())
+
+
+def _has_nearby_downgrade_wording(decl_text, what):
+    """降级措辞必须与被点名的 what 同句，不能整块搜。
+
+    整块搜会被"块里随便哪句有降级词"捎带放行——声明两个 MUST_DOWNGRADE 的
+    what、只给一个配了降级措辞，另一个不该被这样蒙混过关（评审攻击二）。
+    """
+    marker = f"「{what}」"
+    joined = _joined_decl_prose(decl_text)
+    for sentence in _SENTENCE_SPLIT_RE.split(joined):
+        if marker in sentence and any(w in sentence for w in _DOWNGRADE_WORDS):
+            return True
+    return False
+
+
+def check_opening_benchmark(report, bench, values=None):
     """硬约束 7：开篇结论的承重数字若压在私有基准/无参照系上，必须声明限制。
 
     只拦开篇，不拦正文。理由：悬空写在正文里是诚实，悬空写在开篇第一句而不声明
@@ -86,9 +113,15 @@ def check_opening_benchmark(report, bench):
     人学会批量粘声明句，硬门反而失效。
 
     bench 为 None（参照系/ 不存在）时跳过，向后兼容旧 run。
+
+    values 是 {what: 值字符串}（benchmark_lib.parse_benchmark_values 的产出），
+    供下面的覆盖性检查（T4-2）判断开篇散文是否字面引用了某条 MUST_DOWNGRADE
+    记录。省略或传 None 时该项检查退化为只用 what 串匹配，不影响 bench 为 None
+    时的整体跳过。
     """
     if bench is None:
         return []
+    values = values or {}
     m = _OPENING_RE.search(report)
     if not m:
         return ["缺〈〇、开篇结论〉一节，无法校验参照系声明"]
@@ -98,7 +131,8 @@ def check_opening_benchmark(report, bench):
     if not decl:
         return ["开篇结论缺「> **参照系声明**」块——核心两点各压在哪个数上必须写明"]
 
-    named = [w.strip() for w in _NAMED_RE.findall(decl.group(1))]
+    decl_text = decl.group(1)
+    named = [w.strip() for w in _NAMED_RE.findall(decl_text)]
     matched = [w for w in named if w in bench]
     if not matched:
         return [
@@ -108,14 +142,33 @@ def check_opening_benchmark(report, bench):
         ]
 
     errs = []
+
+    # ---- T4-2：覆盖性检查（防"点名一个无关安全数字掩护"绕过）----
+    # 校验器读不懂散文，判不了"开篇到底压在哪个数上"，改用字面覆盖：凡参照系
+    # 清单里强度属 MUST_DOWNGRADE、且其 what 或 value 字面出现在声明块之前的
+    # 开篇散文里的条目，必须被声明块点名——点名别的安全数字不能替代对它的声明。
+    # 只做字面 in 判断，不做归一化：漏判可接受，误判才是问题（评审 Ruling T4-2）。
+    prose = opening[:decl.start()]
+    for what, strength in bench.items():
+        if strength not in benchmark_lib.MUST_DOWNGRADE or what in named:
+            continue
+        value = values.get(what)
+        if (what in prose) or (value and value in prose):
+            errs.append(
+                f"开篇散文字面引用了「{what}」（参照系类型「{strength}」），"
+                "但声明块未点名它——点名别的安全数字不能替代对它的声明"
+            )
+
+    # ---- T4-3：降级措辞必须与被点名的 what 就近关联（同句），逐个判定 ----
     for what in matched:
-        if bench[what] in benchmark_lib.MUST_DOWNGRADE:
-            if not any(w in decl.group(1) for w in _DOWNGRADE_WORDS):
-                errs.append(
-                    f"「{what}」参照系类型为「{bench[what]}」，但声明块没有降级措辞"
-                    f"（需含 {'/'.join(_DOWNGRADE_WORDS[:3])} 之一）——"
-                    "压在私有基准上的判断不得当作已证实的事实写"
-                )
+        if bench[what] not in benchmark_lib.MUST_DOWNGRADE:
+            continue
+        if not _has_nearby_downgrade_wording(decl_text, what):
+            errs.append(
+                f"「{what}」参照系类型为「{bench[what]}」，但声明块里紧邻它的那句没有降级措辞"
+                f"（需与「{what}」同句、含 {'/'.join(_DOWNGRADE_WORDS[:3])} 之一）——"
+                "压在私有基准上的判断不得当作已证实的事实写"
+            )
     return errs
 
 
@@ -212,7 +265,11 @@ def main():
     # 03858 实测：五条承重数字全部回原文核实通过，但按参照系归类没有一条是外部
     # 同口径——核查全过，判断照样悬空。而全篇空头结论正压在其中一条私有基准上。
     # 核查只管"抄对没有"，管不了"这个数在外面算什么水平"，这一条补的就是后者。
-    hard.extend(check_opening_benchmark(report, benchmark_lib.parse_benchmarks(run_dir)))
+    _bench = benchmark_lib.parse_benchmarks(run_dir)
+    # bench 为 None（参照系/ 不存在）时不必再扫一遍 value——两者的"目录缺失"
+    # 语义一致，check_opening_benchmark 会在 bench is None 时整体跳过。
+    _bench_values = benchmark_lib.parse_benchmark_values(run_dir) if _bench is not None else None
+    hard.extend(check_opening_benchmark(report, _bench, _bench_values))
 
     # ---- 软约束：观点段 / 数据段 配比 >= 1/3 ----
     data_chars = char_count(blocks_after(report, SEG_DATA))

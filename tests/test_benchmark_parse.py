@@ -65,5 +65,35 @@ class TestParseBenchmarks(unittest.TestCase):
         self.assertNotIn("某个数", m)
 
 
+class TestParseBenchmarkValues(unittest.TestCase):
+    """Task 4 评审 Ruling T4-2 追加：check_thesis 的覆盖性检查需要拿到"值"字段
+    （不只是强度），用于判断开篇散文是否字面引用了某条参照系记录。"""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        d = Path(self.tmp.name) / "参照系"
+        d.mkdir()
+        (d / "板块基准.md").write_text(SAMPLE, encoding="utf-8")
+        self.run_dir = Path(self.tmp.name)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_maps_what_to_value(self):
+        v = benchmark_lib.parse_benchmark_values(self.run_dir)
+        self.assertEqual(v["市值 / ITR 税后 NPV"], "2.31–3.25 倍")
+        self.assertEqual(v["钨业板块 PE(TTM) 中位数"], "33.23")
+
+    def test_missing_dir_returns_none(self):
+        with tempfile.TemporaryDirectory() as empty:
+            self.assertIsNone(benchmark_lib.parse_benchmark_values(Path(empty)))
+
+    def test_unknown_strength_is_skipped(self):
+        d = self.run_dir / "参照系"
+        (d / "补.md").write_text("- [瞎写的档] 某个数 ｜ 1 ｜ 出处 ｜ 2026-08-26\n", encoding="utf-8")
+        v = benchmark_lib.parse_benchmark_values(self.run_dir)
+        self.assertNotIn("某个数", v)
+
+
 if __name__ == "__main__":
     unittest.main()
