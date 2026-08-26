@@ -1,3 +1,4 @@
+import re
 import unittest
 from pathlib import Path
 import sys
@@ -74,6 +75,30 @@ class TestParseArchetypes(unittest.TestCase):
         joined = " ".join(a["必比口径"])
         self.assertIn("P/NAV", joined)
         self.assertIn("成本曲线", joined)
+
+    def test_no_orphan_lines_in_archetype_bodies(self):
+        """孤行（既不是「字段：值」、也不是「- 」列表项、也不是空行的散文续行）会被
+        benchmark_lib.parse_archetypes 的续行分支静默并入上一个非列表字段的值——不产生
+        新键，所以 test_no_extra_fields 抓不到。这里直接扫原始文本，逐行分类。"""
+        text = ARCHETYPES.read_text(encoding="utf-8")
+        marks = list(benchmark_lib._ARCHETYPE_RE.finditer(text))
+        offset = 0
+        for i, m in enumerate(marks):
+            start = m.end()
+            end = marks[i + 1].start() if i + 1 < len(marks) else len(text)
+            body = text[start:end]
+            offset = start
+            for raw in body.splitlines(keepends=True):
+                line = raw.rstrip("\n").rstrip()
+                if line.strip():
+                    s = line.lstrip()
+                    if not s.startswith("-") and not re.match(r"^\S+?[：:]", s):
+                        lineno = text.count("\n", 0, offset) + 1
+                        self.fail(
+                            f"原型「{m.group(2)}」第 {lineno} 行是孤行"
+                            f"（既非「字段：值」也非「- 」列表项，会被静默并入上一字段）：{line!r}"
+                        )
+                offset += len(raw)
 
 
 if __name__ == "__main__":

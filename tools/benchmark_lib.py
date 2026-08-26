@@ -51,3 +51,38 @@ def parse_archetypes(text):
                 fields[cur] = (fields[cur] + " " + line.strip()).strip()
         out[m.group(2)] = fields
     return out
+
+
+# 五档强度，强到弱有序。分隔符是 U+00B7 的「·」，不是 ASCII 句点。
+STRENGTHS = (
+    "外部·可回溯",        # 有 URL/接口 + 逐字原文 + 口径说明，且 >=2 源交叉，或来自本地数据层
+    "外部·单源未交叉",    # 有出处但只有一个来源
+    "外部但口径存疑",      # 有外部数但口径不一致（含"宽池子且池内无同品种"）
+    "私有基准",           # 出自标的公司或其委托方
+    "无参照系",           # 没有可比对象
+)
+USABLE_AS_HARD = frozenset({"外部·可回溯"})
+MUST_DOWNGRADE = frozenset({"私有基准", "无参照系"})
+
+# 行格式：- [强度] what ｜ 值 ｜ 出处 ｜ 取数日
+# 分隔符是全角竖线 ｜（U+FF5C），与 核查/*.md 现有约定一致。
+_BENCH_LINE_RE = re.compile(r"^\s*-\s*\[([^\]]+)\]\s*(.+?)\s*｜", re.M)
+
+
+def parse_benchmarks(run_dir):
+    """扫 run_dir/参照系/*.md，返回 {what: 强度}。
+
+    参照系/ 不存在时返回 None——调用方据此区分"这一版没有这道工序"（向后兼容，
+    应跳过检查）与"工序跑了但一条都没产出"（是真问题，应报警）。
+    未知档位的行直接跳过：宁可漏判也不要把打错的标签当成有效强度。
+    """
+    d = run_dir / "参照系"
+    if not d.is_dir():
+        return None
+    out = {}
+    for f in sorted(d.glob("*.md")):
+        for strength, what in _BENCH_LINE_RE.findall(f.read_text(encoding="utf-8")):
+            strength = strength.strip()
+            if strength in STRENGTHS:
+                out[what.strip()] = strength
+    return out
