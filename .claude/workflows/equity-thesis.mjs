@@ -166,6 +166,23 @@ const BENCHMARK = {
   },
 }
 
+// 补参照系专用：与 BENCHMARK 同形，但 items 允许为空、written_file 非必填。
+// 它现在总是被派出，"一条悬空的都没有"是合法结果，不该逼它编条目或落一个空文件。
+// 为什么不直接放开 BENCHMARK 的 minItems：那会连板块基准的下限一起撤掉，而
+// 参照系/ 目录一旦存在，check_thesis 硬约束 7 就永久生效——一个空的板块基准
+// 会以「未点名任何可匹配的承重数字」被硬拦，报告交不出去。
+const BENCHMARK_FILL = {
+  type: 'object',
+  required: ['items'],
+  properties: {
+    written_file: {
+      type: 'string',
+      description: '你落盘的 参照系/补.md 绝对路径。一条都没接上时可以不落盘，此项留空',
+    },
+    items: { ...BENCHMARK.properties.items, minItems: 0 },
+  },
+}
+
 const REPORT = {
   type: 'object',
   required: ['written_file', 'rating', 'decisive_variable'],
@@ -259,7 +276,8 @@ if (doubt) log(`估值原型：${doubt.archetype}；疑惑 ${doubt.doubts?.lengt
 // ── 步骤 3+3.5：pipeline——每份 findings 一产出就核查，不等其他 lens ──
 // round4/5 实测：核查排在第 265/298 次调用，之后已无预算写稿。
 // pipeline 让核查与其余 lens 的挖掘重叠，从结构上避免堆到尾部。
-const doubtBrief = (doubt?.doubts ?? []).map((d, i) => `${i + 1}. ${d.question}（${d.why_decision}）`).join('\n')
+// 疑惑不由编排器转手：每个 agent 自己 Read ${RUN}/疑惑.md。这里曾有一个只赋值、
+// 没有任何 prompt 引用的疑惑摘要变量，留着会让人误以为编排器在传疑惑，已删。
 
 // 一级：挖掘
 const digStage = (l) =>
@@ -390,45 +408,61 @@ const allChecked = ok.flatMap((r) => r.checked)
 log(`挖掘+核查完成 ${ok.length}/${LENSES.length} 份；已核实清单 ${allChecked.length} 条`)
 
 // ── 步骤 3.6：补参照系 ──────────────────────────────────────────────
-// 只对仍悬空的承重数发力；一条都没有就整段跳过——这是拆两半消掉 barrier 代价的地方。
+// 只对仍悬空的承重数发力。**总是派出**：悬空清单的权威来源是 核查/*.md 这些文件，
+// 而编排器内存里只有本轮新核出的那些——跨会话续跑时五份核查会整段跳过，内存里一条
+// 都没有，按内存判空就会整段跳过、参照系/ 只剩板块基准一半。所以改由 agent 自己读盘筛，
+// 编排器算出的本轮清单作为补充，两者取并集。空转的代价是一次调用，漏接地的代价是硬门拦稿。
 phase('补参照系')
 // 与 benchmark_lib.MUST_DOWNGRADE 同一套。用 includes 而不是相等：核查 agent 偶尔会
 // 在档位串前后带修饰（"私有基准（ITR）"），宁可宽进也不要漏掉一条悬空的数。
 const dangling = allChecked.filter((c) =>
   ['私有基准', '无参照系'].some((s) => (c.benchmark_type ?? '').includes(s))
 )
-let benchFill = null
-if (dangling.length === 0) {
-  log(
-    doneChecked.size
-      ? '补参照系：本轮没有新核出的悬空承重数（跳过的那几份核查在 核查/ 里，不进本轮清单），跳过'
-      : '补参照系：没有悬空的承重数，跳过'
-  )
-} else {
-  log(`补参照系：${dangling.length} 条悬空，逐条接地`)
-  benchFill = await agent(
-    `你是补参照系 agent。报告日 ${DATE}。下面这些承重数字在核查阶段被判为「私有基准」
-或「无参照系」，意味着它们**没有外部同口径的比较对象**，而结论正压在它们上面：
+const danglingBrief =
+  dangling.length === 0
+    ? '（本轮没有新核出的悬空条目——可能是核查整段跳过了。以你读盘筛出的为准。）'
+    : dangling.map((d, i) => `${i + 1}. ${d.what}｜当前值 ${d.verified_value}`).join('\n')
+log(`补参照系：本轮新核出 ${dangling.length} 条悬空，另由 agent 读 ${RUN}/核查/ 全量筛一遍`)
+const benchFill = await agent(
+  `你是补参照系 agent。报告日 ${DATE}。有些承重数字在核查阶段被判为「私有基准」或
+「无参照系」，意味着它们**没有同口径的外部比较对象**，而结论正压在它们上面。你的任务是
+逐条给它们找一个外部参照系。
 
-${dangling.map((d, i) => `${i + 1}. ${d.what}｜当前值 ${d.verified_value}`).join('\n')}
+**先把悬空清单凑齐，两个来源取并集：**
 
-逐条去找外部同口径的参照系。**本地优先**：先看 ${DATA}/peers_curated.json 与
+1. **读盘（权威来源，必做）**：Read ${RUN}/核查/ 下的**全部** *.md。每行格式是
+   \`- [判定][参照系类型] what ｜ 核实值 ｜ 出处\`，挑出参照系类型是「私有基准」或
+   「无参照系」的行。
+2. **本轮新核出的（可能不全，续跑时会是空的）**：
+${danglingBrief}
+
+并集为空就到此为止：**items 返回空数组、不要落盘、更不要编条目**，在返回里说明
+"核查/ 里没有判为私有基准或无参照系的条目"。空转是合法结果。
+
+否则逐条去找同口径的外部参照系。**本地优先**：先看 ${DATA}/peers_curated.json 与
 ${RUN}/参照系/板块基准.md 里有没有现成的；没有才 WebSearch。
 
 联网所得每条必须带 url、逐字原文 verbatim、抓取日期，缺任一项不要提交。
-**至少两个独立来源对得上才给「外部·可回溯」，单源一律「外部·单源未交叉」。**
+每条给一个强度，五选一、**逐字照抄**（中间那一点是「·」，写别的点下游硬门会当这条不存在）：
+外部·可回溯 / 外部·单源未交叉 / 外部但口径存疑 / 私有基准 / 无参照系。
+判据：**至少两个独立来源对得上才给「外部·可回溯」，只有一个来源一律给「外部·单源未交叉」**；
+拿到了外部数但口径对不齐（例如宽池子且池内无同品种）给「外部但口径存疑」；
 找不到就如实给「无参照系」——**找不到是可接受的结果，编一个不是。**
 
 **你只查别人，不查标的公司自己的任何数字。**
 
 落盘到 ${RUN}/参照系/补.md（先 mkdir -p），格式同 板块基准.md：
-\`- [强度] what ｜ 值 ｜ 出处 ｜ 取数日\`，联网条目下一行缩进补 \`    > 原文：<逐字片段>\`。
-**what 串原样沿用上面清单里的写法**，一个字都不要改——成稿与交付前的硬门都按这个串精确匹配，
-改了就等于这条没接上。`,
-    { label: '补参照系', phase: '补参照系', schema: BENCHMARK }
+\`- [强度] what ｜ 值 ｜ 出处 ｜ 取数日\`，分隔符是全角竖线 ｜，
+联网条目下一行缩进补 \`    > 原文：<逐字片段>\`。
+**what 串原样沿用核查清单里的写法**，一个字都不要改——成稿与交付前的硬门都按这个串
+精确匹配，改了就等于这条没接上。`,
+  { label: '补参照系', phase: '补参照系', schema: BENCHMARK_FILL }
+)
+if (benchFill)
+  log(
+    `补参照系：接地 ${benchFill.items?.length ?? 0} 条` +
+      (benchFill.written_file ? ` → ${benchFill.written_file}` : '（无悬空条目，未落盘）')
   )
-  if (benchFill) log(`补参照系：${benchFill.items?.length ?? 0} 条 → ${benchFill.written_file ?? '未落盘'}`)
-}
 
 // ── 步骤 4：成稿 ────────────────────────────────────────────────────
 // 控制流保证这一步一定被执行——round5 的失败正是编排器派完核查就提前收工、从未走到这里。
@@ -468,6 +502,8 @@ const report = await agent(
   （「无法回答」「未取得」「绝对口径下」之一）——硬门按就近判定，降级句甩到块尾不算数。
 - **凡强度属「私有基准」「无参照系」、且其 what 串或值串字面出现在开篇散文里的条目，都必须在
   声明块里点到名**，漏一条就拦；点名另一个安全数字替代不了。
+- **块内每一行都要以 \`>\` 开头，中间不许留空行**——硬门在第一个不以 \`>\` 开头的行处
+  截断这个块，中间空一行会让后半块整个作废，连带把已经写对的声明判成没写。
 
 出口：市值区间不给目标价、赔率区间精度到十位数并折成"几年一倍"、
 概率没把握就写"我判断不了"、五维均分映射 A/B/C、决定性变量写成正反两栏并给行动触发条件。
@@ -493,7 +529,7 @@ return {
   checked_total: allChecked.length,
   参照系: {
     板块基准: benchBase ? (benchBase.items?.length ?? 0) : doneBench ? '已在（跳过）' : null,
-    悬空承重数: dangling.length,
+    悬空承重数_本轮新核: dangling.length,   // agent 还会读 核查/ 全量筛，实际接地条数可能更多
     补: benchFill ? (benchFill.items?.length ?? 0) : 0,
   },
   report: report ?? null,
