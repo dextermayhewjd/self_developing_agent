@@ -134,7 +134,7 @@ cwd 会漂，而且漂了不会报错。
 
 ## 综合阶段（编排器自己做，不外包）
 
-**综合的唯一输入是 findings/*.md 五份 + 疑惑.md**（取估值数字可另读 aggregate.json）。年报的重活子 agent 已经替你做完并浓缩进 findings——**这一步不要再打开 annual_pdf、不要 pdftotext/grep 年报、不要 WebSearch**。某份 findings 太薄，补派那个子 agent，别自己去刨。
+**综合的唯一输入是 findings/*.md 五份（已按步骤 3.5 核查修正）+ 疑惑.md + 核查子 agent 返回的「已核实清单」+ 参照系/（步骤 3.6 补参照系的产出，写开篇参照系声明块要用）**（取估值数字可另读 aggregate.json）。年报的重活子 agent 已经替你做完并浓缩进 findings——**这一步不要再打开 annual_pdf、不要 pdftotext/grep 年报、不要 WebSearch**。某份 findings 太薄，补派那个子 agent，别自己去刨。
 
 拿到五份 findings 后，编排器：
 
