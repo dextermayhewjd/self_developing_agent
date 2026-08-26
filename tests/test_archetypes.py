@@ -101,5 +101,36 @@ class TestParseArchetypes(unittest.TestCase):
                 offset += len(raw)
 
 
+class TestWorkflowArchetypeEnum(unittest.TestCase):
+    """复审 I2：equity-thesis.mjs 的 archetype 是 enum，值必须与本表逐字相同。
+
+    此前它是自由字符串，写成「耗竭资源型（钨矿）」这种带注解的串不会报任何错——
+    五个 lens 与板块基准 agent 各自匹配不上、各自退化，没有一处发出信号。
+    这条测试盯的是两边漂移：改了 md 忘了改 mjs（或反过来）当场红。
+    """
+
+    WORKFLOW = Path(__file__).resolve().parent.parent / ".claude/workflows/equity-thesis.mjs"
+
+    def _enum_values(self):
+        text = self.WORKFLOW.read_text(encoding="utf-8")
+        # 先切出 archetype 这一个 property 的对象体（它内部没有嵌套的 {}），再在里面
+        # 找 enum——不这样限定，正则会一路滑到下一个 property 的 enum 上，测试照样
+        # 红但报错会指向错的地方。
+        body = re.search(r"archetype:\s*\{([^{}]*)\}", text, re.S)
+        self.assertIsNotNone(body, "equity-thesis.mjs 里找不到 archetype 这个 property")
+        m = re.search(r"enum:\s*\[(.*?)\]", body.group(1), re.S)
+        self.assertIsNotNone(m, "equity-thesis.mjs 的 archetype 必须是 enum，不能退回自由字符串")
+        return [x.strip().strip("'\"") for x in m.group(1).split(",") if x.strip()]
+
+    def test_enum_matches_archetype_file_verbatim(self):
+        parsed = benchmark_lib.parse_archetypes(ARCHETYPES.read_text(encoding="utf-8"))
+        expected = [n for n, _ in sorted(parsed.items(), key=lambda kv: kv[1]["index"])]
+        self.assertEqual(self._enum_values(), expected,
+                          "mjs 的 enum 与 valuation_archetypes.md 的段标题必须逐字一致、顺序一致")
+
+    def test_enum_has_fifteen_values(self):
+        self.assertEqual(len(self._enum_values()), 15)
+
+
 if __name__ == "__main__":
     unittest.main()

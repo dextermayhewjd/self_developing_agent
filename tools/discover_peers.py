@@ -495,7 +495,17 @@ def _extract_terms_for_symbol(symbol, out_dir, explicit_terms):
     return terms
 
 
-def _run_confirm_phase(cache_path, confirm_arg, today):
+def _is_self_code(code, symbol):
+    """确认清单里的某个代码是不是标的自己。
+
+    只做去空白 + 大小写归一的精确比较：本文件的检索通道只覆盖 A 股，代码恒为 6 位
+    数字，不需要处理前导零/交易所后缀那些变体。宽松匹配（例如去前导零）反而会把
+    000657 与 657 这类不同标的判成同一个——误排除一家真同业，比漏排除标的自己更糟。
+    """
+    return bool(symbol) and code.strip().upper() == symbol.strip().upper()
+
+
+def _run_confirm_phase(cache_path, confirm_arg, today, symbol):
     """确认阶段（Ruling T3-8）：给定一份 agent 已经判断过"同品种"的代码清单，
     只对这些代码取估值、算中位数、写最终产物。keep=True 只可能来自这里
     （或 manual=True）——候选阶段算出的 hint 从不单独驱动 keep。
@@ -505,6 +515,12 @@ def _run_confirm_phase(cache_path, confirm_arg, today):
 
     退出码按"确认后 keep=True 的条数"判，不按候选/合并后的列表是否非空判
     （round 2 Important 3 定的规矩，这里延续）：零条 → exit 1。
+
+    标的自身若出现在确认清单里（或以 manual 条目的形式混进来），一律排除出中位数：
+    一家公司不是自己的同业，把自己算进中位数会把中位数往自己身上拉，偏离度当场失真
+    （Task 8 验收 Step 3 就把 600549 算进了它自己的中位数）。排除动作是**大声**的：
+    产物里那一行留着但 keep=False、reason 写明原因，stderr 打警告说明排除了谁、
+    中位数基于几家——静默剔除会让人以为样本数本来就那么多。
     """
     confirmed_codes = [c.strip() for c in re.split(r"[,，、]", confirm_arg or "") if c.strip()]
     print(f"  确认清单：{confirmed_codes}", file=sys.stderr)
@@ -547,6 +563,21 @@ def _run_confirm_phase(cache_path, confirm_arg, today):
 
     keep_rows = [r for r in merged if r.get("keep")]
 
+    # 标的自身不进中位数。判据放在 keep_rows 上而不是只筛 confirmed_codes：
+    # 人工 manual 条目同样可能把标的自己塞进来，两条路都要堵。
+    self_rows = [r for r in keep_rows if _is_self_code(r.get("code", ""), symbol)]
+    if self_rows:
+        for r in self_rows:
+            r["keep"] = False
+            r["reason"] = f"标的自身（{symbol}），不计入同业中位数"
+            r["is_self"] = True
+        keep_rows = [r for r in keep_rows if not _is_self_code(r.get("code", ""), symbol)]
+        print(
+            f"WARN: 确认清单里含标的自身 {symbol}，已从中位数计算中排除"
+            f"（一家公司不是自己的同业）。中位数将基于其余 {len(keep_rows)} 家。",
+            file=sys.stderr,
+        )
+
     if not keep_rows:
         label = "确认清单为空" if not confirmed_codes else "确认清单里没有一条留在 keep=True"
         out = {
@@ -566,10 +597,13 @@ def _run_confirm_phase(cache_path, confirm_arg, today):
         "状态": "已确认", "生成日期": today, "品种词": terms,
         "通道": "agent 确认（--confirm）",
         "peers": merged, "中位数": medians, "中位数_样本数": median_sample_counts,
+        "中位数_家数": len(keep_rows),
+        "已排除标的自身": [r["code"] for r in self_rows],
     }
     cache_path.write_text(json.dumps(out, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
     print(f"  wrote {cache_path}", file=sys.stderr)
-    print(f"确认同业 {len(keep_rows)} 家（另有 {len(merged) - len(keep_rows)} 条留在产物里 keep=False）")
+    print(f"确认同业 {len(keep_rows)} 家（另有 {len(merged) - len(keep_rows)} 条留在产物里 keep=False"
+          + (f"，其中标的自身 {len(self_rows)} 条" if self_rows else "") + "）")
     print(f"中位数 PE_TTM={medians['PE_TTM']}  PB={medians['PB']}  PS={medians['PS']}  "
           f"样本数 PE={median_sample_counts['PE_TTM']}/PB={median_sample_counts['PB']}/"
           f"PS={median_sample_counts['PS']}")
@@ -595,7 +629,9 @@ def main():
                          help="确认阶段（Ruling T3-8）：给定一份已经由 agent 判断过'同品种'的"
                               "代码清单（逗号/顿号分隔），只对这些代码取估值、算中位数、写最终"
                               "产物。传了这个参数就跳过候选发现，直接进确认阶段——候选阶段的"
-                              "hint/主营节选 仅供参考，从不单独驱动 keep=True")
+                              "hint/主营节选 仅供参考，从不单独驱动 keep=True。"
+                              "标的自身写进清单也没用：它会被排除出中位数并打警告——"
+                              "一家公司不是自己的同业")
     args = parser.parse_args()
 
     symbol = args.symbol.strip()
@@ -608,7 +644,7 @@ def main():
     if args.confirm is not None:
         # 确认阶段永远执行，不受候选阶段的"今日缓存"判断影响——这是一次显式的
         # 确认动作，跟 --force 一样是调用方主动要求的事，不该被幂等跳过。
-        _run_confirm_phase(cache_path, args.confirm, today)
+        _run_confirm_phase(cache_path, args.confirm, today, symbol)
         return
 
     if not args.force and cache_path.exists():

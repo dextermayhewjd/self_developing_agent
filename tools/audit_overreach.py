@@ -3,7 +3,9 @@
 audit_run.py 的 DIG 含 Read/Bash，而综合阶段读 findings、跑校验器都是设计要求的
 （SKILL.md 步骤 4：只读 findings/ 和 aggregate.json）。所以 dig_after 系统性高估越权。
 
-真越权 = 派活后触碰 annual_pdf / pdftotext / WebSearch / WebFetch。
+真越权 = 派活后触碰 annual_pdf / pdftotext，或**不带同业意图**的 WebSearch / WebFetch。
+联网不再一律算越权：参照系 agent（板块基准 / 补参照系）是本项目唯一获准联网的
+agent，它一旦自己 spawn，此前会把它全部合法联网记成告警——见 is_overreach。
 
 用法：
     python tools/audit_overreach.py <TRANSCRIPT.jsonl> [标的代码] [标的公司全称]
@@ -13,7 +15,7 @@ audit_run.py 的 DIG 含 Read/Bash，而综合阶段读 findings、跑校验器�
 退出码（与 check_thesis.py 的 0/1/2 同源）：
     0 = 完整分析（spawn 分段成功）且干净——无真越权、查自己检查也没命中
     1 = 发现越权——真越权非空，或查自己检查命中非空，两者任一即为 1
-    2 = 部分分析——没有 spawn 事件，「真越权/合法/其他」三项分段跳过；
+    2 = 部分分析——没有 spawn 事件，「真越权/合法联网/合法/其他」四项分段跳过；
         查自己检查不受影响、仍照常跑，跑完没命中才是 2（命中了仍是 1）
 """
 import json, sys, re
@@ -54,6 +56,28 @@ _PEER_INTENT_MARKERS = (
 def _has_peer_intent(q):
     ql = q.lower()
     return any(m.lower() in ql for m in _PEER_INTENT_MARKERS)
+
+
+def is_overreach(name, blob):
+    """这一次调用算不算真越权。
+
+    年报正文一律算（含 pdftotext 导出到 /tmp 再 grep 的绕路）。**联网分两种**：
+
+    - 带同业意图标记的 WebSearch/WebFetch → **不算**。参照系 agent 是本项目唯一
+      获准联网的 agent（设计 D2），它的本职就是查外部同业/同板块口径。此前 OVER_TOOLS
+      把联网一律记为真越权，于是这个 agent 只要自己 spawn 过一次，它全部的合法联网
+      都会变成告警——一个老是误报的判据会被直接忽略，等于没有这道检查。
+    - 不带同业意图的联网 → 仍算越权。综合成稿、核查、五个 lens 都明令禁网，
+      它们的检索不会带「同业/可比/板块/中位数/分位」这类词。
+
+    取舍与 detect_self_lookup 一致：**宁可漏报也不要误报**。代价是"用同业措辞包装的
+    越权检索"会被放过——但这个判据要找的是无意的越界，不是防故意绕过（绕过者只能
+    是 agent 自己，它没有绕过的动机）。「只查别人不查自己」那条线由 detect_self_lookup
+    独立守，且它不依赖 spawn 分段，整份转录都扫，所以这里放宽不会让那条线一起松。
+    """
+    if name in OVER_TOOLS:
+        return not _has_peer_intent(blob)
+    return bool(OVER_PAT.search(blob))
 
 
 def _contains_symbol(symbol, q):
@@ -120,18 +144,26 @@ def main():
     partial = first is None
     over = []
     if partial:
-        print("没有 spawn，无法分段（真越权/合法/其他 三项跳过）")
+        print("没有 spawn，无法分段（真越权/合法联网/合法/其他 四项跳过）")
     else:
         after = uses[first:]
         blob = lambda i: " ".join(str(v) for v in i.values())
-        over  = [(n,blob(i)) for n,i in after if n not in SPAWN and (n in OVER_TOOLS or OVER_PAT.search(blob(i)))]
+        over  = [(n,blob(i)) for n,i in after if n not in SPAWN and is_overreach(n, blob(i))]
+        # 参照系 agent 的合法联网单列一档：不计入越权，但要**打印出来**——
+        # 从告警里摘掉不等于让它消失，看的人有权知道这一轮联网查了什么。
+        bench_net = [(n,blob(i)) for n,i in after
+                     if n not in SPAWN and n in OVER_TOOLS and not is_overreach(n, blob(i))]
         legit = [(n,blob(i)) for n,i in after if n not in SPAWN and n not in OVER_TOOLS and not OVER_PAT.search(blob(i)) and LEGIT_PAT.search(blob(i))]
         spawn_n = sum(1 for n,_ in after if n in SPAWN)
-        other = len(after) - len(over) - len(legit) - spawn_n
+        other = len(after) - len(over) - len(bench_net) - len(legit) - spawn_n
         print(f"派活后总调用: {len(after)}（含 {spawn_n} 次 spawn 本身）")
-        print(f"  真越权（年报/联网）: {len(over)}")
+        print(f"  真越权（年报/无同业意图的联网）: {len(over)}")
+        print(f"  参照系 agent 的合法联网（带同业意图）: {len(bench_net)}")
         print(f"  合法（findings/档案/校验器）: {len(legit)}")
         print(f"  其他: {other}")
+        if bench_net:
+            print("\n合法联网明细（前 10，仅供人工复核，不计入越权）:")
+            for n,b in bench_net[:10]: print(f"    {n:10} {b[:95]}")
         if over:
             print("\n真越权明细（前 20）:")
             for n,b in over[:20]: print(f"    {n:10} {b[:95]}")

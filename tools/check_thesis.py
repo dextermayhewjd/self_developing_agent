@@ -112,7 +112,10 @@ def check_opening_benchmark(report, bench, values=None):
     才是误导——而读报告的人只读开篇。全面拦会让资源股/次新股每篇都被拦，写稿的
     人学会批量粘声明句，硬门反而失效。
 
-    bench 为 None（参照系/ 不存在）时跳过，向后兼容旧 run。
+    bench 为 None 时跳过，向后兼容旧 run。它由 benchmark_lib.collect_benchmarks 判定：
+    核查/ 与 参照系/ 都给不出任何条目、且 参照系/ 不存在，才算"这一版没有这道工序"。
+    bench 的键覆盖**全部**承重数字（核查/ 打底、参照系/ 覆盖），不是只有补参照系
+    选择写下的那几条——否则漏写一条就等于那条数在硬门眼里不存在（复审 C1）。
 
     values 是 {what: 值字符串}（benchmark_lib.parse_benchmark_values 的产出），
     供下面的覆盖性检查（T4-2）判断开篇散文是否字面引用了某条 MUST_DOWNGRADE
@@ -273,11 +276,22 @@ def main():
     # 03858 实测：五条承重数字全部回原文核实通过，但按参照系归类没有一条是外部
     # 同口径——核查全过，判断照样悬空。而全篇空头结论正压在其中一条私有基准上。
     # 核查只管"抄对没有"，管不了"这个数在外面算什么水平"，这一条补的就是后者。
-    _bench = benchmark_lib.parse_benchmarks(run_dir)
-    # bench 为 None（参照系/ 不存在）时不必再扫一遍 value——两者的"目录缺失"
-    # 语义一致，check_opening_benchmark 会在 bench is None 时整体跳过。
-    _bench_values = benchmark_lib.parse_benchmark_values(run_dir) if _bench is not None else None
-    hard.extend(check_opening_benchmark(report, _bench, _bench_values))
+    # 真值来源是 核查/ + 参照系/ 两处（后者优先），不是只有 参照系/——
+    # 复审 C1：参照系/ 只装板块口径名与补参照系 agent**选择写下**的条目，拿它当
+    # 「全部承重数字 → 强度」的映射会两个方向同时错：补参照系漏写一条就 fail-open
+    # （03858 那次的原样重演），而被核查判为「外部·可回溯」的核心数字永远不进
+    # 参照系/、成稿老实点名反被误拦。
+    try:
+        _collected = benchmark_lib.collect_benchmarks(run_dir)
+    except benchmark_lib.BenchmarkParseError as e:
+        # 大声失败，不静默返回空：整份文件解析不出一条时，硬门看到的"干净"是假的。
+        hard.append(f"参照系/核查文件解析失败：{e}")
+        _collected = None
+    if _collected is not None:
+        for level, msg in _collected.notes:
+            (hard if level == "hard" else soft).append(msg)
+        # bench 为 None 时 check_opening_benchmark 整体跳过（向后兼容旧 run）。
+        hard.extend(check_opening_benchmark(report, _collected.bench, _collected.values))
 
     # ---- 软约束：观点段 / 数据段 配比 >= 1/3 ----
     data_chars = char_count(blocks_after(report, SEG_DATA))

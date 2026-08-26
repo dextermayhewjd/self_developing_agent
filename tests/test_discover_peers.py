@@ -1,3 +1,5 @@
+import contextlib
+import io
 import json
 import tempfile
 import types
@@ -428,6 +430,93 @@ class TestConfirmPhase(unittest.TestCase):
             self.assertIn("ALM", by_code, "manual 条目必须保留")
             self.assertIn("valuation_err", by_code["ALM"],
                           "非 A 股的 manual 条目应该被显式标注估值缺失（Minor 4），不是静默")
+
+
+class TestSelfExclusion(unittest.TestCase):
+    """复审 I3：--confirm 清单含标的自身时，必须排除出中位数并打警告。
+
+    Task 8 验收 Step 3 把 600549 算进了它自己的中位数——一家公司不是自己的同业，
+    这样算出的偏离度当场失真。
+    """
+
+    def _run(self, tmp, confirm, peers):
+        symbol_dir = Path(tmp) / "600549"
+        symbol_dir.mkdir(parents=True, exist_ok=True)
+        cache_path = symbol_dir / "peers_curated.json"
+        cache_path.write_text(json.dumps({
+            "状态": "候选待确认", "生成日期": "2026-08-01", "品种词": ["钨"], "通道": "①",
+            "peers": peers, "中位数": {"PE_TTM": None, "PB": None, "PS": None},
+        }, ensure_ascii=False), encoding="utf-8")
+
+        # 每家给不同的 PE，好让"有没有把标的自己算进去"在中位数上看得出来
+        pe_by_code = {"600549": 999.0, "000657": 51.72, "002378": 34.74, "002842": 31.72}
+        fake_ak = types.ModuleType("akshare")
+        fake_ak.stock_value_em = lambda symbol: _FakeZyjsFrame({
+            "PE(TTM)": pe_by_code.get(symbol, 10.0), "市净率": 9.39,
+            "市销率": 5.56, "数据日期": "2026-08-26",
+        })
+        argv = ["discover_peers.py", "600549", "--root", tmp, "--confirm", confirm]
+        err = io.StringIO()
+        with mock.patch.dict(sys.modules, {"akshare": fake_ak}), \
+                mock.patch.object(sys, "argv", argv), \
+                contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+            with self.assertRaises(SystemExit) as ctx:
+                discover_peers.main()
+        return ctx.exception.code, json.loads(cache_path.read_text(encoding="utf-8")), err.getvalue()
+
+    def _candidates(self, codes):
+        return [{"code": c, "market": "CN", "name": c, "主营节选": "钨……", "hint": "",
+                 "keep": None, "reason": "候选，待 agent 用 --confirm 确认", "manual": False}
+                for c in codes]
+
+    def test_self_is_excluded_from_median(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            code, out, err = self._run(
+                tmp, "600549,000657,002378,002842",
+                self._candidates(["600549", "000657", "002378", "002842"]))
+        self.assertEqual(code, 0)
+        # 三家（51.72 / 34.74 / 31.72）的中位数是 34.74；把 600549 的 999 算进去
+        # 会变成四家的中位数 43.23——差得出来，断言才立得住。
+        self.assertEqual(out["中位数"]["PE_TTM"], 34.74,
+                          "中位数必须只由其余三家算出，标的自身不得参与")
+        self.assertEqual(out["中位数_家数"], 3)
+        self.assertEqual(out["已排除标的自身"], ["600549"])
+
+    def test_self_row_is_kept_in_product_but_marked(self):
+        """不静默丢弃：那一行留在产物里，keep=False 且写明原因。"""
+        with tempfile.TemporaryDirectory() as tmp:
+            _, out, _ = self._run(
+                tmp, "600549,000657", self._candidates(["600549", "000657"]))
+        by_code = {r["code"]: r for r in out["peers"]}
+        self.assertFalse(by_code["600549"]["keep"])
+        self.assertIn("标的自身", by_code["600549"]["reason"])
+        self.assertTrue(by_code["600549"].get("is_self"))
+
+    def test_warning_names_who_and_how_many(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _, _, err = self._run(
+                tmp, "600549,000657", self._candidates(["600549", "000657"]))
+        self.assertIn("600549", err)
+        self.assertIn("排除", err)
+        self.assertIn("其余 1 家", err, "警告要说明中位数基于几家")
+
+    def test_only_self_confirmed_exits_1(self):
+        """清单里只有标的自己 = 一条同业都没确认到，必须 exit 1，不能算"确认了一家"。"""
+        with tempfile.TemporaryDirectory() as tmp:
+            code, out, _ = self._run(tmp, "600549", self._candidates(["600549"]))
+        self.assertEqual(code, 1)
+        self.assertIsNone(out["中位数"]["PE_TTM"])
+
+    def test_no_self_in_list_leaves_everything_untouched(self):
+        """反向：清单里没有标的自己时，不得凭空排除任何人、也不该打警告。"""
+        with tempfile.TemporaryDirectory() as tmp:
+            code, out, err = self._run(
+                tmp, "000657,002378,002842",
+                self._candidates(["000657", "002378", "002842"]))
+        self.assertEqual(code, 0)
+        self.assertEqual(out["中位数_家数"], 3)
+        self.assertEqual(out["已排除标的自身"], [])
+        self.assertNotIn("标的自身", err)
 
 
 if __name__ == "__main__":

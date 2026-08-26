@@ -11,6 +11,30 @@ import audit_overreach
 TOOLS_DIR = Path(__file__).resolve().parent.parent / "tools"
 
 
+def run_audit(transcript_lines, *extra_args):
+    """把几行转录写成临时 jsonl，跑一次 audit_overreach.py，返回 CompletedProcess。"""
+    with tempfile.NamedTemporaryFile(
+        "w", suffix=".jsonl", delete=False, encoding="utf-8"
+    ) as f:
+        f.write("\n".join(transcript_lines))
+        path = f.name
+    try:
+        return subprocess.run(
+            [sys.executable, str(TOOLS_DIR / "audit_overreach.py"), path, *extra_args],
+            capture_output=True,
+            text=True,
+        )
+    finally:
+        Path(path).unlink(missing_ok=True)
+
+
+def tool_use_line(name, input_):
+    return json.dumps(
+        {"message": {"content": [{"type": "tool_use", "name": name, "input": input_}]}},
+        ensure_ascii=False,
+    )
+
+
 class TestDetectSelfLookup(unittest.TestCase):
     def test_flags_websearch_on_own_financials(self):
         t = 'WebSearch(query="佳鑫国际资源投资 2025 净利润")'
@@ -57,27 +81,8 @@ class TestMainWiring(unittest.TestCase):
     退出码是三态（与 check_thesis.py 的 0/1/2 同源）：0 完整且干净 / 1 发现越权 / 2 部分分析。
     """
 
-    def _run(self, transcript_lines, *extra_args):
-        with tempfile.NamedTemporaryFile(
-            "w", suffix=".jsonl", delete=False, encoding="utf-8"
-        ) as f:
-            f.write("\n".join(transcript_lines))
-            path = f.name
-        try:
-            proc = subprocess.run(
-                [sys.executable, str(TOOLS_DIR / "audit_overreach.py"), path, *extra_args],
-                capture_output=True,
-                text=True,
-            )
-        finally:
-            Path(path).unlink(missing_ok=True)
-        return proc
-
-    def _tool_use_line(self, name, input_):
-        return json.dumps(
-            {"message": {"content": [{"type": "tool_use", "name": name, "input": input_}]}},
-            ensure_ascii=False,
-        )
+    _run = staticmethod(run_audit)
+    _tool_use_line = staticmethod(tool_use_line)
 
     def _search_line(self, query):
         return self._tool_use_line("WebSearch", {"query": query})
@@ -119,6 +124,80 @@ class TestMainWiring(unittest.TestCase):
         self.assertEqual(proc.returncode, 2)
         self.assertIn("查自己检查", proc.stdout)
         self.assertIn("0 处", proc.stdout)
+
+
+class TestIsOverreach(unittest.TestCase):
+    """复审 I4：WebSearch/WebFetch 不再一律记为真越权。
+
+    参照系 agent 是本项目唯一获准联网的 agent，它一旦自己 spawn，旧判据会把它
+    全部合法联网变成告警——老误报的判据会被直接忽略，等于没有这道检查。
+    """
+
+    def test_peer_intent_search_is_not_overreach(self):
+        self.assertFalse(audit_overreach.is_overreach(
+            "WebSearch", "钨矿 同业 P/NAV 中位数"))
+
+    def test_peer_intent_fetch_is_not_overreach(self):
+        self.assertFalse(audit_overreach.is_overreach(
+            "WebFetch", "https://example.com/mining 可比公司 估值"))
+
+    def test_search_without_peer_intent_is_still_overreach(self):
+        """成稿/核查/五个 lens 都禁网，它们的检索不会带同业措辞——仍要拦。"""
+        self.assertTrue(audit_overreach.is_overreach(
+            "WebSearch", "佳鑫国际资源投资 巴库塔 投产时间"))
+
+    def test_annual_report_access_is_still_overreach(self):
+        self.assertTrue(audit_overreach.is_overreach(
+            "Bash", "pdftotext data/03858/annual_pdf/2025.pdf /tmp/a.txt"))
+
+    def test_pdftotext_detour_is_still_overreach(self):
+        self.assertTrue(audit_overreach.is_overreach("Bash", "grep 营业收入 /tmp/601678_annual.txt"))
+
+    def test_ordinary_read_is_not_overreach(self):
+        self.assertFalse(audit_overreach.is_overreach("Read", "findings/产业.md"))
+
+    def test_carve_out_is_consistent_with_self_lookup_orientation(self):
+        """两条判据取向一致：拿标的当锚点查同业，既不算越权、也不算查自己。"""
+        q = "佳鑫国际资源投资 可比公司 市值中位数"
+        self.assertFalse(audit_overreach.is_overreach("WebSearch", q))
+        self.assertEqual(
+            audit_overreach.detect_self_lookup(f'WebSearch(query="{q}")', "03858", "佳鑫国际资源投资"),
+            [])
+
+
+class TestBenchmarkNetworkNotFlagged(unittest.TestCase):
+    """端到端：参照系 agent 自己 spawn 之后的合法联网不得让退出码变成 1。"""
+
+    _run = staticmethod(run_audit)
+    _line = staticmethod(tool_use_line)
+
+    def test_peer_searches_after_spawn_exit_0(self):
+        lines = [
+            self._line("Task", {"prompt": "go"}),
+            self._line("WebSearch", {"query": "钨精矿 同业 P/NAV 中位数"}),
+            self._line("WebSearch", {"query": "Almonty Industries 可比公司 EV/NAV"}),
+        ]
+        proc = self._run(lines, "03858", "佳鑫国际资源投资")
+        self.assertEqual(proc.returncode, 0, proc.stdout)
+        self.assertIn("真越权（年报/无同业意图的联网）: 0", proc.stdout)
+
+    def test_legit_network_is_printed_not_swallowed(self):
+        """从告警里摘掉不等于让它消失——必须仍然打印出来供人工复核。"""
+        lines = [
+            self._line("Task", {"prompt": "go"}),
+            self._line("WebSearch", {"query": "钨精矿 同业 P/NAV 中位数"}),
+        ]
+        proc = self._run(lines, "03858", "佳鑫国际资源投资")
+        self.assertIn("合法联网（带同业意图）: 1", proc.stdout)
+        self.assertIn("钨精矿 同业 P/NAV 中位数", proc.stdout)
+
+    def test_non_peer_search_after_spawn_still_exit_1(self):
+        lines = [
+            self._line("Task", {"prompt": "go"}),
+            self._line("WebSearch", {"query": "巴库塔钨矿 投产 最新进展"}),
+        ]
+        proc = self._run(lines, "03858", "佳鑫国际资源投资")
+        self.assertEqual(proc.returncode, 1, proc.stdout)
 
 
 if __name__ == "__main__":
