@@ -1,11 +1,12 @@
 export const meta = {
   name: 'equity-thesis',
-  description: '判断型研究报告：立疑 → 五 lens 并行挖掘、每份即时核查 → 成稿',
+  description: '判断型研究报告：立疑 → 五 lens 并行挖掘（板块基准同槽并行）、每份即时核查 → 补参照系 → 成稿',
   whenToUse: 'equity-thesis-cn 的步骤 2–4。步骤 0（读档案）与步骤 5–6（写档案、跑校验器）留在 skill 里由编排器做。',
   phases: [
-    { title: '立疑', detail: '看财务全景判行业类、立 2–4 条决策形状的疑惑' },
-    { title: '挖掘', detail: '五个 lens 并行读年报，各自标出承重数字' },
+    { title: '立疑', detail: '看财务全景判估值原型（15 选 1）、立 2–4 条决策形状的疑惑' },
+    { title: '挖掘', detail: '五个 lens 并行读年报各自标出承重数字；板块基准 agent 同槽并行取同业口径' },
     { title: '核查', detail: '每份 findings 一产出就核查，不堆到尾部' },
+    { title: '补参照系', detail: '只对核查判为私有基准/无参照系的承重数逐条接地，一条都没有就跳过' },
     { title: '成稿', detail: '只读 findings 与已核实清单，统一口吻写全文' },
   ],
 }
@@ -35,9 +36,16 @@ const DATA = `${ROOT}/data/${SYMBOL}`
 // 所以 key 走 ASCII，中文说明放 description。
 const DOUBT = {
   type: 'object',
-  required: ['industry_class', 'doubts', 'written_file'],
+  required: ['archetype', 'doubts', 'written_file'],
   properties: {
-    industry_class: { type: 'string', description: '行业类别，按 framework.md 开篇原则三判定，会传给每个 lens' },
+    // 从自然语言的行业名改为 15 选 1 的估值原型：原型表同时承载估值方法、
+    // 必比口径和排雷阈值变体，一个分类喂三处（五个 lens + 板块基准 agent）。
+    archetype: {
+      type: 'string',
+      description:
+        '估值原型，必须是 valuation_archetypes.md 里 15 个原型名之一（原样抄，含"型"字）。' +
+        '这个判定会传给每个 lens 用来选阈值/口径/方法，也决定板块基准 agent 去比哪几个口径。判错会让五个 lens 一起错。',
+    },
     doubts: {
       type: 'array', minItems: 2, maxItems: 4,
       items: {
@@ -105,14 +113,53 @@ const VERIFIED = {
           // 只有前者时，一份全部「确认无误」的核查照样可以支撑一个悬空的判断。
           // 私有基准 = 标的公司自己或其委托方产出的数：独立技术报告、招股章程里的委托咨询、
           // 公司自己的规划与指引。抄对了不等于可以拿来当尺子。
+          // 五档与 tools/benchmark_lib.py 的 STRENGTHS 逐字节相同（中间是 U+00B7 的「·」）——
+          // 旧的「外部同口径」拆成前两档：联网放行后"搜来的"与"本地算出来的"可核实性差一个
+          // 量级，不能同档。后两档会触发下游的补参照系 agent。
           benchmark_type: {
-            enum: ['外部同口径', '外部但口径存疑', '私有基准', '无参照系'],
+            enum: ['外部·可回溯', '外部·单源未交叉', '外部但口径存疑', '私有基准', '无参照系'],
             description:
               '判据只看这个数的参照系来自哪里，与数本身对错无关：' +
-              '外部同口径=有可比同业/同板块的同一口径数可比；' +
-              '外部但口径存疑=有外部数但口径不一致或来源单一；' +
+              '外部·可回溯=有可比同业/同板块的同一口径数，且来自本地数据层或 >=2 个独立来源对得上；' +
+              '外部·单源未交叉=有外部的同口径数但只有一个来源；' +
+              '外部但口径存疑=有外部数但口径对不齐（含"宽池子且池内无同品种"）；' +
               '私有基准=参照系由标的公司或其委托方产生；无参照系=压根没有可比对象。',
           },
+        },
+      },
+    },
+  },
+}
+
+// 板块基准与补参照系共用。url/verbatim/fetched_date 是结构性护栏——
+// debug-equity-thesis:92 记录过教训：prose 禁令无效（加禁令后越权反升到 299 次），
+// 所以联网留痕靠 schema 校验强制，不靠叮嘱。
+// strength 的五个字面量必须与 tools/benchmark_lib.py 的 STRENGTHS 逐字节相同：
+// check_thesis 硬约束 7 按这五个串精确匹配，错一个码位（例如把 U+00B7 的「·」打成
+// U+30FB 的片假名中点或 U+2022 的项目符号）就静默失配——参照系文件照写不误，硬门却当它不存在。
+const BENCHMARK = {
+  type: 'object',
+  required: ['written_file', 'items'],
+  properties: {
+    written_file: { type: 'string', description: '你落盘的 参照系/*.md 绝对路径' },
+    items: {
+      type: 'array', minItems: 1,
+      items: {
+        type: 'object',
+        required: ['what', 'value', 'strength', 'source'],
+        properties: {
+          what: { type: 'string', description: '这个数是什么。落盘与下游匹配都以它为键，用词要稳定' },
+          value: { type: 'string' },
+          strength: {
+            type: 'string',
+            enum: ['外部·可回溯', '外部·单源未交叉', '外部但口径存疑', '私有基准', '无参照系'],
+            description:
+              '本地数据层算出来的直接给「外部·可回溯」；搜来的若只有一个来源给「外部·单源未交叉」；' +
+              '宽池子且池内无同品种一律「外部但口径存疑」，不得据此算"是中值 N 倍"',
+          },
+          source: { type: 'string', description: '出处。联网所得必须是 URL' },
+          verbatim: { type: 'string', description: '联网所得必填：逐字原文片段' },
+          fetched_date: { type: 'string', description: '联网所得必填：抓取日期 YYYY-MM-DD' },
         },
       },
     },
@@ -150,6 +197,11 @@ const INVENTORY = {
       type: 'array', items: { type: 'string' },
       description: '核查/ 下已存在且字节数 > 200 的 lens 名（不含 .md 后缀）',
     },
+    // 不盘这一项，跨会话续跑会把板块基准整个重跑一遍（含同业检索与联网）。
+    bench_done: {
+      type: 'array', items: { type: 'string' },
+      description: '参照系/ 下已存在且字节数 > 200 的文件名（不含 .md），只可能是 板块基准、补',
+    },
   },
 }
 
@@ -157,18 +209,21 @@ phase('盘点')
 const inv = await agent(
   `只做一件事：盘点 ${RUN}/ 下已有的产物。不做任何分析、不读文件内容、不修改任何文件。
 
-跑 \`ls -la ${RUN}/ ${RUN}/findings/ ${RUN}/核查/ 2>&1\`，对存在的文件再跑 \`wc -c\`。
+跑 \`ls -la ${RUN}/ ${RUN}/findings/ ${RUN}/核查/ ${RUN}/参照系/ 2>&1\`，对存在的文件再跑 \`wc -c\`。
 判据：**存在且字节数 > 200 才算已完成**，其余一律算未完成；目录不存在就是全空。
-lens 名只可能是这五个：${LENSES.map((l) => l.key).join('、')}。`,
+lens 名只可能是这五个：${LENSES.map((l) => l.key).join('、')}；
+参照系/ 下的文件名只可能是这两个：板块基准、补。`,
   { label: '盘点', phase: '盘点', schema: INVENTORY, model: 'haiku', effort: 'low' }
 )
 const doneDoubt = inv?.has_doubt === true
 const doneFindings = new Set(inv?.findings_done ?? [])
 const doneChecked = new Set(inv?.checked_done ?? [])
-if (doneDoubt || doneFindings.size || doneChecked.size)
+const doneBench = new Set(inv?.bench_done ?? []).has('板块基准')
+if (doneDoubt || doneFindings.size || doneChecked.size || doneBench)
   log(
     `盘点：疑惑 ${doneDoubt ? '✓' : '✗'}／findings ${doneFindings.size}/${LENSES.length}` +
-      `／核查 ${doneChecked.size}/${LENSES.length} —— 已完成的跳过，不重跑`
+      `／核查 ${doneChecked.size}/${LENSES.length}／板块基准 ${doneBench ? '✓' : '✗'}` +
+      ` —— 已完成的跳过，不重跑`
   )
 
 // ── 步骤 2：立疑（判断由 agent 做，不写死）──────────────────────────
@@ -182,11 +237,15 @@ const doubt = doneDoubt ? (log('立疑：疑惑.md 已在，跳过'), null) : aw
 疑惑要从数字里逼出来，不是从主营业务描述里憋出来。
 
 两件事：
-1. 判本票属于哪一类（读 ${SKILL}/equity-thesis-cn/framework.md 开篇原则三的行业映射表）。
-   这个类别会传给每个 lens，用来选对阈值、TAM 口径和估值方法。判错会让五个 lens 一起错。
+1. 读 ${SKILL}/equity-thesis-cn/valuation_archetypes.md，判本票属于 15 个估值原型中的哪一个。
+   **原型名原样抄**（含"型"字），不要自己造词、也不要写自然语言的行业名。
+   这个原型会传给每个 lens 用来选对阈值、TAM 口径和估值方法，还决定板块基准 agent
+   去比哪几个口径（每段的「必比口径」）。判错会让五个 lens 一起错。
+   **混业公司只能选一个原型**：横跨两类的（矿山+冶炼、地产开发+持有型不动产），
+   按**本次承重结论压在哪块资产上**二选一，并在 ${RUN}/疑惑.md 里写明为何这样选。
 2. 立 2–4 条疑惑，写进 ${RUN}/疑惑.md（先 mkdir -p）。
-   **该文件第一行必须是 \`行业类别：<你的判定>\`**，第二行起才写疑惑——
-   下游五个 lens 与成稿都只从这个文件读类别与疑惑，不经我转手。
+   **该文件第一行必须是 \`估值原型：<你的判定>\`**，第二行起才写疑惑——
+   下游五个 lens 与板块基准 agent 都只从这个文件读原型与疑惑，不经我转手。
 
 **疑惑要是"决策形状"的，不是"审计形状"的。** 判据：这个问题的答案会不会直接改变我买不买。
 "这家公司的<某条业务线>能不能<达到某个量级/增速>？"是好形状——可证伪、有量级、答案直接决定估值。
@@ -195,22 +254,22 @@ const doubt = doneDoubt ? (log('立疑：疑惑.md 已在，跳过'), null) : aw
   { label: '立疑', phase: '立疑', schema: DOUBT }
 )
 
-if (doubt) log(`行业类别：${doubt.industry_class}；疑惑 ${doubt.doubts?.length ?? 0} 条`)
+if (doubt) log(`估值原型：${doubt.archetype}；疑惑 ${doubt.doubts?.length ?? 0} 条`)
 
 // ── 步骤 3+3.5：pipeline——每份 findings 一产出就核查，不等其他 lens ──
 // round4/5 实测：核查排在第 265/298 次调用，之后已无预算写稿。
 // pipeline 让核查与其余 lens 的挖掘重叠，从结构上避免堆到尾部。
 const doubtBrief = (doubt?.doubts ?? []).map((d, i) => `${i + 1}. ${d.question}（${d.why_decision}）`).join('\n')
 
-const lensResults = await pipeline(
-  LENSES,
-  (l) =>
+// 一级：挖掘
+const digStage = (l) =>
     doneFindings.has(l.key)
       ? { written_file: `${RUN}/findings/${l.key}.md`, skipped: true }
       : agent(
       `你是 ${SYMBOL} 的${l.key}子 agent，覆盖${l.sections}。报告日 ${DATE}。
 
-**先 Read ${RUN}/疑惑.md**：第一行是行业类别，按这个类别选阈值/口径/方法（判错会让五个 lens 一起错）；
+**先 Read ${RUN}/疑惑.md**：第一行是估值原型，按这个原型选阈值/口径/方法——该原型的失效指标、
+必做分析与排雷阈值变体见 ${SKILL}/equity-thesis-cn/valuation_archetypes.md 里同名那一段；
 其余是本次要回答的疑惑——不必全答，答与你这一节相关的。
 
 读 ${l.guide} 并严格遵循它的关键动作与输出契约。数据在 ${DATA}/。
@@ -225,8 +284,10 @@ const lensResults = await pipeline(
 返回值给同样的摘要（判断要点、不确定项、承重数字），但下游一律以文件为准。
 查不到的直说，不要填满。`,
       { label: `挖掘:${l.key}`, phase: '挖掘', schema: FINDINGS }
-    ),
-  (f, l) =>
+    )
+
+// 二级：核查——同一 lens 的 findings 一落地就开核，不等其他 lens
+const checkStage = (f, l) =>
     f == null
       ? null
       : doneChecked.has(l.key)
@@ -238,8 +299,13 @@ const lensResults = await pipeline(
 把那一节里的每个数逐条**做两件事**：
 
 **动作一：回原文核**——逐字抄原文，含单位与正负号。这回答"抄对没有"。
-**动作二：判参照系类型**——这回答"这个数在外面算什么水平"。四选一：
-外部同口径 / 外部但口径存疑 / 私有基准 / 无参照系。
+**动作二：判参照系类型**——这回答"这个数在外面算什么水平"。五选一，**逐字照抄下面的写法**
+（中间那一点是「·」，不是别的点）：
+外部·可回溯 / 外部·单源未交叉 / 外部但口径存疑 / 私有基准 / 无参照系。
+分档判据：来自本地数据层（${DATA}/ 下的接口产物）或 >=2 个独立外部来源对得上 → 「外部·可回溯」；
+有外部的同口径数但只有一个来源 → 「外部·单源未交叉」；有外部数但口径对不齐（含宽池子且池内无同品种）
+→ 「外部但口径存疑」。判为「私有基准」或「无参照系」的条目会被下游的补参照系 agent 逐条拿去接地，归错档
+会让它空跑或漏掉。
 **只看参照系来自哪里，与数本身对错无关**：由标的公司或其委托方产出的数（独立技术报告、
 招股章程里的委托咨询、公司自己的规划与指引）一律是「私有基准」，哪怕它逐字核实无误。
 这一步不要去搜外部数据（你不 WebSearch），只做归类；归类结果会让成稿 agent 知道
@@ -252,16 +318,117 @@ const lensResults = await pipeline(
 核完如有修正，就地改 ${RUN}/findings/${l.key}.md，改处标"（${DATE} 复核修正）"。
 **核查结论必须落盘到 ${RUN}/核查/${l.key}.md（先 mkdir -p）**：一行一条，格式
 \`- [判定][参照系类型] what ｜ 核实值（含单位与正负号） ｜ 出处\`，
-判定取「确认无误／修正／未披露／未查到」，参照系类型取「外部同口径／外部但口径存疑／私有基准／无参照系」。
+判定取「确认无误／修正／未披露／未查到」，参照系类型取五档之一：「外部·可回溯／外部·单源未交叉／外部但口径存疑／私有基准／无参照系」。
 落盘是硬要求——成稿 agent 只读这个文件，不落盘等于这一轮核查白做。
 不写报告、不发挥、不 WebSearch。`,
           { label: `核查:${l.key}`, phase: '核查', schema: VERIFIED }
         ).then((v) => ({ lens: l.key, findings: f, checked: v?.checked ?? [] }))
-)
+
+// 板块基准与五个 lens 同槽并行：它只依赖「估值原型 + 同业名单」，立疑一完成就能开查，
+// 既不看 findings、findings 也不看它，两边到成稿处才汇合——所以零额外墙钟。
+// 参照系接地被拆成两半（这里 + 核查之后的补参照系），正是为了消掉「等五份核查齐」这个 barrier。
+const [benchBase, lensResults] = await parallel([
+  () =>
+    doneBench
+      ? (log('板块基准：参照系/板块基准.md 已在，跳过'), Promise.resolve(null))
+      : agent(
+          `你是 ${SYMBOL} 的板块基准 agent。报告日 ${DATE}。
+
+**先 Read ${RUN}/疑惑.md 第一行拿到估值原型**，再 Read
+${SKILL}/equity-thesis-cn/valuation_archetypes.md 里该原型的「必比口径」那一段。
+你的任务就是把那几条口径的**板块中位数/分位**取回来，一条不落。
+
+取数方式，**本地优先是硬规矩**：本地通道取得到的数，一律不许联网另找。
+
+同业中位数走 ${ROOT}/tools/discover_peers.py。它是**两阶段**的，你要走完这四步：
+
+1. **自己挑品种词**。读 ${DATA}/aggregate.json 的 business 字段（主营描述；没有就读年报的
+   业务概要），从里面挑 1–3 个**品种级**的词：「钨精矿」「仲钨酸铵」这个粒度，不是
+   「有色金属」这种大类，更不是「资料」「2025年」这种噪声词。品种词提取是你的责任——
+   脚本自带的正则兜底实测就会吐出那两个噪声词，进而零候选。
+2. **拿候选**：\`python3 ${ROOT}/tools/discover_peers.py ${SYMBOL} --terms 词1,词2\`。
+   它写出 ${DATA}/peers_curated.json，每条候选带一段「主营节选」和一个仅供排序参考的
+   hint，**keep 恒为 null**——脚本从不自己判定谁是同业。
+3. **逐条读「主营节选」，自己判断是不是同品种同业**。hint 不是判据：名字沾边而主营
+   不是同品种的（灯具厂的「钨丝灯泡」、地产公司的「钨金」仿真首饰）一律排除。
+   **候选发现有能力上限**，真同业可能压根不在候选里（实测 002842 翔鹭钨业就取不到）——
+   你若自己知道某家同业，直接把它的代码写进下一步的清单，不必等它出现在候选中。
+4. **确认**：\`python3 ${ROOT}/tools/discover_peers.py ${SYMBOL} --confirm 代码1,代码2\`。
+   这是**唯一**能产生 keep=true 的路径，它只对清单里的代码取估值、算中位数、回写产物。
+   退出码：0 = 正常；1 = 零条确认同业（如实写「无参照系」，**不要为了凑数把不同品种的塞进清单**）；
+   2 = 同业找到了但估值口径缺失（写明缺的是哪一项）。
+
+**凡 peers_curated.json 给得出的数，一律不许另找来源。** 本地数可复现、带交易日，
+天然进「外部·可回溯」。
+
+它给不出的（例如 P/NAV 中位数、成本曲线分位、境外同业），才允许 WebSearch。
+联网所得每条必须带 url、逐字原文 verbatim、抓取日期——**缺任一项这条就不要提交**。
+**同一个数至少两个独立来源对得上才给「外部·可回溯」，只有一个来源一律给「外部·单源未交叉」。**
+
+**你只查别人，不查标的公司自己的任何数字。** 标的自己的数由其他 agent 从 ${DATA}/ 和年报取。
+
+落盘到 ${RUN}/参照系/板块基准.md（先 mkdir -p），一行一条：
+\`- [强度] what ｜ 值 ｜ 出处 ｜ 取数日\`
+分隔符是全角竖线 ｜。强度五选一，**逐字照抄**（中间那一点是「·」，写别的点下游硬门会
+当这条不存在）：外部·可回溯 / 外部·单源未交叉 / 外部但口径存疑 / 私有基准 / 无参照系。
+联网条目在下一行缩进补 \`    > 原文：<逐字片段>\`。
+**what 用词要稳定**——成稿与交付前的硬门都按这个串精确匹配。
+**注意：${DATA}/peers.json 是按交易所行业分类抓的宽池子。若池内无同品种，
+它算出的倍数一律标「外部但口径存疑」，并且不要用它算"是中值 N 倍"这类倍数**——
+03858 实测：用港股 72 家宽池算出"PE 是中值的 16.5 倍"，而用真正的钨业同业只有 2.82 倍，
+错了一个数量级。取不到的口径要如实写成「无参照系」，不要编。`,
+          { label: '板块基准', phase: '挖掘', schema: BENCHMARK }
+        ),
+  () => pipeline(LENSES, digStage, checkStage),
+])
+
+if (benchBase)
+  log(`板块基准：${benchBase.items?.length ?? 0} 条 → ${benchBase.written_file ?? '未落盘'}`)
 
 const ok = (lensResults ?? []).filter(Boolean)
 const allChecked = ok.flatMap((r) => r.checked)
 log(`挖掘+核查完成 ${ok.length}/${LENSES.length} 份；已核实清单 ${allChecked.length} 条`)
+
+// ── 步骤 3.6：补参照系 ──────────────────────────────────────────────
+// 只对仍悬空的承重数发力；一条都没有就整段跳过——这是拆两半消掉 barrier 代价的地方。
+phase('补参照系')
+// 与 benchmark_lib.MUST_DOWNGRADE 同一套。用 includes 而不是相等：核查 agent 偶尔会
+// 在档位串前后带修饰（"私有基准（ITR）"），宁可宽进也不要漏掉一条悬空的数。
+const dangling = allChecked.filter((c) =>
+  ['私有基准', '无参照系'].some((s) => (c.benchmark_type ?? '').includes(s))
+)
+let benchFill = null
+if (dangling.length === 0) {
+  log(
+    doneChecked.size
+      ? '补参照系：本轮没有新核出的悬空承重数（跳过的那几份核查在 核查/ 里，不进本轮清单），跳过'
+      : '补参照系：没有悬空的承重数，跳过'
+  )
+} else {
+  log(`补参照系：${dangling.length} 条悬空，逐条接地`)
+  benchFill = await agent(
+    `你是补参照系 agent。报告日 ${DATE}。下面这些承重数字在核查阶段被判为「私有基准」
+或「无参照系」，意味着它们**没有外部同口径的比较对象**，而结论正压在它们上面：
+
+${dangling.map((d, i) => `${i + 1}. ${d.what}｜当前值 ${d.verified_value}`).join('\n')}
+
+逐条去找外部同口径的参照系。**本地优先**：先看 ${DATA}/peers_curated.json 与
+${RUN}/参照系/板块基准.md 里有没有现成的；没有才 WebSearch。
+
+联网所得每条必须带 url、逐字原文 verbatim、抓取日期，缺任一项不要提交。
+**至少两个独立来源对得上才给「外部·可回溯」，单源一律「外部·单源未交叉」。**
+找不到就如实给「无参照系」——**找不到是可接受的结果，编一个不是。**
+
+**你只查别人，不查标的公司自己的任何数字。**
+
+落盘到 ${RUN}/参照系/补.md（先 mkdir -p），格式同 板块基准.md：
+\`- [强度] what ｜ 值 ｜ 出处 ｜ 取数日\`，联网条目下一行缩进补 \`    > 原文：<逐字片段>\`。
+**what 串原样沿用上面清单里的写法**，一个字都不要改——成稿与交付前的硬门都按这个串精确匹配，
+改了就等于这条没接上。`,
+    { label: '补参照系', phase: '补参照系', schema: BENCHMARK }
+  )
+  if (benchFill) log(`补参照系：${benchFill.items?.length ?? 0} 条 → ${benchFill.written_file ?? '未落盘'}`)
+}
 
 // ── 步骤 4：成稿 ────────────────────────────────────────────────────
 // 控制流保证这一步一定被执行——round5 的失败正是编排器派完核查就提前收工、从未走到这里。
@@ -274,17 +441,33 @@ const report = await agent(
 - ${SKILL}/equity-thesis-cn/framework.md（十二节骨架，固定问句是菜单不是清单）
 - ${SKILL}/equity-thesis-cn/style_guide.md（单位、口径、语气）
 
-**你的输入只有两样：**
+**你的输入只有三样：**
 1. ${RUN}/findings/ 下的 ${LENSES.length} 份 findings（用 Read 读全部，这是子 agent 把几百页年报读完浓缩的成品）
 2. ${RUN}/核查/ 下的 ${LENSES.length} 份核查结论（用 Read 读全部）——已回原文核过的数字，
    判定分「确认无误／修正／未披露／未查到」四种，**只有前两种能当硬数字用**
+3. ${RUN}/参照系/ 下的文件（用 Read 读全部）——每个承重数字的参照系强度，五档：
+   外部·可回溯（可直接用）／外部·单源未交叉、外部但口径存疑（可用，正文须标注）／
+   私有基准、无参照系（**不得当作已证实的事实，结论必须降级措辞**）
 
 **数字纪律**：清单里的数直接用；findings 里但没核过的可以用、正文标一句「未核实」。
+参照系强度是「外部·单源未交叉」或「外部但口径存疑」的，正文引用时标明强度与来源；
+「外部但口径存疑」里凡注明"宽池子且池内无同品种"的，**不得据此算"是中值的 N 倍"这类偏离度**——
+03858 实测这样算错了一个数量级。强度是「私有基准」「无参照系」的，结论一律降级措辞。
 **不要自己去刨年报、不要 pdftotext/grep 年报正文、不要 WebSearch**——
 包括"先 pdftotext 导到 /tmp 再 grep 那个文件"这条绕路，判据看内容不看路径。
 估值需要的行情/财务数字读 ${DATA}/aggregate.json。
 
 要回收的疑惑：读 ${RUN}/疑惑.md，每条用"现在回答开篇的问题 N："销账，答不出的明写答不出。
+
+**开篇结论的散文之后必须紧跟一个 \`> **参照系声明**\` 引用块**，逐条写明核心两点各压在
+哪个数上、该数的参照系强度是什么：
+- **点名时原样引用 ${RUN}/参照系/ 里的 what 串，并用「」括起来**——交付前的硬门
+  （check_thesis 硬约束 7）按这个串精确匹配。写别的说法、或泛泛一句"部分数据未经外部验证"，
+  都匹配不上，报告会被拦下不许交付。
+- 若某数强度是「私有基准」或「无参照系」，**降级措辞必须与那个 what 写在同一句里**
+  （「无法回答」「未取得」「绝对口径下」之一）——硬门按就近判定，降级句甩到块尾不算数。
+- **凡强度属「私有基准」「无参照系」、且其 what 串或值串字面出现在开篇散文里的条目，都必须在
+  声明块里点到名**，漏一条就拦；点名另一个安全数字替代不了。
 
 出口：市值区间不给目标价、赔率区间精度到十位数并折成"几年一倍"、
 概率没把握就写"我判断不了"、五维均分映射 A/B/C、决定性变量写成正反两栏并给行动触发条件。
@@ -295,7 +478,7 @@ const report = await agent(
 return {
   symbol: SYMBOL,
   run_dir: RUN,
-  industry_class: doubt?.industry_class ?? null,
+  archetype: doubt?.archetype ?? null,
   doubts: (doubt?.doubts ?? []).map((d) => d.question),
   lenses: ok.map((r) => ({
     lens: r.lens,
@@ -308,9 +491,14 @@ return {
   })),
   // 注意：只统计**本轮新核**的条数；跳过的那些在 核查/ 目录里，不在这个数里
   checked_total: allChecked.length,
+  参照系: {
+    板块基准: benchBase ? (benchBase.items?.length ?? 0) : doneBench ? '已在（跳过）' : null,
+    悬空承重数: dangling.length,
+    补: benchFill ? (benchFill.items?.length ?? 0) : 0,
+  },
   report: report ?? null,
   编排器待办: [
-    `校验 ${RUN}/ 下 疑惑.md / findings(5) / report.md 是否齐全`,
+    `校验 ${RUN}/ 下 疑惑.md / findings(5) / 参照系/ / report.md 是否齐全`,
     `更新 ${ROOT}/positions/${SYMBOL}.md（评分、评级、估值锚及变更理由、假设记分板、未决疑问、变更日志）`,
     `跑 .venv/bin/python tools/check_thesis.py ${SYMBOL} reports/${SYMBOL}_thesis_${DATE}/report.md，退出码 1 必须回去修`,
   ],
