@@ -4,9 +4,17 @@ audit_run.py 的 DIG 含 Read/Bash，而综合阶段读 findings、跑校验器�
 （SKILL.md 步骤 4：只读 findings/ 和 aggregate.json）。所以 dig_after 系统性高估越权。
 
 真越权 = 派活后触碰 annual_pdf / pdftotext / WebSearch / WebFetch。
-用法：python tools/audit_overreach.py <TRANSCRIPT.jsonl> [标的代码] [标的公司全称]
+
+用法：
+    python tools/audit_overreach.py <TRANSCRIPT.jsonl> [标的代码] [标的公司全称]
 后两个参数可选：给了就额外跑一遍「查自己」检查（见 detect_self_lookup）；
 不给就明确打印跳过说明，不静默——静默会让人以为查过了。
+
+退出码（与 check_thesis.py 的 0/1/2 同源）：
+    0 = 完整分析（spawn 分段成功）且干净——无真越权、查自己检查也没命中
+    1 = 发现越权——真越权非空，或查自己检查命中非空，两者任一即为 1
+    2 = 部分分析——没有 spawn 事件，「真越权/合法/其他」三项分段跳过；
+        查自己检查不受影响、仍照常跑，跑完没命中才是 2（命中了仍是 1）
 """
 import json, sys, re
 from pathlib import Path
@@ -33,9 +41,14 @@ _SEARCH_CALL_RE = re.compile(r'(?:WebSearch|WebFetch)\s*\(\s*(?:query|url)\s*=\s
 
 # 参照系 agent 的核心工作就是拿标的当锚点去查同业/行业数据——这种检索会让标的名和
 # 财务字段同时出现在同一句里，但财务字段问的是别人，不是标的自己。含下列词时不判违规。
-# 这是启发式，会带来漏报（少数不含这些词的锚点句式仍可能被判违规）：本工具是事后审计，
-# 不是硬门，误报的代价（判据被忽略）远大于漏报（少一条提示）。
-_PEER_INTENT_MARKERS = ("同业", "可比", "对标", "peer", "comparable", "中位数", "板块", "行业")
+# 这是启发式：近义表达不在表里仍会被漏判成违规——词表不可能穷举所有"在查别人"的
+# 说法。判据要找的是无意的越界，不是防故意绕过（真要故意绕过，绕过者只能是 agent
+# 自己，它没有绕过的动机）。误报的代价（判据被忽略）远大于漏报（少一条提示）。
+_PEER_INTENT_MARKERS = (
+    "同业", "可比", "对标", "peer", "comparable", "中位数", "板块", "行业",
+    "对比", "比较", "同行", "同类", "竞品", "竞争对手", "可比公司", "同板块",
+    "benchmark", "分位", "均值", "平均",
+)
 
 
 def _has_peer_intent(q):
@@ -58,10 +71,16 @@ def detect_self_lookup(transcript, symbol, company):
     """找出「参照系 agent 去查标的公司自己的财务数」的调用。
 
     只在同一次检索里**既出现标的标识（代码或公司名）又出现财务字段**、且**不含同业
-    意图标记**（见 _PEER_INTENT_MARKERS）时才判违规——单独提公司名不算（查行业格局
-    时顺带提及是正常的），单独提财务字段更不算（查同业的财务数正是本职），含"同业/
-    可比/对标/peer/comparable/中位数/板块/行业"等词也不算（拿标的当锚点查同业正是
-    这个 agent 的核心用法）。宁可漏报也不要误报：误报会让这条判据被忽略。
+    意图标记**（完整词表见 _PEER_INTENT_MARKERS）时才判违规——单独提公司名不算
+    （查行业格局时顺带提及是正常的），单独提财务字段更不算（查同业的财务数正是
+    本职），含同业意图词（同业/可比/对标/对比/比较/同行/同类/竞品/竞争对手/可比
+    公司/同板块/板块/行业/peer/comparable/benchmark/分位/均值/平均/中位数）也不算
+    ——拿标的当锚点查同业正是这个 agent 的核心用法。宁可漏报也不要误报：误报会让
+    这条判据被忽略。
+
+    这是启发式：近义表达不在词表里仍会漏判成违规，词表不可能穷举所有"在查别人"
+    的说法。判据要找的是无意的越界，不是防故意绕过——绕过者只能是 agent 自己，
+    它没有绕过的动机。
 
     已知边界（有意不修，接受漏报，见 task-6-report.md）：只认标的**全称**与**完整
     代码**的精确匹配。公司简称/俗称（如"佳鑫国际"之于"佳鑫国际资源投资"）、代码去掉
@@ -93,11 +112,14 @@ def main():
             if isinstance(b, dict) and b.get("type") == "tool_use":
                 uses.append((b.get("name","?"), b.get("input",{}) or {}))
 
-    # 派活后越权分段：需要一次 spawn 来分「派活前/后」。没有 spawn 就跳过这一段，
-    # 但仍继续往下跑「查自己」检查——那条检查不依赖 spawn 分段，且它要覆盖的正是
-    # 参照系 agent 自己的转录（往往没有它自己再往下 spawn 的事件）。
+    # 派活后越权分段：需要一次 spawn 来分「派活前/后」。没有 spawn 就这一段跳过
+    # （退出码降级为 2：部分分析），但仍继续往下跑「查自己」检查——那条检查不
+    # 依赖 spawn 分段，且它要覆盖的正是参照系 agent 自己的转录（往往没有它自己
+    # 再往下 spawn 的事件）。
     first = next((i for i, (n, _) in enumerate(uses) if n in SPAWN), None)
-    if first is None:
+    partial = first is None
+    over = []
+    if partial:
         print("没有 spawn，无法分段（真越权/合法/其他 三项跳过）")
     else:
         after = uses[first:]
@@ -115,6 +137,7 @@ def main():
             for n,b in over[:20]: print(f"    {n:10} {b[:95]}")
 
     print()
+    self_hits = []
     if symbol or company:
         # 把已解析出的 WebSearch/WebFetch 调用还原成 detect_self_lookup 认得的
         # `Tool(query="...")` / `Tool(url="...")` 伪调用串（它按这个格式做正则匹配，
@@ -131,6 +154,10 @@ def main():
     else:
         print("未提供标的标识，跳过查自己检查")
 
+    if over or self_hits:
+        return 1
+    if partial:
+        return 2
     return 0
 
 if __name__ == "__main__":
