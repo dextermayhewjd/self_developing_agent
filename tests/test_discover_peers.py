@@ -98,7 +98,107 @@ class TestNameMatchKeywordsDeterministic(unittest.TestCase):
 
 
 # ----------------------------------------------------------------------------
-# 下面几个测试要跑到 _channel1_name_match / _confirm_peer 里实际调用 akshare 的
+# Ruling T3-8：_hint_for_peer 现在是纯函数（text, terms） -> (matched, hint)，
+# 不再自己调用 akshare 抓主营文本（那一步挪到了 main() 里，由调用方传文本进来）。
+# 所以这里不需要任何 akshare mock，直接传字符串测试就够了。
+# ----------------------------------------------------------------------------
+
+class TestHintForPeer(unittest.TestCase):
+    """Ruling T3-8：_hint_for_peer 只产出"仅供参考"的 hint，这里测的是 hint 本身
+    的字符串行为——这个行为不再等价于"是否同品种"的最终判断（那是 agent 的事）。"""
+
+    def test_rejects_jilin_carbon_valley_hint(self):
+        """Critical 1 的历史反例：品种词"碳化钨粉"曾靠单字前缀"碳"错误命中这家
+        碳纤维公司。现在即使 hint 命中了也不代表 keep=True（见
+        TestBuildCandidateRowKeepIsAlwaysNone），但这里先确认 hint 本身依然
+        正确判断"不像"——两个证据（前缀+材料尾字）缺一都不该命中。"""
+        text = "从事碳纤维原丝、碳纤维的研发、生产与销售，主要产品为聚丙烯腈基碳纤维原丝。"
+        matched, hint = discover_peers._hint_for_peer(text, ["碳化钨粉"])
+        self.assertFalse(matched, f"吉林碳谷的 hint 不该命中，hint={hint}")
+
+    def test_rejects_fangda_carbon_hint(self):
+        text = "主要从事炭素制品的生产与销售，产品包括石墨电极、炭砖等。"
+        matched, hint = discover_peers._hint_for_peer(text, ["碳化钨粉"])
+        self.assertFalse(matched, f"方大炭素的 hint 不该命中，hint={hint}")
+
+    def test_still_matches_real_tungsten_text_via_prefix_and_tail_char(self):
+        """hint 逻辑本身没有被削弱到失去信号价值：前缀+材料尾字同现时依然命中，
+        只是命中结果现在只是 hint，不再是 keep 的决定。"""
+        text = "主要产品为碳化钨基硬质合金及钨粉、钼粉等硬质合金材料。"
+        matched, hint = discover_peers._hint_for_peer(text, ["碳化钨粉"])
+        self.assertTrue(matched, f"600549 类文本应该命中 hint，hint={hint}")
+
+    def test_two_char_term_can_match_via_split_chars(self):
+        """round 2 Important 2 修的 2 字词空区间问题：hint 逻辑本身依然保留，
+        只是不再直接等于 keep。"""
+        text = ("钨钼、稀土和能源新材料三大核心业务，产品包括硬质合金棒材等，"
+                "许可项目含非煤矿山矿产资源开采。")
+        matched, hint = discover_peers._hint_for_peer(text, ["钨矿"])
+        self.assertTrue(matched, f"应该通过 2 字品种词「钨矿」的 hint 匹配，hint={hint}")
+
+    def test_lamp_company_hint_can_match_but_is_not_the_final_word(self):
+        """round 3 复审的真实反例之一：灯具企业主营含"钨丝灯泡"，经营范围罗列
+        里含"矿产资源勘查"这类通用许可条目——"钨"和"矿"两个字都在，hint 会命中，
+        但这正是 Ruling T3-8 要处理的问题：hint 命中不代表这家公司真的产钨矿。
+        这条测试只确认 hint 行为本身（会命中）；"keep 绝不因此变 True"由
+        TestBuildCandidateRowKeepIsAlwaysNone 断言。"""
+        text = ("主要从事照明灯具的研发、生产和销售，产品包括钨丝灯泡、LED 灯具等。"
+                "经营范围含矿产资源勘查、矿业信息咨询等。")
+        matched, hint = discover_peers._hint_for_peer(text, ["钨矿"])
+        self.assertTrue(matched, f"灯具厂的 hint 预期会命中（这正是问题所在），hint={hint}")
+
+    def test_real_estate_company_hint_can_match_but_is_not_the_final_word(self):
+        """round 3 复审的真实反例之二：地产公司有"矿泉水"业务 + "钨金"仿真首饰，
+        同样会让 hint 命中，同样不该被当作确认。"""
+        text = "主要从事房地产开发与销售，兼营矿泉水生产及仿真首饰（含钨金材质）。"
+        matched, hint = discover_peers._hint_for_peer(text, ["钨矿"])
+        self.assertTrue(matched, f"地产公司的 hint 预期会命中（这正是问题所在），hint={hint}")
+
+    def test_rejects_unrelated_restaurant_company(self):
+        text = "从事餐饮服务与连锁经营，主要产品为快餐及饮品。"
+        matched, hint = discover_peers._hint_for_peer(text, ["钨矿"])
+        self.assertFalse(matched, f"不相关的餐饮公司不该命中 hint，hint={hint}")
+
+
+class TestBuildCandidateRowKeepIsAlwaysNone(unittest.TestCase):
+    """Ruling T3-8 的核心断言：候选阶段产出的每一行，keep 恒为 None——**哪怕
+    hint 命中**。这是复审要求"固化成测试"的两个真实反例（灯具厂、地产公司）
+    真正被钉住的地方：字符串 hint 可以命中，但绝不能单独把 keep 置 True。"""
+
+    def test_lamp_company_keep_stays_none_despite_matching_hint(self):
+        base = {"code": "111111", "market": "CN", "name": "某灯具股份"}
+        text = ("主要从事照明灯具的研发、生产和销售，产品包括钨丝灯泡、LED 灯具等。"
+                "经营范围含矿产资源勘查、矿业信息咨询等。")
+        row = discover_peers._build_candidate_row(base, text, ["钨矿"])
+        self.assertTrue(row["hint"].startswith("主营含"), f"hint 应该命中，实际：{row['hint']}")
+        self.assertIsNone(row["keep"], "灯具厂的 keep 必须是 None，即使 hint 命中")
+
+    def test_real_estate_company_keep_stays_none_despite_matching_hint(self):
+        base = {"code": "222222", "market": "CN", "name": "某地产股份"}
+        text = "主要从事房地产开发与销售，兼营矿泉水生产及仿真首饰（含钨金材质）。"
+        row = discover_peers._build_candidate_row(base, text, ["钨矿"])
+        self.assertTrue(row["hint"].startswith("主营含"), f"hint 应该命中，实际：{row['hint']}")
+        self.assertIsNone(row["keep"], "地产公司的 keep 必须是 None，即使 hint 命中")
+
+    def test_real_tungsten_company_keep_also_stays_none(self):
+        """就算是真正的钨业公司，候选阶段也一样是 None——决定权完全不在这一层。"""
+        base = {"code": "000657", "market": "CN", "name": "中钨高新"}
+        text = "钨钼、稀土和能源新材料三大核心业务。"
+        row = discover_peers._build_candidate_row(base, text, ["钨"])
+        self.assertIsNone(row["keep"])
+
+    def test_non_matching_candidate_keep_also_stays_none(self):
+        """hint 不命中的候选，keep 同样是 None，不是 False——候选阶段不下判断，
+        False 只在确认阶段"存在但未被选中"时才出现。"""
+        base = {"code": "999999", "market": "CN", "name": "某餐饮股份"}
+        text = "从事餐饮服务与连锁经营，主要产品为快餐及饮品。"
+        row = discover_peers._build_candidate_row(base, text, ["钨矿"])
+        self.assertFalse(row["hint"].startswith("主营含"))
+        self.assertIsNone(row["keep"])
+
+
+# ----------------------------------------------------------------------------
+# 下面几个测试要跑到 _channel1_name_match / main() 里实际调用 akshare 的
 # 代码路径，但测试本身不许联网。做法：往 sys.modules 注入一个假的 "akshare"
 # 模块，只实现 discover_peers 用到的那一小撮 pandas/akshare API（纯 stdlib，
 # 不需要真 pandas）。discover_peers 内部都是函数体内 `import akshare as ak`，
@@ -185,39 +285,6 @@ def _fake_akshare(universe_rows=None, zyjs_texts=None):
     return fake
 
 
-class TestConfirmPeerRejectsNoise(unittest.TestCase):
-    """Critical 1 的两个真实反例：评审实测品种词"碳化钨粉"曾靠单字前缀"碳"
-    错误命中这两家跟钨完全无关的公司，被判 keep=True 并填了估值、进了中位数。"""
-
-    def test_rejects_jilin_carbon_valley(self):
-        fake_ak = _fake_akshare(zyjs_texts={
-            "836077": "从事碳纤维原丝、碳纤维的研发、生产与销售，"
-                      "主要产品为聚丙烯腈基碳纤维原丝。",
-        })
-        with mock.patch.dict(sys.modules, {"akshare": fake_ak}):
-            keep, reason = discover_peers._confirm_peer("836077", ["碳化钨粉"])
-        self.assertFalse(keep, f"836077 吉林碳谷不该被判 keep=True，reason={reason}")
-
-    def test_rejects_fangda_carbon(self):
-        fake_ak = _fake_akshare(zyjs_texts={
-            "600516": "主要从事炭素制品的生产与销售，产品包括石墨电极、炭砖等。",
-        })
-        with mock.patch.dict(sys.modules, {"akshare": fake_ak}):
-            keep, reason = discover_peers._confirm_peer("600516", ["碳化钨粉"])
-        self.assertFalse(keep, f"600516 方大炭素不该被判 keep=True，reason={reason}")
-
-    def test_still_confirms_real_match_via_prefix_and_tail_char(self):
-        """收紧确认标准不等于把召回率清零：前缀（>=2 字）与品种词的材料提示
-        尾字（这里是"粉"）同时命中真实钨制品公司的主营描述时，仍然确认通过——
-        即使主营描述里没有逐字出现"碳化钨粉"这个完整品种词。"""
-        fake_ak = _fake_akshare(zyjs_texts={
-            "600549": "主要产品为碳化钨基硬质合金及钨粉、钼粉等硬质合金材料。",
-        })
-        with mock.patch.dict(sys.modules, {"akshare": fake_ak}):
-            keep, reason = discover_peers._confirm_peer("600549", ["碳化钨粉"])
-        self.assertTrue(keep, f"600549 应该通过前缀+尾字确认，reason={reason}")
-
-
 class TestChannel1Deterministic(unittest.TestCase):
     def test_same_input_yields_same_candidates_every_call(self):
         """Important 3：同一个品种词、同一份名录，调用两次必须给出完全相同的
@@ -242,64 +309,125 @@ class TestChannel1Deterministic(unittest.TestCase):
         self.assertEqual(matched_keywords, ["钨"])
 
 
-class TestConfirmPeerTwoCharTerm(unittest.TestCase):
-    """评审 round 2 Important 2 的真实反例：`range(len(term)-1, 1, -1)` 在
-    `len(term)==2` 时是空区间，2 字品种词（Task 5 的 agent 很可能就传"钨矿"这种
-    2 字词）永远走不到前缀兜底，即使候选主营描述里"钨""矿"两个字都在也会被拒。
-    真实复现：600549/000657/002842 用 --terms 钨矿 实测过，主营描述里没有连续
-    出现"钨矿"两字，但分别含"钨"和"矿"——这里离线复现同样的结构。"""
+class TestCandidatePhaseNeverSetsKeepTrue(unittest.TestCase):
+    """Ruling T3-8 端到端版本：跑完整的 main() 候选阶段（通道①0 命中降级到
+    通道②，通道②返回灯具厂/地产公司作为"行业近邻"候选），确认写进产物的每一行
+    keep 都是 null——即使其中两条的 hint 明显命中。"""
 
-    def test_two_char_term_confirms_via_split_chars(self):
-        fake_ak = _fake_akshare(zyjs_texts={
-            "600549": "钨钼、稀土和能源新材料三大核心业务，产品包括硬质合金棒材等，"
-                      "许可项目含非煤矿山矿产资源开采。",
-        })
-        with mock.patch.dict(sys.modules, {"akshare": fake_ak}):
-            keep, reason = discover_peers._confirm_peer("600549", ["钨矿"])
-        self.assertTrue(keep, f"600549 应该通过 2 字品种词「钨矿」的确认，reason={reason}")
-
-    def test_two_char_term_still_rejects_unrelated_company(self):
-        """2 字词的下限放宽到 1 字后，仍然要求"商品字"与"材料尾字"两个字都命中，
-        不是随便一个字就放行——跟餐饮公司的主营描述完全不该被"钨矿"确认。"""
-        fake_ak = _fake_akshare(zyjs_texts={
-            "999999": "从事餐饮服务与连锁经营，主要产品为快餐及饮品。",
-        })
-        with mock.patch.dict(sys.modules, {"akshare": fake_ak}):
-            keep, reason = discover_peers._confirm_peer("999999", ["钨矿"])
-        self.assertFalse(keep, f"不相关的餐饮公司不该被确认，reason={reason}")
-
-
-class TestMainExitCodeOnZeroConfirmedPeers(unittest.TestCase):
-    """评审 round 2 Important 3 的真实反例：候选都找到了、都试过确认，但全部被
-    _confirm_peer 拒绝——merged 因此非空（里面是 keep=False 的行），旧逻辑
-    `if not merged` 会绕过 exit(1) 滑到 exit(2)。退出码必须按 keep=True 的条数判。
-    """
-
-    def test_exits_1_when_all_candidates_rejected(self):
-        universe = _FakeDataFrame([{"code": "999999", "name": "钨矿公司"}])
-
-        class _EmptyIterDF:
-            def iterrows(self):
-                return iter([])
-
+    def test_full_candidate_flow_keeps_null_even_for_high_hint_matches(self):
+        empty_universe = _FakeDataFrame([])  # 通道①：官方名录里搜不到"钨矿"这种整词
+        compare_rows = _FakeDataFrame([
+            {"代码": "111111", "简称": "某灯具股份"},
+            {"代码": "222222", "简称": "某地产股份"},
+        ])
+        zyjs_texts = {
+            "111111": "主要从事照明灯具的研发、生产和销售，产品包括钨丝灯泡、LED 灯具等。"
+                      "经营范围含矿产资源勘查、矿业信息咨询等。",
+            "222222": "主要从事房地产开发与销售，兼营矿泉水生产及仿真首饰（含钨金材质）。",
+        }
         fake_ak = types.ModuleType("akshare")
-        fake_ak.stock_info_a_code_name = lambda: universe
-        fake_ak.stock_zh_valuation_comparison_em = lambda symbol: _EmptyIterDF()
+        fake_ak.stock_info_a_code_name = lambda: empty_universe
+        fake_ak.stock_zh_valuation_comparison_em = lambda symbol: compare_rows
         fake_ak.stock_zyjs_ths = lambda symbol: _FakeZyjsFrame({
-            "主营业务": "从事餐饮服务与连锁经营，主要产品为快餐及饮品。",
-            "产品类型": "", "产品名称": "", "经营范围": "",
+            "主营业务": zyjs_texts.get(symbol, ""), "产品类型": "", "产品名称": "", "经营范围": "",
         })
-        # 故意不定义 stock_board_concept_name_em / stock_board_industry_name_em——
-        # 通道③访问这两个属性会 AttributeError，被 main() 的 try/except 接住，
-        # 等价于"通道③不可用"，不影响这条测试要验证的退出码语义。
 
         with tempfile.TemporaryDirectory() as tmp:
-            argv = ["discover_peers.py", "600549", "--root", tmp, "--terms", "钨矿"]
-            with mock.patch.dict(sys.modules, {"akshare": fake_ak}),                  mock.patch.object(sys, "argv", argv):
+            argv = ["discover_peers.py", "600549", "--root", tmp, "--force", "--terms", "钨矿"]
+            with mock.patch.dict(sys.modules, {"akshare": fake_ak}), \
+                 mock.patch.object(sys, "argv", argv):
                 with self.assertRaises(SystemExit) as ctx:
                     discover_peers.main()
-        self.assertEqual(ctx.exception.code, 1,
-                         "候选存在但全被拒绝时必须 exit(1)，不能因为 merged 非空滑到 exit(2)")
+            self.assertEqual(ctx.exception.code, 0)
+            out = json.loads((Path(tmp) / "600549" / "peers_curated.json").read_text(encoding="utf-8"))
+
+        self.assertEqual(out.get("状态"), "候选待确认")
+        by_code = {r["code"]: r for r in out["peers"]}
+        self.assertIn("111111", by_code, "灯具厂应该作为候选出现——候选阶段不过滤，只展示")
+        self.assertIn("222222", by_code, "地产公司应该作为候选出现")
+        self.assertTrue(by_code["111111"]["hint"].startswith("主营含"),
+                         "灯具厂的 hint 应该命中（这正是复审反例的关键）")
+        for row in out["peers"]:
+            self.assertIsNone(row["keep"], f"{row['code']} 的候选阶段 keep 必须是 null，实际是 {row['keep']!r}")
+
+
+class TestConfirmPhase(unittest.TestCase):
+    """Ruling T3-8 的确认阶段：--confirm 是 keep=True 的唯一来源（manual 除外）。"""
+
+    def test_empty_confirm_list_exits_1(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            argv = ["discover_peers.py", "600549", "--root", tmp, "--confirm", ""]
+            with mock.patch.object(sys, "argv", argv):
+                with self.assertRaises(SystemExit) as ctx:
+                    discover_peers.main()
+        self.assertEqual(ctx.exception.code, 1, "确认清单为空且无 manual 条目时必须 exit(1)")
+
+    def test_confirmed_codes_get_keep_true_others_get_keep_false(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            symbol_dir = Path(tmp) / "600549"
+            symbol_dir.mkdir(parents=True)
+            cache_path = symbol_dir / "peers_curated.json"
+            cache_path.write_text(json.dumps({
+                "状态": "候选待确认", "生成日期": "2026-08-01", "品种词": ["钨"], "通道": "①",
+                "peers": [
+                    {"code": "000657", "market": "CN", "name": "中钨高新",
+                     "主营节选": "钨钼、稀土……", "hint": "主营含「钨」", "keep": None,
+                     "reason": "候选，待 agent 用 --confirm 确认", "manual": False},
+                    {"code": "600397", "market": "CN", "name": "江钨装备",
+                     "主营节选": "钨矿装备……", "hint": "", "keep": None,
+                     "reason": "候选，待 agent 用 --confirm 确认", "manual": False},
+                ],
+                "中位数": {"PE_TTM": None, "PB": None, "PS": None},
+            }, ensure_ascii=False), encoding="utf-8")
+
+            fake_ak = types.ModuleType("akshare")
+            fake_ak.stock_value_em = lambda symbol: _FakeZyjsFrame({
+                "PE(TTM)": 51.72, "市净率": 12.89, "市销率": 5.56, "数据日期": "2026-08-26",
+            })
+
+            argv = ["discover_peers.py", "600549", "--root", tmp, "--confirm", "000657"]
+            with mock.patch.dict(sys.modules, {"akshare": fake_ak}), \
+                 mock.patch.object(sys, "argv", argv):
+                with self.assertRaises(SystemExit) as ctx:
+                    discover_peers.main()
+            self.assertEqual(ctx.exception.code, 0)
+
+            out = json.loads(cache_path.read_text(encoding="utf-8"))
+            by_code = {r["code"]: r for r in out["peers"]}
+            self.assertTrue(by_code["000657"]["keep"], "确认清单里的代码必须 keep=True")
+            self.assertFalse(by_code["600397"]["keep"], "没被确认的候选必须 keep=False，不能凭空消失")
+            self.assertEqual(by_code["600397"]["reason"], "候选存在但未在确认清单里")
+            self.assertEqual(out["中位数"]["PE_TTM"], 51.72)
+            self.assertEqual(out.get("状态"), "已确认")
+
+    def test_manual_entry_keep_unaffected_by_confirm_flow(self):
+        """manual: true 的行不受确认流程影响——即使 --confirm 清单为空，
+        manual 条目本身若 keep=True 依然应该让整体产出成功（不是 exit 1）。"""
+        with tempfile.TemporaryDirectory() as tmp:
+            symbol_dir = Path(tmp) / "600549"
+            symbol_dir.mkdir(parents=True)
+            cache_path = symbol_dir / "peers_curated.json"
+            cache_path.write_text(json.dumps({
+                "生成日期": "2026-08-01", "品种词": ["钨"], "通道": "①",
+                "peers": [{"code": "ALM", "market": "US", "name": "Almonty",
+                           "keep": True, "reason": "人工补", "manual": True}],
+                "中位数": {},
+            }, ensure_ascii=False), encoding="utf-8")
+
+            argv = ["discover_peers.py", "600549", "--root", tmp, "--confirm", ""]
+            with mock.patch.object(sys, "argv", argv):
+                with self.assertRaises(SystemExit) as ctx:
+                    discover_peers.main()
+            # Almonty 是非 A 股，_fill_valuation 不会被调用（manual 行本来就该
+            # 已有估值或明确标注缺失），中位数三项皆空，属于"有确认同业但估值缺失"
+            self.assertEqual(ctx.exception.code, 2,
+                              "manual 条目单独存在时，keep_rows 非空但可能无估值，应为 exit(2)")
+
+            out = json.loads(cache_path.read_text(encoding="utf-8"))
+            by_code = {r["code"]: r for r in out["peers"]}
+            self.assertIn("ALM", by_code, "manual 条目必须保留")
+            self.assertIn("valuation_err", by_code["ALM"],
+                          "非 A 股的 manual 条目应该被显式标注估值缺失（Minor 4），不是静默")
 
 
 if __name__ == "__main__":

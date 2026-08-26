@@ -18,47 +18,49 @@
 公司做锚也拿不到，是断开的窗口，多跳也连不上。所以①（主营描述匹配）不能只是对②
 的候选做二次确认，必须自己能独立发现候选：做法是用交易所官方代码名录
 （stock_info_a_code_name，SSE/SZSE/BSE 官方源，不经过 push2）按品种词做名称粗筛，
-再用 stock_zyjs_ths 逐个读主营描述确认「同品种」——粗筛+确认两步都在通道①内，
-这是本文件里唯一没有在 brief 里给出完整算法、需要自己设计的部分。
+再用 stock_zyjs_ths 逐个读主营描述——粗筛+读文本两步都在通道①内。
 
 **评审 fail-closed 裁决（2026-08-26 review round 1）**：本组件存在的全部理由是给
 「结论强度锁死于参照系强度」这条骨架喂对的输入——零同业时下游正确判「无参照系」、
 结论按设计降级；而**噪声同业**（名字沾边但根本不是同品种）会算出一个看起来合理、
 实则无意义的板块中位数，且不触发任何警报，是比 03858 那次「港股 72 家宽池」更隐蔽
-的同一种失败。据此本文件里凡"召回率 vs 精确率"要取舍的地方，一律选**精确率**：
-- 名称粗筛（通道①）不再按"当日命中数落在 (0,20]"做自适应收缩——那个阈值依赖名录
-  当日计数，不可复现（一次 IPO 就能让同一个词换出完全不同的候选集，与"本地数据层
-  结果可复现"这条五档体系的前提相悖）。改用只依赖品种词自身字符的确定性规则
-  （见 _name_match_keywords）：完整品种词 + 固定的 2 字后缀，宁可少召回。
-- 同业确认（_confirm_peer）不再接受单字前缀命中——「碳」命中「碳纤维」「炭素」
-  这类完全不同品种的公司，命中不代表同品种。确认改为「前缀 ≥2 字」且「品种词的
-  材料提示尾字（矿/粉/材/芯片等）在候选文本里也必须出现」两个条件同时成立。
-- 通道①候选如果一个都没通过确认，视为这个通道没有真实发现，继续降级到下一个通道，
-  而不是把噪声候选群直接顶格当结果用。
+的同一种失败。round 1 的应对是把字符串判据调紧（前缀≥2 字 + 材料尾字同现），
+round 2 又为 2 字品种词开了个"下限放宽到 1 字"的口子——**round 3 的复审证明这个
+口子本身就是同一类失败**：品种词「钨矿」用这套加宽后的规则命中了一家灯具企业
+（主营含「钨丝灯泡」+ 经营范围里的「矿产资源勘查」）和一家地产公司（「矿泉水」+
+「钨金」仿真首饰），两者的字符串判据都能通过，却根本不是钨矿同业。
 
-没有 LLM 可用（本文件是纯 stdlib+akshare 脚本，不是 agent），L3「LLM 确认」在这里
-退化成确定性的关键词命中检查（_confirm_peer）——命中就 keep=True，没命中就
-keep=False 但仍然留在名单里如实写 reason，不静默丢弃，人工复核时看得见。
+**Ruling T3-8（2026-08-26 review round 3）：L3 同业确认移交调用方（Task 5 的 LLM
+agent），本文件退为确定性的候选发现 + 估值 + 中位数，不再自己判断"是不是同品种"。**
+对称于 Ruling T3-6（L1 品种词提取移交 agent，理由是"品种词提取是语言任务"）——
+**L3 的"这家公司是不是同品种"同样是语义任务，不是任何字符规则能回答的问题**。
+调紧阈值换来 round 1 的零召回，调松阈值换来 round 2 的灯具厂/地产公司误判，连续
+两轮 Critical 说明的是同一件事：字符串匹配在"噪声"和"零召回"之间来回移动，
+从未真正解决过"语义判断"这个问题。
 
-**Ruling T3-6（2026-08-26 review round 2）：L1 品种词提取移交调用方（Task 5 的 LLM
-agent），本文件退为确定性的 L2/L3。** 起因是 fail-closed 之后 round-1 顾虑 2 应验了：
-拿 main 工作区 `data/03858/aggregate.json` 的真实主营描述跑 `extract_product_terms`，
-吐出的是 `['钨矿', '资料', '地下钨矿)', '设计钨矿产能', '2025年']`——"资料""2025年"
-这类正则噪声占掉了词槽，而 A 股钨业四家的股票简称（中钨高新/章源钨业/翔鹭钨业/
-厦门钨业）**没有一个含"钨矿"**，通道①的确定性匹配（_name_match_keywords）对
-"钨矿"必然 0 命中，自动路径注定拿不到这四家。**中文自由文本的品种词提取本质是
-语言任务，同业确认本质是确定性任务，各归其位**——LLM 读这段主营描述挑出"钨"是
-平凡任务，正则给出的却是"资料""2025年"。
+落地方式：
+- 曾经叫 `_confirm_peer` 的函数改名 `_hint_for_peer`，返回值从"决定 keep"降级为
+  "仅供参考的 hint 提示串"——**这个返回值从此不再单独驱动任何 keep 赋值**，
+  它命中不命中，候选阶段的 keep 一律是 `None`。
+- 候选发现阶段（不带 `--confirm` 调用）产出的每条候选带：代码/名称/市场、
+  一段「主营节选」（截断过的主营描述，够 agent 判断即可，不塞几千字整段）、
+  一个仅供排序参考的 `hint`，以及恒为 `null` 的 `keep`。
+- 新增 `--confirm CODE1,CODE2,...` 确认入口：只对这份清单里的代码取估值、
+  算中位数、写最终产物——**keep=True 只可能来自这里，或者 `manual: true`**。
+  候选清单里没被选中的代码依然留在产物里，但标 `keep=False`，reason 写"候选
+  存在但未在确认清单里"——不静默丢弃，复核时看得见。
 
-据此：`--terms` 不再是"没有 aggregate.json 时的显式覆盖入口"，而是**调用方
-（Task 5 的板块基准 agent）的主路径**——agent 自己读主营描述/尽调笔记提炼品种词，
-传给本文件做检索+确认。`extract_product_terms` 只在没有 `--terms` 时充当**兜底**，
-且**已用真实数据证明会产出噪声词**，不建议作为生产路径依赖，仅用于本地无 LLM 时
-的探测/调试。
+调用方（Task 5 的板块基准 agent）变成两步：先跑一次拿候选（自己读「主营节选」
+判断是不是同品种），再用 `--confirm` 把判断结果传回来算估值和中位数。多一次
+往返，换来这一类 bug 从根上消失——不再有任何字符串阈值可调。
 
-用法：python3 tools/discover_peers.py <SYMBOL> --terms 品种词1,品种词2 [--root DIR] [--force]
-退出码：0 产出成功 / 1 一个同业都没找到（含"候选都找到了但全被 _confirm_peer 拒绝"）
-       / 2 找到了 keep=True 的同业但估值口径缺失
+用法：
+    候选阶段：python3 tools/discover_peers.py <SYMBOL> --terms 品种词1,品种词2 [--root DIR] [--force]
+    确认阶段：python3 tools/discover_peers.py <SYMBOL> --confirm 代码1,代码2,... [--root DIR]
+退出码：
+    候选阶段：0 产出了候选（或已有 manual 条目）/ 1 一个候选都没有（也没有 manual 条目）
+    确认阶段：0 产出成功 / 1 确认清单为空（或清单里没有一条真正生效）且无 manual 条目
+             / 2 有确认同业但估值口径缺失
 """
 
 import argparse
@@ -123,7 +125,7 @@ def extract_product_terms(text):
     切完一个碎片都不合格（例如「铜加工材」被停用词「加工」切成「铜」「材」，各自
     太短），就退回判断切分前的整段——不能无条件用碎片替换整段，否则会把本来完整
     的品种词切碎丢掉（Important 4 的真实反例）。宁可少提也不要提出「销售」这种词
-    ——检索面一旦撑爆，确认阶段的成本会失控。
+    ——检索面一旦撑爆，候选清单的可读性会失控。
     """
     terms = []
     for chunk in re.split(r"[，。、；;,\s]+", text or ""):
@@ -157,7 +159,8 @@ def merge_preserving_manual(cache_path, fresh_rows):
     """把新检索结果并进缓存，人工条目（manual=True）一律保留不覆盖。
 
     这是本方案唯一保留的人工入口：人只做「加一家机器没找到的」（例如境外的
-    Almonty），不做「维护一整张分类表」。
+    Almonty），不做「维护一整张分类表」。Ruling T3-8 之后依然不变——manual 行
+    不受候选/确认两阶段流程影响。
     """
     manual = []
     if Path(cache_path).exists():
@@ -165,6 +168,68 @@ def merge_preserving_manual(cache_path, fresh_rows):
         manual = [r for r in old.get("peers", []) if r.get("manual")]
     manual_codes = {r["code"] for r in manual}
     return manual + [r for r in fresh_rows if r["code"] not in manual_codes]
+
+
+def _hint_for_peer(text, terms):
+    """字符串启发式，**仅供参考排序，从不单独驱动 keep**（Ruling T3-8）。
+
+    历史上（round 1-2）这个函数叫 `_confirm_peer`，返回值真的会决定
+    keep=True/False。复审用两个反例证明字符串匹配判断不了"是不是同品种"这种
+    语义问题：品种词「钨矿」命中了一家灯具企业（主营含「钨丝灯泡」+ 经营范围
+    里的「矿产资源勘查」）和一家地产公司（「矿泉水」+「钨金」仿真首饰）——
+    两者的"商品字+材料尾字"都能在文本里凑齐，却根本不是钨矿同业。调紧阈值换
+    round 1 的零召回，调松阈值换 round 2 这个口子，无论怎么调都只是在两种
+    失败之间挪位置。降级为 hint 之后，这两个反例不再是 bug：它们的 hint 可以
+    命中，但 keep 恒为 None，"是不是同品种"交给读了「主营节选」的 agent 判断。
+
+    读一段主营描述文本，返回 (matched, hint)：matched 只用于候选清单里的排序
+    展示，不影响 keep；hint 是给 agent 参考的一句话理由。
+    """
+    text = text or ""
+    if not text:
+        return False, "该代码取不到主营描述（非 A 股或 stock_zyjs_ths 无数据）"
+    for term in terms:
+        if term in text:
+            return True, f"主营含「{term}」"
+    for term in terms:
+        tail_chars = set(re.findall(f"[{_HINT_CHARS}]", term))
+        tail_words = [w for w in _HINT_WORDS if w in term]
+        if not tail_chars and not tail_words:
+            continue  # 品种词本身没有材料提示字/词（如"WO3"），前缀提示没有意义
+        has_tail_evidence = bool(tail_chars & set(text)) or any(w in text for w in tail_words)
+        if not has_tail_evidence:
+            continue
+        floor = 2 if len(term) > 2 else 1  # 2 字品种词例外：下限放宽到 1 字
+        for cut in range(len(term) - 1, floor - 1, -1):
+            prefix = term[:cut]
+            if re.search(r"[一-鿿]", prefix) and prefix in text:
+                return True, f"主营含前缀「{prefix}」且含品种尾字/词（品种词「{term}」）"
+    return False, "主营描述未命中任何品种词（含前缀+尾字校验）"
+
+
+def _excerpt(text, limit=240):
+    """把主营描述截成一段够 agent 判断、但不至于把几千字整段塞进候选清单的节选。"""
+    text = (text or "").strip()
+    if len(text) <= limit:
+        return text
+    return text[:limit] + "…"
+
+
+def _build_candidate_row(base, text, terms):
+    """把一个候选（至少含 code/market/name）+ 它的主营描述文本，组装成候选
+    清单里的一行。**Ruling T3-8：keep 恒为 None**——hint 只供参考，从不驱动
+    keep。这是一个纯函数，方便离线测试"候选阶段绝不会自己下判断"这件事本身，
+    不需要真的跑一遍网络/CLI。
+    """
+    matched, hint = _hint_for_peer(text, terms)
+    return {
+        **base,
+        "主营节选": _excerpt(text),
+        "hint": hint,
+        "keep": None,
+        "reason": "候选，待 agent 用 --confirm 确认",
+        "manual": False,
+    }
 
 
 # ----------------------------------------------------------------------------
@@ -195,7 +260,8 @@ def _business_text_from_row(row_like):
 
 
 def fetch_zyjs_text(symbol):
-    """现抓一个 A 股代码的主营描述文本（同花顺 stock_zyjs_ths，通道①的数据源）。
+    """现抓一个 A 股代码的主营描述文本（同花顺 stock_zyjs_ths，通道①的数据源，
+    也是候选阶段"主营节选"/hint 的数据源）。
 
     非 6 位数字的 A 股代码（如港股 5 位代码）直接返回 None——这条通道本就只覆盖 A 股，
     港股的主营描述走的是另一套 aggregate.json 字段（见 lib.py 里港股 pipeline 的写法）。
@@ -241,9 +307,8 @@ def _channel1_name_match(terms, exclude_symbol):
     没有 push2、也没有"按品种词搜全市场主营描述"的现成接口，改成两步近似：
     1) 用交易所官方代码名录（stock_info_a_code_name，源头是 SSE/SZSE/BSE 官网，
        不经过 push2）按 _name_match_keywords 生成的确定性候选串做名称粗筛。
-    2) 对粗筛出的候选，实际调用 stock_zyjs_ths 读主营描述——这一步才是「主营描述
-       匹配」字面意思，也顺带充当 L3 确认（没有 LLM，退化成关键词命中，见
-       _confirm_peer）。
+    2) 这一步只找候选，不做判断——判断"是不是同品种"移交调用方 agent（Ruling
+       T3-8）。候选的主营描述文本由 main() 另外抓来算 hint、截成"主营节选"。
 
     只处理含中文字符的品种词（"WO3""65%"这类不含中文的提取物做名称匹配没有意义）。
 
@@ -347,60 +412,6 @@ def _channel3_board(terms, exclude_symbol):
     return list(out.values()), {}
 
 
-def _confirm_peer(code, terms):
-    """L3「LLM 确认」的确定性近似：没有 LLM 可用，退化成关键词命中检查。
-
-    读候选自己的主营描述，看是否含品种词。没命中不静默丢弃，仍然写进名单但
-    keep=False，reason 如实说明——人工复核时看得见、也补得上。
-
-    评审 Critical 1（真实反例）：早期版本允许前缀兜底一直缩到单字——品种词
-    「碳化钨粉」缩到「碳」，命中了 836077 吉林碳谷（碳纤维）、600516 方大炭素
-    （石墨），这两家跟钨完全无关，却被判 keep=True 填了估值、进了中位数。单字
-    「碳」本身不携带任何"这是钨制品"的信息，纯属噪声命中。
-    修复：前缀兜底下限收紧到 **≥2 字**（2 字品种词例外，见下），且**必须同时
-    满足**候选文本里也出现了品种词的材料提示尾字（矿/粉/材/芯片等，见
-    _HINT_CHARS/_HINT_WORDS）——前缀给"这大致是同一类描述"的证据，材料尾字给
-    "这确实是那个具体形态的产品"的证据，两个证据缺一都不算数，比单靠任一个更难
-    被无关行业的公司蒙混过去。
-
-    评审 round 2 Important 2（真实反例）：`range(len(term)-1, 1, -1)` 在
-    `len(term)==2` 时是空区间——Task 5 的 agent 传的品种词很可能就是"钨矿"这种
-    2 字词，去掉尾字（"矿"）之后只剩 1 个字，卡在"前缀≥2 字"这条下限下永远进
-    不了循环。实测：`--terms 钨矿` 对 600549/000657/002842 三家全部因此被拒，
-    尽管它们的主营描述里"钨""矿"两个字都在（只有 002378 因为文本里恰好有连续
-    的"钨矿"两字走了上面的整词匹配）。
-    修复：前缀下限改成 `2 if len(term) > 2 else 1`——大于 2 字的品种词行为完全
-    不变（下限仍是 2 字，Critical 1 的修复不受影响）；**只有恰好 2 字的品种词**
-    才把下限放宽到 1 字，此时前缀就是"品种词去掉材料提示尾字后剩下的那个字"
-    （如"钨矿"→前缀"钨"），依然要求 tail_chars/tail_words 独立命中——不是单靠
-    这 1 个字放行，是"商品识别字"+"材料形态尾字"两个字分别命中，仍然是两个
-    独立证据的合取，比 Critical 1 那种单字直接放行严格得多。
-    """
-    try:
-        text = fetch_zyjs_text(code) or ""
-    except Exception as e:
-        return False, f"主营描述获取失败：{e}"
-    if not text:
-        return False, "该代码取不到主营描述（非 A 股或 stock_zyjs_ths 无数据）"
-    for term in terms:
-        if term in text:
-            return True, f"主营含「{term}」"
-    for term in terms:
-        tail_chars = set(re.findall(f"[{_HINT_CHARS}]", term))
-        tail_words = [w for w in _HINT_WORDS if w in term]
-        if not tail_chars and not tail_words:
-            continue  # 品种词本身没有材料提示字/词（如"WO3"），前缀兜底没有意义
-        has_tail_evidence = bool(tail_chars & set(text)) or any(w in text for w in tail_words)
-        if not has_tail_evidence:
-            continue
-        floor = 2 if len(term) > 2 else 1  # 2 字品种词例外：下限放宽到 1 字
-        for cut in range(len(term) - 1, floor - 1, -1):
-            prefix = term[:cut]
-            if re.search(r"[一-鿿]", prefix) and prefix in text:
-                return True, f"主营含前缀「{prefix}」且含品种尾字/词（品种词「{term}」）"
-    return False, "主营描述未命中任何品种词（含前缀+尾字校验）"
-
-
 def _to_float(v):
     try:
         if v is None:
@@ -414,21 +425,28 @@ def _to_float(v):
 def _fill_valuation(row):
     """同业估值口径：stock_value_em 最新一行的 PE(TTM)/市净率/市销率。
 
+    只在确认阶段（--confirm）对 keep=True 的行调用——候选阶段不取估值，
+    避免为还没被确认的候选浪费网络调用（Ruling T3-8）。
+
     评审 round 2 Minor 4 的残留：非 A 股行（brief 举的例子是 Almonty，NASDAQ:
     ALM，人工入口 manual=True 补进来的境外同业）原来靠 market != "CN" 直接
     return，PE_TTM/PB/PS 三个键都不写，行为对下游"静默"——从产物里看不出这行
     是"估值缺失"还是"压根没试过"。改为显式标注：写 valuation_err 说明原因，
     PE_TTM/PB/PS 仍然不写（median_multiples 靠 dict.get 缺键即视为 None，
     天然排除出中位数），但原因不再是沉默的。
-    """
-    import akshare as ak
 
+    非 A 股行走这条早退路径时**不需要 akshare**——import 挪到这条检查之后，
+    是因为它曾经在检查之前，导致 manual=True 的非 A 股行（比如 Almonty）单独
+    测试时也会因为 `import akshare` 而失败，即使实际用不到它。
+    """
     if row.get("market") != "CN" or not _is_a_share(row["code"]):
         row["valuation_err"] = (
             "估值需人工提供：非 A 股（market="
             f"{row.get('market')}），stock_value_em 覆盖不到，本文件不联网找境外估值"
         )
         return
+    import akshare as ak
+
     try:
         ve = ak.stock_value_em(symbol=row["code"])
         if ve is None or len(ve) == 0:
@@ -477,18 +495,107 @@ def _extract_terms_for_symbol(symbol, out_dir, explicit_terms):
     return terms
 
 
+def _run_confirm_phase(cache_path, confirm_arg, today):
+    """确认阶段（Ruling T3-8）：给定一份 agent 已经判断过"同品种"的代码清单，
+    只对这些代码取估值、算中位数、写最终产物。keep=True 只可能来自这里
+    （或 manual=True）——候选阶段算出的 hint 从不单独驱动 keep。
+
+    候选清单里没被选中的代码保留在产物里但标 keep=False——不静默丢弃，
+    人工/agent 复核时看得见"曾经是候选、但没被确认"这件事。
+
+    退出码按"确认后 keep=True 的条数"判，不按候选/合并后的列表是否非空判
+    （round 2 Important 3 定的规矩，这里延续）：零条 → exit 1。
+    """
+    confirmed_codes = [c.strip() for c in re.split(r"[,，、]", confirm_arg or "") if c.strip()]
+    print(f"  确认清单：{confirmed_codes}", file=sys.stderr)
+
+    existing = {}
+    if Path(cache_path).exists():
+        try:
+            existing = json.loads(Path(cache_path).read_text(encoding="utf-8"))
+        except Exception as e:
+            print(f"  读取候选缓存失败（{e}），当作没有候选历史", file=sys.stderr)
+    existing_peers = existing.get("peers", [])
+    terms = existing.get("品种词")
+    candidate_by_code = {r["code"]: r for r in existing_peers if not r.get("manual")}
+
+    result_rows = []
+    seen = set()
+    for code in confirmed_codes:
+        if code in seen:
+            continue
+        seen.add(code)
+        base = candidate_by_code.get(code) or {
+            "code": code, "market": "CN" if _is_a_share(code) else "UNKNOWN", "name": "",
+        }
+        row = {**base, "keep": True, "reason": "agent 确认为同品种", "manual": False}
+        _fill_valuation(row)
+        result_rows.append(row)
+
+    for code, base in candidate_by_code.items():
+        if code in seen:
+            continue
+        result_rows.append({**base, "keep": False, "reason": "候选存在但未在确认清单里", "manual": False})
+
+    merged = merge_preserving_manual(cache_path, result_rows)
+
+    # round 2 Minor 6 遗留：manual 行（比如非 A 股的 Almonty）可能从没被填过
+    # 估值，这里统一补一次——幂等，已有 PE_TTM/valuation_err 的行不会被重复抓取。
+    for row in merged:
+        if row.get("keep") and "PE_TTM" not in row and "valuation_err" not in row:
+            _fill_valuation(row)
+
+    keep_rows = [r for r in merged if r.get("keep")]
+
+    if not keep_rows:
+        label = "确认清单为空" if not confirmed_codes else "确认清单里没有一条留在 keep=True"
+        out = {
+            "状态": "已确认", "生成日期": today, "品种词": terms, "通道": label,
+            "peers": merged, "中位数": {"PE_TTM": None, "PB": None, "PS": None},
+        }
+        cache_path.write_text(json.dumps(out, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+        print("FATAL: 零条确认同业。", file=sys.stderr)
+        sys.exit(1)
+
+    medians = median_multiples(keep_rows)
+    median_sample_counts = {
+        field: sum(1 for r in keep_rows if r.get(field) not in (None, 0))
+        for field in ("PE_TTM", "PB", "PS")
+    }
+    out = {
+        "状态": "已确认", "生成日期": today, "品种词": terms,
+        "通道": "agent 确认（--confirm）",
+        "peers": merged, "中位数": medians, "中位数_样本数": median_sample_counts,
+    }
+    cache_path.write_text(json.dumps(out, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+    print(f"  wrote {cache_path}", file=sys.stderr)
+    print(f"确认同业 {len(keep_rows)} 家（另有 {len(merged) - len(keep_rows)} 条留在产物里 keep=False）")
+    print(f"中位数 PE_TTM={medians['PE_TTM']}  PB={medians['PB']}  PS={medians['PS']}  "
+          f"样本数 PE={median_sample_counts['PE_TTM']}/PB={median_sample_counts['PB']}/"
+          f"PS={median_sample_counts['PS']}")
+
+    if all(v is None for v in medians.values()):
+        sys.exit(2)
+    sys.exit(0)
+
+
 def main():
     parser = argparse.ArgumentParser(
-        description="动态同业检索——给定/提取品种词，多通道检索同业并严格确认，算板块中位数")
+        description="动态同业检索——两阶段（Ruling T3-8）：先产出候选供 agent 判断"
+                     "是不是同品种，再用 --confirm 回填确认结果算中位数")
     parser.add_argument("symbol", help="6 位 A 股代码（本文件的检索通道目前只覆盖 A 股）")
     parser.add_argument("--root", default=None, help="数据根目录，默认 <repo>/data")
-    parser.add_argument("--force", action="store_true", help="忽略今日缓存，强制重跑")
+    parser.add_argument("--force", action="store_true", help="候选阶段：忽略今日缓存，强制重跑")
     parser.add_argument("--terms", default=None,
-                         help="品种词（逗号/顿号分隔）——调用方（Task 5 的板块基准 LLM agent）"
-                              "的主路径，见 Ruling T3-6：品种词提取本质是语言任务，应由 agent"
-                              "读主营描述/尽调笔记后显式传入。不传 --terms 时退回本文件自带的"
-                              "正则兜底（extract_product_terms），但那条路径已用真实 aggregate.json"
-                              "证明会产出「资料」「2025年」这类噪声词，只适合本地无 LLM 时探测/调试")
+                         help="候选阶段用：品种词（逗号/顿号分隔）——调用方（Task 5 的板块基准"
+                              "LLM agent）的主路径，见 Ruling T3-6。不传时退回本文件自带的正则"
+                              "兜底（extract_product_terms），已用真实数据证明会产出噪声词，"
+                              "只适合本地无 LLM 时探测/调试")
+    parser.add_argument("--confirm", default=None,
+                         help="确认阶段（Ruling T3-8）：给定一份已经由 agent 判断过'同品种'的"
+                              "代码清单（逗号/顿号分隔），只对这些代码取估值、算中位数、写最终"
+                              "产物。传了这个参数就跳过候选发现，直接进确认阶段——候选阶段的"
+                              "hint/主营节选 仅供参考，从不单独驱动 keep=True")
     args = parser.parse_args()
 
     symbol = args.symbol.strip()
@@ -496,13 +603,20 @@ def main():
     out_dir = data_root / symbol
     out_dir.mkdir(parents=True, exist_ok=True)
     cache_path = out_dir / "peers_curated.json"
-
     today = date.today().isoformat()
+
+    if args.confirm is not None:
+        # 确认阶段永远执行，不受候选阶段的"今日缓存"判断影响——这是一次显式的
+        # 确认动作，跟 --force 一样是调用方主动要求的事，不该被幂等跳过。
+        _run_confirm_phase(cache_path, args.confirm, today)
+        return
+
     if not args.force and cache_path.exists():
         try:
             cached = json.loads(cache_path.read_text(encoding="utf-8"))
             if cached.get("生成日期") == today:
-                print(f"  缓存已是今天（{today}）生成，跳过。用 --force 强制重跑。", file=sys.stderr)
+                print(f"  候选缓存已是今天（{today}）生成，跳过。用 --force 强制重跑。",
+                      file=sys.stderr)
                 sys.exit(0)
         except Exception:
             pass  # 缓存损坏就当不存在，往下重新生成
@@ -513,17 +627,17 @@ def main():
         print("FATAL: 一个品种词都没提取到，无法检索同业。", file=sys.stderr)
         sys.exit(1)
 
-    # L2+L3：多通道候选检索 + 确认（依次尝试①②③，每个通道独立 try/except，
-    # 失败就记 channel_errors 降级到下一个）。
+    # L2：多通道候选检索（依次尝试①②③，每个通道独立 try/except，失败或空结果
+    # 就降级到下一个；③命中 push2，本环境预期会失败）。
     #
-    # 评审 Important 2 的裁决：通道"非空"不再是停下来的理由，"至少一条通过确认"
-    # 才是——否则一个通道找到的全是噪声候选（名字沾边但根本不是同品种），也会被
-    # 当成"这个通道成功了"直接拿去用，把噪声顶格当结果。确认必须挪到每个通道
-    # 内部做，用确认结果（而不是候选数量）决定要不要降级到下一个通道。
+    # Ruling T3-8 之后，这里不再做"确认"——候选是不是真同品种交给 agent 判断，
+    # 所以停在第一个非空通道就够了（round 2 Important 2 那套"用确认通过数决定
+    # 要不要继续试下一个通道"的逻辑，连同 _confirm_peer 一起被 Ruling T3-8
+    # 取消了：既然这一层不判断"是不是真同业"，也就没有"这个通道全是噪声"这个
+    # 概念可用来触发降级）。
     channel_errors = {}
     channel_meta = {}
-    fresh_rows = []
-    seen_codes = set()
+    candidates = []
     channel_used = None
     for label, fn in (
         ("①", lambda: _channel1_name_match(terms, symbol)),
@@ -531,104 +645,65 @@ def main():
         ("③", lambda: _channel3_board(terms, symbol)),
     ):
         try:
-            candidates, meta = fn()
+            result, meta = fn()
         except Exception as e:
             channel_errors[label] = str(e)
             print(f"  通道{label} ERR：{e}", file=sys.stderr)
             continue
         if meta:
             channel_meta[label] = meta
-        print(f"  通道{label}：{len(candidates)} 候选", file=sys.stderr)
-        if not candidates:
-            continue
-
-        rows = []
-        for c in candidates:
-            if c["code"] in seen_codes:
-                continue
-            seen_codes.add(c["code"])
-            keep, reason = _confirm_peer(c["code"], terms)
-            row = {**c, "keep": keep, "reason": reason, "manual": False}
-            if keep:
-                _fill_valuation(row)
-            rows.append(row)
-            time.sleep(0.3)
-        fresh_rows.extend(rows)
-
-        n_keep = sum(1 for r in rows if r["keep"])
-        print(f"  通道{label} 确认：{n_keep}/{len(rows)} 通过", file=sys.stderr)
-        if n_keep >= 1:
+        print(f"  通道{label}：{len(result)} 候选", file=sys.stderr)
+        if result:
+            candidates = result
             channel_used = label
             break
-        print(f"  通道{label} 候选全部未通过确认，降级到下一通道（而不是把噪声当结果用）",
-              file=sys.stderr)
 
-    if not fresh_rows:
+    if not candidates:
         print("  所有通道均未找到候选。", file=sys.stderr)
+
+    # L3 曾经在这里做"确认"（_confirm_peer 判 keep=True/False）。Ruling T3-8：
+    # 移交调用方 agent。这里只算一个 hint（仅供参考排序）+ 截一段主营节选，
+    # keep 恒为 None（未决），估值也不在这一步取——等 --confirm 回填。
+    fresh_rows = []
+    for c in candidates:
+        try:
+            text = fetch_zyjs_text(c["code"]) or ""
+        except Exception as e:
+            text = ""
+            print(f"    {c['code']} 主营描述获取失败：{e}", file=sys.stderr)
+        fresh_rows.append(_build_candidate_row(c, text, terms))
+        time.sleep(0.3)
 
     merged = merge_preserving_manual(cache_path, fresh_rows)
 
-    # Minor 6：manual 行（人工补的同业）此前从没进过 _fill_valuation，永远没有
-    # PE/PB，进不了中位数——本方案唯一保留的人工入口形同虚设。这里对所有还没
-    # 填过估值的 keep 行统一补一次（fresh 行已经在上面填过，这里不会重复抓取）。
-    for row in merged:
-        if row.get("keep") and "PE_TTM" not in row and "valuation_err" not in row:
-            _fill_valuation(row)
-
-    keep_rows = [r for r in merged if r.get("keep")]
-
-    # 评审 round 2 Important 3（复审新发现）：退出码必须按"有几条 keep=True"判，
-    # 不按 merged 是否非空判——"候选都找到了、都试过确认，但全被 _confirm_peer
-    # 拒绝"这条路径下 merged 非空（里面全是 keep=False 的行），按旧逻辑
-    # （`if not merged`）会绕过 exit(1) 直接滑到 exit(2)，"通道"字段还会被写成
-    # "无（仅人工条目）"——明明有过候选，只是没一条通过确认，这不是"仅人工条目"。
-    # fail-closed 之后这条路径出现频率会大增（宁可零同业也不可噪声同业，本来就
-    # 意味着"确认阶段大量拒绝"会变常态），退出码语义必须如实反映"零条确认同业"。
-    if not keep_rows:
-        if channel_used:
-            channel_label = f"{channel_used}（候选全部未通过确认）"
-        elif fresh_rows:
-            channel_label = "多通道均未找到通过确认的候选"
-        else:
-            channel_label = "无候选（所有通道均为空或失败）"
+    if not merged:
         out = {
-            "生成日期": today, "品种词": terms, "通道": channel_label,
-            "peers": merged, "中位数": {"PE_TTM": None, "PB": None, "PS": None},
+            "状态": "候选待确认", "生成日期": today, "品种词": terms,
+            "通道": "无候选（所有通道均为空或失败）",
+            "peers": [], "中位数": {"PE_TTM": None, "PB": None, "PS": None},
             "channel_errors": channel_errors, "channel_meta": channel_meta,
         }
         cache_path.write_text(json.dumps(out, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
-        print("FATAL: 零条同业通过确认。", file=sys.stderr)
+        print("FATAL: 一个候选都没找到（也没有 manual 条目）。", file=sys.stderr)
         sys.exit(1)
 
-    medians = median_multiples(keep_rows)
-    # Minor 4：非 A 股的人工条目（如 Almonty）估值靠人工提供，缺了就缺了——
-    # 这里如实记下中位数每个字段实际是基于几家算出来的，别让"3 家的中位数"和
-    # "8 家的中位数"看起来一样可信。
-    median_sample_counts = {
-        field: sum(1 for r in keep_rows if r.get(field) not in (None, 0))
-        for field in ("PE_TTM", "PB", "PS")
-    }
-
     out = {
+        "状态": "候选待确认",
         "生成日期": today,
         "品种词": terms,
-        "通道": channel_used or "无（仅人工条目）",
+        "通道": channel_used or "无（仅 manual 条目）",
         "peers": merged,
-        "中位数": medians,
-        "中位数_样本数": median_sample_counts,
+        "中位数": {"PE_TTM": None, "PB": None, "PS": None},
         "channel_errors": channel_errors,
         "channel_meta": channel_meta,
     }
     cache_path.write_text(json.dumps(out, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
     print(f"  wrote {cache_path}", file=sys.stderr)
     print(f"品种词：{terms}")
-    print(f"通道：{channel_used}  同业 {len(merged)} 家（keep={len(keep_rows)}，"
-          f"估值样本 PE={median_sample_counts['PE_TTM']}/PB={median_sample_counts['PB']}/"
-          f"PS={median_sample_counts['PS']}）")
-    print(f"中位数 PE_TTM={medians['PE_TTM']}  PB={medians['PB']}  PS={medians['PS']}")
-
-    if all(v is None for v in medians.values()):
-        sys.exit(2)
+    print(f"通道：{channel_used}  候选 {len(merged)} 条，keep 全部为 null，等待 --confirm 回填。")
+    for r in merged:
+        if not r.get("manual"):
+            print(f"  {r['code']} {r.get('name', '')}  hint={r.get('hint', '')}")
     sys.exit(0)
 
 
