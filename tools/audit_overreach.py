@@ -22,6 +22,30 @@ OVER_PAT = re.compile(
 OVER_TOOLS = {"WebSearch", "WebFetch"}
 LEGIT_PAT = re.compile(r"findings/|疑惑\.md|report\.md|aggregate\.json|positions/|check_thesis", re.I)
 
+# 参照系 agent 的界线：只查别人，不查自己。判据不看工具，看"查的是谁的什么"。
+_FINANCIAL_FIELDS = (
+    "净利润", "营收", "营业收入", "毛利率", "净利率", "市值", "PE", "PB", "PS",
+    "现金流", "负债率", "股东", "业绩", "财报", "年报", "净资产",
+)
+_SEARCH_CALL_RE = re.compile(r'(?:WebSearch|WebFetch)\s*\(\s*(?:query|url)\s*=\s*["\']([^"\']+)["\']')
+
+
+def detect_self_lookup(transcript, symbol, company):
+    """找出「参照系 agent 去查标的公司自己的财务数」的调用。
+
+    只在同一次检索里**既出现标的标识（代码或公司名）又出现财务字段**时才判违规——
+    单独提公司名不算（查行业格局时顺带提及是正常的），单独提财务字段更不算
+    （查同业的财务数正是本职）。宁可漏报也不要误报：误报会让这条判据被忽略。
+    """
+    hits = []
+    for q in _SEARCH_CALL_RE.findall(transcript):
+        names_self = symbol in q or (company and company in q)
+        has_field = any(f in q for f in _FINANCIAL_FIELDS)
+        if names_self and has_field:
+            hits.append(f"参照系 agent 查了标的自己的财务数：{q}")
+    return hits
+
+
 def main():
     uses = []
     for line in Path(sys.argv[1]).read_text(errors="replace").splitlines():
@@ -49,4 +73,5 @@ def main():
         for n,b in over[:20]: print(f"    {n:10} {b[:95]}")
     return 0
 
-sys.exit(main())
+if __name__ == "__main__":
+    sys.exit(main())
