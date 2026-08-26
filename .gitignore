@@ -19,7 +19,11 @@ build/
 # Generated files and outputs（一律锚定到仓库根：非锚定写法会匹配任意层级，
 # 曾导致误写到 .claude/skills/**/reports/ 的产物对 git status 完全隐形）
 /data/
-/reports/
+# reports/ 下的 .md 进 git：一份判断稿 85 万 tokens、90 分钟，而 worktree 说删就删——
+# 20260826 实测 03858 与 601678 的判断稿随 sda-hk worktree 一起丢失，03858 只能从子 agent
+# 转录里逐段重放 heredoc 捞回，601678 至今没捞。底稿与成稿留着还能反过来审 skill。
+# 只忽略派生产物（PDF 由 md 重出即可，23MB vs md 的 1.9MB）。
+/reports/pdf/
 *.pdf
 
 # debug-equity-thesis 的跑测产物（transcript.jsonl 单个可达 9MB）
