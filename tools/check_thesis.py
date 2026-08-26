@@ -148,12 +148,20 @@ def check_opening_benchmark(report, bench, values=None):
     # 清单里强度属 MUST_DOWNGRADE、且其 what 或 value 字面出现在声明块之前的
     # 开篇散文里的条目，必须被声明块点名——点名别的安全数字不能替代对它的声明。
     # 只做字面 in 判断，不做归一化：漏判可接受，误判才是问题（评审 Ruling T4-2）。
+    #
+    # value 匹配只是这条的附加触发器（主键仍是 what），而短 value（"20%"
+    # "3.1 年"这类）在开篇散文里因完全无关的原因重复出现的概率不小——所得税率
+    # 20%、上市 3.1 年——都会被逐字命中，逼作者去声明一个根本没引用的东西。
+    # 误判比漏判更糟（Ruling T4-2 自己定的原则），所以短 value 不参与 value 匹配，
+    # 退化为只靠 what 串（Ruling T4-4）。原始案例"2.31–3.25 倍"长 10，仍在覆盖内。
+    _MIN_VALUE_MATCH_LEN = 6
     prose = opening[:decl.start()]
     for what, strength in bench.items():
         if strength not in benchmark_lib.MUST_DOWNGRADE or what in named:
             continue
         value = values.get(what)
-        if (what in prose) or (value and value in prose):
+        value_hit = value and len(value) >= _MIN_VALUE_MATCH_LEN and value in prose
+        if (what in prose) or value_hit:
             errs.append(
                 f"开篇散文字面引用了「{what}」（参照系类型「{strength}」），"
                 "但声明块未点名它——点名别的安全数字不能替代对它的声明"

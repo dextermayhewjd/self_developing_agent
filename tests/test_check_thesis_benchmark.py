@@ -101,6 +101,52 @@ OPENING_BOTH_DOWNGRADED = """## 〇、开篇结论
 ## 一、公司简介
 """
 
+# ---- 复审 Important（Ruling T4-4）：短 value 字面匹配对无关同串的误报 ----
+# "20%"/"3.1 年" 这类短 value 很容易因完全无关的原因在开篇散文里重复出现
+# （所得税率 20%、上市 3.1 年）——覆盖性检查若对短串也做 value 匹配，会逼作者
+# 声明一个开篇根本没引用的私有基准条目。value 匹配只是附加触发器（主键仍是
+# what 串），短 value 应退化为只靠 what 串匹配。
+
+BENCH_SHORT_VALUE_PCT = {
+    "某私有基准短值条目": "私有基准",
+    "钨业板块 PE(TTM) 中位数": "外部·可回溯",
+}
+VALUES_SHORT_VALUE_PCT = {
+    "某私有基准短值条目": "20%",
+    "钨业板块 PE(TTM) 中位数": "33.23",
+}
+# 开篇散文因无关原因（所得税率）出现字面 "20%"，与「某私有基准短值条目」毫无关系，
+# 声明块也没点名它——只点名了不相干的安全 what。
+OPENING_UNRELATED_20PCT = """## 〇、开篇结论
+
+所得税实际税率约 20%，对净利润影响有限；估值对照见下方声明。
+
+> **参照系声明**
+> 核心结论对照「钨业板块 PE(TTM) 中位数」——参照系类型 **外部·可回溯**。
+
+## 一、公司简介
+"""
+
+BENCH_SHORT_VALUE_YEARS = {
+    "某私有基准短值条目二": "无参照系",
+    "钨业板块 PE(TTM) 中位数": "外部·可回溯",
+}
+VALUES_SHORT_VALUE_YEARS = {
+    "某私有基准短值条目二": "3.1 年",
+    "钨业板块 PE(TTM) 中位数": "33.23",
+}
+# 开篇散文因无关原因（上市年限）出现字面 "3.1 年"，与「某私有基准短值条目二」
+# 毫无关系。
+OPENING_UNRELATED_3_1_YEARS = """## 〇、开篇结论
+
+公司上市 3.1 年，尚在业绩兑现窗口期；估值对照见下方声明。
+
+> **参照系声明**
+> 核心结论对照「钨业板块 PE(TTM) 中位数」——参照系类型 **外部·可回溯**。
+
+## 一、公司简介
+"""
+
 
 class TestOpeningBenchmark(unittest.TestCase):
     def test_missing_declaration_block_fails(self):
@@ -156,6 +202,35 @@ class TestOpeningBenchmark(unittest.TestCase):
             check_thesis.check_opening_benchmark(OPENING_BOTH_DOWNGRADED, BENCH_TWO, VALUES_TWO),
             [],
         )
+
+    def test_short_value_percent_does_not_false_positive(self):
+        """复审 Important（Ruling T4-4）：value="20%" 因无关原因（所得税率）
+        字面出现在开篇散文里，不得被误判成"引用了该私有基准条目却未点名"。"""
+        self.assertEqual(
+            check_thesis.check_opening_benchmark(
+                OPENING_UNRELATED_20PCT, BENCH_SHORT_VALUE_PCT, VALUES_SHORT_VALUE_PCT
+            ),
+            [],
+        )
+
+    def test_short_value_years_does_not_false_positive(self):
+        """复审 Important（Ruling T4-4）：value="3.1 年" 因无关原因（上市年限）
+        字面出现在开篇散文里，同样不得误判。"""
+        self.assertEqual(
+            check_thesis.check_opening_benchmark(
+                OPENING_UNRELATED_3_1_YEARS, BENCH_SHORT_VALUE_YEARS, VALUES_SHORT_VALUE_YEARS
+            ),
+            [],
+        )
+
+    def test_long_value_coverage_still_triggers(self):
+        """确认长 value（"2.31–3.25 倍"，长度 >= 6）的覆盖性检查未被 T4-4 的
+        长度下限连带削弱——这就是评审攻击一的原始场景，此处再显式断言一次。"""
+        errs = check_thesis.check_opening_benchmark(
+            OPENING_POINTS_AT_SAFE_NUMBER, BENCH_TWO, VALUES_TWO
+        )
+        self.assertTrue(errs)
+        self.assertTrue(any("市值 / ITR 税后 NPV" in e for e in errs))
 
 
 if __name__ == "__main__":
