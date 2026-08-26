@@ -19,6 +19,9 @@ import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import benchmark_lib
+
 # 三段式标记（与 framework.md 一致）
 SEG_DATA = "**详细资料/数据：**"
 SEG_NOTE = "**细节补充：**"
@@ -63,6 +66,57 @@ def blocks_after(text, marker):
 def char_count(blocks):
     """统计中文可见字符数（去空白与标点噪声）。"""
     return sum(len(re.sub(r"\s", "", b)) for b in blocks)
+
+
+# 开篇结论：从 `## 〇、开篇结论` 到下一个一级节标题
+_OPENING_RE = re.compile(r"##\s*〇、开篇结论(.*?)(?=\n##\s|\Z)", re.S)
+# 声明块：以 `> **参照系声明**` 起头的连续引用行
+_DECL_RE = re.compile(r">\s*\*\*参照系声明\*\*(.*?)(?=\n(?!\s*>)|\Z)", re.S)
+# 声明块里点名的 what，写在「」中
+_NAMED_RE = re.compile(r"「([^」]+)」")
+# 降级措辞关键词——命中任意一个即认为已声明限制
+_DOWNGRADE_WORDS = ("无法回答", "未取得", "绝对口径", "不可得", "悬空", "无法判断")
+
+
+def check_opening_benchmark(report, bench):
+    """硬约束 7：开篇结论的承重数字若压在私有基准/无参照系上，必须声明限制。
+
+    只拦开篇，不拦正文。理由：悬空写在正文里是诚实，悬空写在开篇第一句而不声明
+    才是误导——而读报告的人只读开篇。全面拦会让资源股/次新股每篇都被拦，写稿的
+    人学会批量粘声明句，硬门反而失效。
+
+    bench 为 None（参照系/ 不存在）时跳过，向后兼容旧 run。
+    """
+    if bench is None:
+        return []
+    m = _OPENING_RE.search(report)
+    if not m:
+        return ["缺〈〇、开篇结论〉一节，无法校验参照系声明"]
+    opening = m.group(1)
+
+    decl = _DECL_RE.search(opening)
+    if not decl:
+        return ["开篇结论缺「> **参照系声明**」块——核心两点各压在哪个数上必须写明"]
+
+    named = [w.strip() for w in _NAMED_RE.findall(decl.group(1))]
+    matched = [w for w in named if w in bench]
+    if not matched:
+        return [
+            "参照系声明未点名任何可匹配的承重数字："
+            f"声明里提到 {named or '（无）'}，都不在 参照系/*.md 的清单里。"
+            "声明必须原样引用清单里的 what 串，泛泛一句不算"
+        ]
+
+    errs = []
+    for what in matched:
+        if bench[what] in benchmark_lib.MUST_DOWNGRADE:
+            if not any(w in decl.group(1) for w in _DOWNGRADE_WORDS):
+                errs.append(
+                    f"「{what}」参照系类型为「{bench[what]}」，但声明块没有降级措辞"
+                    f"（需含 {'/'.join(_DOWNGRADE_WORDS[:3])} 之一）——"
+                    "压在私有基准上的判断不得当作已证实的事实写"
+                )
+    return errs
 
 
 def main():
@@ -153,6 +207,12 @@ def main():
             f"报告不在 run 文件夹里：{run_dir.name} 不匹配 {symbol}_thesis_YYYYMMDD，"
             "无法校验 疑惑.md 与 findings/ 是否齐备（旧版扁平布局？）"
         )
+
+    # ---- 硬约束 7：开篇结论的参照系声明 ----
+    # 03858 实测：五条承重数字全部回原文核实通过，但按参照系归类没有一条是外部
+    # 同口径——核查全过，判断照样悬空。而全篇空头结论正压在其中一条私有基准上。
+    # 核查只管"抄对没有"，管不了"这个数在外面算什么水平"，这一条补的就是后者。
+    hard.extend(check_opening_benchmark(report, benchmark_lib.parse_benchmarks(run_dir)))
 
     # ---- 软约束：观点段 / 数据段 配比 >= 1/3 ----
     data_chars = char_count(blocks_after(report, SEG_DATA))
