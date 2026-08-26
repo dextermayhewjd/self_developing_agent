@@ -242,5 +242,65 @@ class TestChannel1Deterministic(unittest.TestCase):
         self.assertEqual(matched_keywords, ["钨"])
 
 
+class TestConfirmPeerTwoCharTerm(unittest.TestCase):
+    """评审 round 2 Important 2 的真实反例：`range(len(term)-1, 1, -1)` 在
+    `len(term)==2` 时是空区间，2 字品种词（Task 5 的 agent 很可能就传"钨矿"这种
+    2 字词）永远走不到前缀兜底，即使候选主营描述里"钨""矿"两个字都在也会被拒。
+    真实复现：600549/000657/002842 用 --terms 钨矿 实测过，主营描述里没有连续
+    出现"钨矿"两字，但分别含"钨"和"矿"——这里离线复现同样的结构。"""
+
+    def test_two_char_term_confirms_via_split_chars(self):
+        fake_ak = _fake_akshare(zyjs_texts={
+            "600549": "钨钼、稀土和能源新材料三大核心业务，产品包括硬质合金棒材等，"
+                      "许可项目含非煤矿山矿产资源开采。",
+        })
+        with mock.patch.dict(sys.modules, {"akshare": fake_ak}):
+            keep, reason = discover_peers._confirm_peer("600549", ["钨矿"])
+        self.assertTrue(keep, f"600549 应该通过 2 字品种词「钨矿」的确认，reason={reason}")
+
+    def test_two_char_term_still_rejects_unrelated_company(self):
+        """2 字词的下限放宽到 1 字后，仍然要求"商品字"与"材料尾字"两个字都命中，
+        不是随便一个字就放行——跟餐饮公司的主营描述完全不该被"钨矿"确认。"""
+        fake_ak = _fake_akshare(zyjs_texts={
+            "999999": "从事餐饮服务与连锁经营，主要产品为快餐及饮品。",
+        })
+        with mock.patch.dict(sys.modules, {"akshare": fake_ak}):
+            keep, reason = discover_peers._confirm_peer("999999", ["钨矿"])
+        self.assertFalse(keep, f"不相关的餐饮公司不该被确认，reason={reason}")
+
+
+class TestMainExitCodeOnZeroConfirmedPeers(unittest.TestCase):
+    """评审 round 2 Important 3 的真实反例：候选都找到了、都试过确认，但全部被
+    _confirm_peer 拒绝——merged 因此非空（里面是 keep=False 的行），旧逻辑
+    `if not merged` 会绕过 exit(1) 滑到 exit(2)。退出码必须按 keep=True 的条数判。
+    """
+
+    def test_exits_1_when_all_candidates_rejected(self):
+        universe = _FakeDataFrame([{"code": "999999", "name": "钨矿公司"}])
+
+        class _EmptyIterDF:
+            def iterrows(self):
+                return iter([])
+
+        fake_ak = types.ModuleType("akshare")
+        fake_ak.stock_info_a_code_name = lambda: universe
+        fake_ak.stock_zh_valuation_comparison_em = lambda symbol: _EmptyIterDF()
+        fake_ak.stock_zyjs_ths = lambda symbol: _FakeZyjsFrame({
+            "主营业务": "从事餐饮服务与连锁经营，主要产品为快餐及饮品。",
+            "产品类型": "", "产品名称": "", "经营范围": "",
+        })
+        # 故意不定义 stock_board_concept_name_em / stock_board_industry_name_em——
+        # 通道③访问这两个属性会 AttributeError，被 main() 的 try/except 接住，
+        # 等价于"通道③不可用"，不影响这条测试要验证的退出码语义。
+
+        with tempfile.TemporaryDirectory() as tmp:
+            argv = ["discover_peers.py", "600549", "--root", tmp, "--terms", "钨矿"]
+            with mock.patch.dict(sys.modules, {"akshare": fake_ak}),                  mock.patch.object(sys, "argv", argv):
+                with self.assertRaises(SystemExit) as ctx:
+                    discover_peers.main()
+        self.assertEqual(ctx.exception.code, 1,
+                         "候选存在但全被拒绝时必须 exit(1)，不能因为 merged 非空滑到 exit(2)")
+
+
 if __name__ == "__main__":
     unittest.main()

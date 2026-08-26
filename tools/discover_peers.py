@@ -40,8 +40,25 @@
 退化成确定性的关键词命中检查（_confirm_peer）——命中就 keep=True，没命中就
 keep=False 但仍然留在名单里如实写 reason，不静默丢弃，人工复核时看得见。
 
-用法：python3 tools/discover_peers.py <SYMBOL> [--root DIR] [--force] [--terms 词1,词2]
-退出码：0 产出成功 / 1 一个同业都没找到 / 2 找到了但估值口径缺失
+**Ruling T3-6（2026-08-26 review round 2）：L1 品种词提取移交调用方（Task 5 的 LLM
+agent），本文件退为确定性的 L2/L3。** 起因是 fail-closed 之后 round-1 顾虑 2 应验了：
+拿 main 工作区 `data/03858/aggregate.json` 的真实主营描述跑 `extract_product_terms`，
+吐出的是 `['钨矿', '资料', '地下钨矿)', '设计钨矿产能', '2025年']`——"资料""2025年"
+这类正则噪声占掉了词槽，而 A 股钨业四家的股票简称（中钨高新/章源钨业/翔鹭钨业/
+厦门钨业）**没有一个含"钨矿"**，通道①的确定性匹配（_name_match_keywords）对
+"钨矿"必然 0 命中，自动路径注定拿不到这四家。**中文自由文本的品种词提取本质是
+语言任务，同业确认本质是确定性任务，各归其位**——LLM 读这段主营描述挑出"钨"是
+平凡任务，正则给出的却是"资料""2025年"。
+
+据此：`--terms` 不再是"没有 aggregate.json 时的显式覆盖入口"，而是**调用方
+（Task 5 的板块基准 agent）的主路径**——agent 自己读主营描述/尽调笔记提炼品种词，
+传给本文件做检索+确认。`extract_product_terms` 只在没有 `--terms` 时充当**兜底**，
+且**已用真实数据证明会产出噪声词**，不建议作为生产路径依赖，仅用于本地无 LLM 时
+的探测/调试。
+
+用法：python3 tools/discover_peers.py <SYMBOL> --terms 品种词1,品种词2 [--root DIR] [--force]
+退出码：0 产出成功 / 1 一个同业都没找到（含"候选都找到了但全被 _confirm_peer 拒绝"）
+       / 2 找到了 keep=True 的同业但估值口径缺失
 """
 
 import argparse
@@ -88,7 +105,16 @@ def _is_candidate_term(piece):
 
 
 def extract_product_terms(text):
-    """从主营描述里提品种词。
+    """从主营描述里提品种词——**只是没有 --terms 时的兜底，不是生产路径**（见
+    Ruling T3-6）。品种词提取本质是语言任务，这里用的是纯正则规则，**已用真实
+    数据证明会产出噪声词**：拿 main 工作区 `data/03858/aggregate.json` 的真实
+    主营描述跑这个函数，实测输出是
+        ['钨矿', '资料', '地下钨矿)', '设计钨矿产能', '2025年']
+    ——"资料""2025年"是正则从"根据弗若斯特沙利文的资料……"这类模板化措辞里
+    误提的噪声，占掉了 _MAX_TERMS=5 的词槽；而 A 股钨业四家的股票简称（中钨高新/
+    章源钨业/翔鹭钨业/厦门钨业）没有一个含"钨矿"，通道①的确定性名称匹配对
+    "钨矿"必然 0 命中。生产路径请用 `--terms` 由调用方（LLM agent）显式指定
+    品种词；这个函数只用于本地无 LLM 时的探测/调试。
 
     规则刻意保守：先按标点切段，再把段内的停用词（从事/主要/开采/销售……）当成
     额外分隔符切掉，切出的碎片里凡通过 _is_candidate_term 的才当候选——这样
@@ -331,10 +357,24 @@ def _confirm_peer(code, terms):
     「碳化钨粉」缩到「碳」，命中了 836077 吉林碳谷（碳纤维）、600516 方大炭素
     （石墨），这两家跟钨完全无关，却被判 keep=True 填了估值、进了中位数。单字
     「碳」本身不携带任何"这是钨制品"的信息，纯属噪声命中。
-    修复：前缀兜底下限收紧到 **≥2 字**，且**必须同时满足**候选文本里也出现了
-    品种词的材料提示尾字（矿/粉/材/芯片等，见 _HINT_CHARS/_HINT_WORDS）——
-    前缀给"这大致是同一类描述"的证据，材料尾字给"这确实是那个具体形态的产品"
-    的证据，两个证据缺一都不算数，比单靠任一个更难被无关行业的公司蒙混过去。
+    修复：前缀兜底下限收紧到 **≥2 字**（2 字品种词例外，见下），且**必须同时
+    满足**候选文本里也出现了品种词的材料提示尾字（矿/粉/材/芯片等，见
+    _HINT_CHARS/_HINT_WORDS）——前缀给"这大致是同一类描述"的证据，材料尾字给
+    "这确实是那个具体形态的产品"的证据，两个证据缺一都不算数，比单靠任一个更难
+    被无关行业的公司蒙混过去。
+
+    评审 round 2 Important 2（真实反例）：`range(len(term)-1, 1, -1)` 在
+    `len(term)==2` 时是空区间——Task 5 的 agent 传的品种词很可能就是"钨矿"这种
+    2 字词，去掉尾字（"矿"）之后只剩 1 个字，卡在"前缀≥2 字"这条下限下永远进
+    不了循环。实测：`--terms 钨矿` 对 600549/000657/002842 三家全部因此被拒，
+    尽管它们的主营描述里"钨""矿"两个字都在（只有 002378 因为文本里恰好有连续
+    的"钨矿"两字走了上面的整词匹配）。
+    修复：前缀下限改成 `2 if len(term) > 2 else 1`——大于 2 字的品种词行为完全
+    不变（下限仍是 2 字，Critical 1 的修复不受影响）；**只有恰好 2 字的品种词**
+    才把下限放宽到 1 字，此时前缀就是"品种词去掉材料提示尾字后剩下的那个字"
+    （如"钨矿"→前缀"钨"），依然要求 tail_chars/tail_words 独立命中——不是单靠
+    这 1 个字放行，是"商品识别字"+"材料形态尾字"两个字分别命中，仍然是两个
+    独立证据的合取，比 Critical 1 那种单字直接放行严格得多。
     """
     try:
         text = fetch_zyjs_text(code) or ""
@@ -353,9 +393,10 @@ def _confirm_peer(code, terms):
         has_tail_evidence = bool(tail_chars & set(text)) or any(w in text for w in tail_words)
         if not has_tail_evidence:
             continue
-        for cut in range(len(term) - 1, 1, -1):  # 前缀下限 >=2 字，不再退到单字
+        floor = 2 if len(term) > 2 else 1  # 2 字品种词例外：下限放宽到 1 字
+        for cut in range(len(term) - 1, floor - 1, -1):
             prefix = term[:cut]
-            if re.search(r"[一-鿿]{2,}", prefix) and prefix in text:
+            if re.search(r"[一-鿿]", prefix) and prefix in text:
                 return True, f"主营含前缀「{prefix}」且含品种尾字/词（品种词「{term}」）"
     return False, "主营描述未命中任何品种词（含前缀+尾字校验）"
 
@@ -371,10 +412,22 @@ def _to_float(v):
 
 
 def _fill_valuation(row):
-    """同业估值口径：stock_value_em 最新一行的 PE(TTM)/市净率/市销率。"""
+    """同业估值口径：stock_value_em 最新一行的 PE(TTM)/市净率/市销率。
+
+    评审 round 2 Minor 4 的残留：非 A 股行（brief 举的例子是 Almonty，NASDAQ:
+    ALM，人工入口 manual=True 补进来的境外同业）原来靠 market != "CN" 直接
+    return，PE_TTM/PB/PS 三个键都不写，行为对下游"静默"——从产物里看不出这行
+    是"估值缺失"还是"压根没试过"。改为显式标注：写 valuation_err 说明原因，
+    PE_TTM/PB/PS 仍然不写（median_multiples 靠 dict.get 缺键即视为 None，
+    天然排除出中位数），但原因不再是沉默的。
+    """
     import akshare as ak
 
     if row.get("market") != "CN" or not _is_a_share(row["code"]):
+        row["valuation_err"] = (
+            "估值需人工提供：非 A 股（market="
+            f"{row.get('market')}），stock_value_em 覆盖不到，本文件不联网找境外估值"
+        )
         return
     try:
         ve = ak.stock_value_em(symbol=row["code"])
@@ -391,8 +444,10 @@ def _fill_valuation(row):
 
 
 def _extract_terms_for_symbol(symbol, out_dir, explicit_terms):
-    """L1 品种提取：优先 --terms；否则读 aggregate.json 的 business；
-    aggregate.json 缺失或无主营描述时降级为现抓 stock_zyjs_ths（仅 A 股）。"""
+    """L1 品种提取：**--terms 是主路径**（Ruling T3-6，调用方/LLM agent 显式指定
+    品种词）；没给 --terms 才退回正则兜底——读 aggregate.json 的 business，缺失就
+    现抓 stock_zyjs_ths（仅 A 股）。正则兜底已用真实数据证明会产出噪声词（见
+    extract_product_terms 的 docstring），生产路径应该总是传 --terms。"""
     if explicit_terms:
         terms = [t.strip() for t in re.split(r"[,，、]", explicit_terms) if t.strip()]
         print(f"  品种词（--terms 直接指定）：{terms}", file=sys.stderr)
@@ -424,15 +479,16 @@ def _extract_terms_for_symbol(symbol, out_dir, explicit_terms):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="动态同业检索——从主营描述提品种词，多通道检索同业，算板块中位数")
+        description="动态同业检索——给定/提取品种词，多通道检索同业并严格确认，算板块中位数")
     parser.add_argument("symbol", help="6 位 A 股代码（本文件的检索通道目前只覆盖 A 股）")
     parser.add_argument("--root", default=None, help="数据根目录，默认 <repo>/data")
     parser.add_argument("--force", action="store_true", help="忽略今日缓存，强制重跑")
     parser.add_argument("--terms", default=None,
-                         help="品种词的显式覆盖入口（逗号/顿号分隔），跳过 aggregate.json 提取/"
-                              "现抓，直接用给定的词去检索——不是 brief 授权的退路，是本文件自己"
-                              "加的手动接口：本地没有 aggregate.json 时可以用它验证通道，"
-                              "下游 agent（如 Task 5 的板块基准 agent）需要时也可以直接指定")
+                         help="品种词（逗号/顿号分隔）——调用方（Task 5 的板块基准 LLM agent）"
+                              "的主路径，见 Ruling T3-6：品种词提取本质是语言任务，应由 agent"
+                              "读主营描述/尽调笔记后显式传入。不传 --terms 时退回本文件自带的"
+                              "正则兜底（extract_product_terms），但那条路径已用真实 aggregate.json"
+                              "证明会产出「资料」「2025年」这类噪声词，只适合本地无 LLM 时探测/调试")
     args = parser.parse_args()
 
     symbol = args.symbol.strip()
@@ -519,18 +575,39 @@ def main():
         if row.get("keep") and "PE_TTM" not in row and "valuation_err" not in row:
             _fill_valuation(row)
 
-    if not merged:
+    keep_rows = [r for r in merged if r.get("keep")]
+
+    # 评审 round 2 Important 3（复审新发现）：退出码必须按"有几条 keep=True"判，
+    # 不按 merged 是否非空判——"候选都找到了、都试过确认，但全被 _confirm_peer
+    # 拒绝"这条路径下 merged 非空（里面全是 keep=False 的行），按旧逻辑
+    # （`if not merged`）会绕过 exit(1) 直接滑到 exit(2)，"通道"字段还会被写成
+    # "无（仅人工条目）"——明明有过候选，只是没一条通过确认，这不是"仅人工条目"。
+    # fail-closed 之后这条路径出现频率会大增（宁可零同业也不可噪声同业，本来就
+    # 意味着"确认阶段大量拒绝"会变常态），退出码语义必须如实反映"零条确认同业"。
+    if not keep_rows:
+        if channel_used:
+            channel_label = f"{channel_used}（候选全部未通过确认）"
+        elif fresh_rows:
+            channel_label = "多通道均未找到通过确认的候选"
+        else:
+            channel_label = "无候选（所有通道均为空或失败）"
         out = {
-            "生成日期": today, "品种词": terms, "通道": channel_used or "无",
-            "peers": [], "中位数": {"PE_TTM": None, "PB": None, "PS": None},
+            "生成日期": today, "品种词": terms, "通道": channel_label,
+            "peers": merged, "中位数": {"PE_TTM": None, "PB": None, "PS": None},
             "channel_errors": channel_errors, "channel_meta": channel_meta,
         }
         cache_path.write_text(json.dumps(out, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
-        print("FATAL: 一个同业都没找到。", file=sys.stderr)
+        print("FATAL: 零条同业通过确认。", file=sys.stderr)
         sys.exit(1)
 
-    keep_rows = [r for r in merged if r.get("keep")]
     medians = median_multiples(keep_rows)
+    # Minor 4：非 A 股的人工条目（如 Almonty）估值靠人工提供，缺了就缺了——
+    # 这里如实记下中位数每个字段实际是基于几家算出来的，别让"3 家的中位数"和
+    # "8 家的中位数"看起来一样可信。
+    median_sample_counts = {
+        field: sum(1 for r in keep_rows if r.get(field) not in (None, 0))
+        for field in ("PE_TTM", "PB", "PS")
+    }
 
     out = {
         "生成日期": today,
@@ -538,13 +615,16 @@ def main():
         "通道": channel_used or "无（仅人工条目）",
         "peers": merged,
         "中位数": medians,
+        "中位数_样本数": median_sample_counts,
         "channel_errors": channel_errors,
         "channel_meta": channel_meta,
     }
     cache_path.write_text(json.dumps(out, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
     print(f"  wrote {cache_path}", file=sys.stderr)
     print(f"品种词：{terms}")
-    print(f"通道：{channel_used}  同业 {len(merged)} 家（keep={len(keep_rows)}）")
+    print(f"通道：{channel_used}  同业 {len(merged)} 家（keep={len(keep_rows)}，"
+          f"估值样本 PE={median_sample_counts['PE_TTM']}/PB={median_sample_counts['PB']}/"
+          f"PS={median_sample_counts['PS']}）")
     print(f"中位数 PE_TTM={medians['PE_TTM']}  PB={medians['PB']}  PS={medians['PS']}")
 
     if all(v is None for v in medians.values()):
