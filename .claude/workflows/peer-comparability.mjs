@@ -59,6 +59,45 @@ const CANDIDATES = {
   },
 }
 
+// 制度导航：逐条必比口径 → 由哪类制度强制 → 该制度覆盖哪些市场。
+// 这是本设计唯一跨行业成立的规律：口径可得性由披露制度决定，而制度只有约五类
+// （证券法定披露 / 行业监管强制 / 专业技术标准 / 自愿行业惯例 / 商业数据库），
+// 远少于 15 原型 × 4 口径的手写量。把它提到候选发现之前，就能按市场定向找样本，
+// 而不是按品种撒网——钨那轮花了 137 万 token 才发现「A 股全灭、要去 ASX/TSX」。
+const REGIME_NAV = {
+  type: 'object',
+  required: ['metrics', 'target_markets'],
+  properties: {
+    metrics: {
+      type: 'array', minItems: 1,
+      items: {
+        type: 'object',
+        required: ['what', 'regime_type', 'mandated_by', 'obtainable_markets', 'verdict'],
+        properties: {
+          what: { type: 'string', description: '必比口径原文' },
+          regime_type: {
+            type: 'string',
+            enum: ['证券法定披露', '行业监管强制', '专业技术标准', '自愿行业惯例', '商业数据库', '无制度产出'],
+            description: '这条口径由哪一类制度强制。「无制度产出」用于口径本身要求的东西不由任何披露产生（如成本曲线分位）',
+          },
+          mandated_by: { type: 'array', items: { type: 'string' }, description: '具体制度名，如 NI 43-101、JORC、银保监《商业银行信息披露办法》' },
+          obtainable_markets: { type: 'array', items: { type: 'string' }, description: '该口径可得的市场，如 TSX/ASX/AIM/A股/港股。全都拿不到则空数组' },
+          verdict: {
+            type: 'string', enum: ['可得', '仅特定市场可得', '制度性不可得', '方法论上不可回溯'],
+            description: '方法论上不可回溯=口径要求的东西不由任何披露制度产出，换一百家样本也拿不到',
+          },
+          note: { type: 'string' },
+        },
+      },
+    },
+    target_markets: {
+      type: 'array', items: { type: 'string' },
+      description: '综合各条口径，候选发现应该去哪些市场找。这是本阶段给下游的导航结果',
+    },
+    all_unobtainable: { type: 'boolean', description: '若全部必比口径都拿不到，下游可跳过候选发现' },
+  },
+}
+
 // 三层判定的返回。verdict 是最终结论，三个 layer 字段各自记过没过 + 依据。
 // 依据必须能回溯到原文——「不可比」旁边只写结论、不写可被推翻的依据，等于没判。
 const VERDICT = {
@@ -162,11 +201,51 @@ const SIGNALS = cfg?.ownership_signals ?? ''
 const SIGNALS_UNVERIFIED = SIGNALS.includes('尚未确定') || !SIGNALS.trim()
 log(`原型配置：必比口径 ${cfg?.must_compare?.length ?? 0} 条；归属信号${SIGNALS_UNVERIFIED ? ' **尚未确定——本轮第二层判定为模型自由发挥**' : '已定义'}`)
 
+// ── 制度导航（方案 A）──────────────────────────────────────────────
+// 先问「这条口径由什么制度强制」，再决定去哪个市场找候选。
+phase('制度导航')
+const nav = await agent(
+  `你为「${VARIETY} · ${ARCHETYPE}」做**制度导航**：逐条判定必比口径由哪类披露制度强制，
+据此得出候选发现该去哪些市场。**这一步不找公司、不做可比性判定**，只回答「这些数在哪儿能拿到」。
+
+必比口径（逐条判）：
+${(cfg?.must_compare ?? []).map((x, i) => `${i + 1}. ${x}`).join('\n') || '（读取失败，去原型表确认）'}
+
+**先 Read ${REGIMES}**（不存在就当空）。已有条目直接用，不要重判；
+没有的自己判，并**把新判定写回该文件**（JSON，键是口径名，值含 mandated_by / not_covered / verdict）。
+
+判定要落到五类制度之一：
+- **证券法定披露** —— 各交易所年报准则、CAS/IFRS。覆盖全，但通常只到财务口径
+- **行业监管强制** —— 如银保监《商业银行信息披露办法》、保险内含价值报告。覆盖该行业全部且口径统一
+- **专业技术标准** —— 如 NI 43-101（加）、JORC（澳）、SEC S-K 1300（美）、SPE-PRMS（油气）。只覆盖采纳该标准的市场，但口径极严
+- **自愿行业惯例** —— 如 World Gold Council 的 AISC、SaaS 的 NDR。事实标准但非强制，覆盖看公司自觉
+- **商业数据库** —— 如 Wood Mackenzie、CRU、IQVIA。**私有、不可回溯**
+- **无制度产出** —— 口径要求的东西不由任何披露产生。典型：「在全球成本曲线的**分位**」——
+  单家公司只能披露自己那一个点，**没有任何公司能披露分位**，换一百家样本也拿不到
+
+然后给出 target_markets：**综合各条口径，候选发现应该去哪些市场找**。
+例：若关键口径由 NI 43-101/JORC 强制而 A 股不覆盖，target_markets 就该是 TSX/ASX/AIM 而不是 A 股。
+
+若全部口径都判为「制度性不可得」或「方法论上不可回溯」，把 all_unobtainable 置 true——
+下游会跳过候选发现，直接出一份说明为什么答不了的台账。**这不是失败，是省下无意义的检索。**`,
+  { label: '制度导航', phase: '制度导航', schema: REGIME_NAV }
+)
+const TARGET_MARKETS = nav?.target_markets ?? []
+const ALL_UNOBTAINABLE = nav?.all_unobtainable === true
+log(`制度导航：口径 ${nav?.metrics?.length ?? 0} 条；目标市场 ${TARGET_MARKETS.join('/') || '（未定）'}` +
+    (ALL_UNOBTAINABLE ? ' —— 全部不可得，跳过候选发现' : ''))
+
 // ── 候选发现 ──────────────────────────────────────────────────────────
 phase('候选发现')
 log(`${VARIETY}（${ARCHETYPE}）：找候选，本地优先`)
-const found = await agent(
+const found = ALL_UNOBTAINABLE
+  ? (log('候选发现：全部必比口径不可得，跳过'), null)
+  : await agent(
   `你为「${VARIETY}」这个品种找可比候选。目标原型是「${ARCHETYPE}」。
+
+**制度导航已定的目标市场：${TARGET_MARKETS.join(' / ') || '（未定，本地优先）'}**
+按这个市场清单找，不要在导航判为不覆盖的市场上撒网——那是上一轮花了 137 万 token
+才发现的教训（A 股钨业全灭是制度性的，不是找得不够仔细）。
 
 **本地优先是硬规矩**：先跑
 \`python3 ${ROOT}/tools/discover_peers.py ${SEED ?? '600549'} --terms ${VARIETY}\`
@@ -268,7 +347,11 @@ ${ok.map((v) => `${v.name}: ${(v.metrics ?? []).map((m) => `${m.what}=${m.value}
 **硬规矩：N < 3 时禁止出现「中位数」三个字**，改写成「唯一可比样本」或「N=2 的两点区间」。
 用「中位数」包装 N=1 是伪装，正是本系统要消灭的东西。
 
-本原型的必比口径（已读出，逐条给可得性判定）：
+**制度导航结论（已判定，直接采用，不要重判）**：
+${(nav?.metrics ?? []).map((m) => `- ${m.what} ｜ ${m.verdict} ｜ ${m.regime_type} ｜ 可得市场：${(m.obtainable_markets ?? []).join('/') || '无'}`).join('\n') || '（导航失败）'}
+${ALL_UNOBTAINABLE ? '\n⚠️ **全部必比口径不可得，本轮未做候选发现。台账的任务是说明「为什么这个板块的这些问题答不了」，而不是凑一张表。**' : ''}
+
+本原型的必比口径（结合上面的导航结论，逐条给可得性判定）：
 ${(cfg?.must_compare ?? []).map((x, i) => `${i + 1}. ${x}`).join('\n') || '（读取失败，去原型表确认）'}
 ${SIGNALS_UNVERIFIED ? '\n⚠️ **本原型的归属信号尚未确定，第二层判定为模型自由发挥** —— 台账开头必须写明这一点。' : ''}
 ${NO_DISCRIMINATION ? '\n⚠️ **本轮判别力为零**（所有候选判定相同）—— 台账必须写明信号未能区分任何候选，不要当正常结果呈现。' : ''}`,
@@ -283,6 +366,9 @@ return {
   ledger_file: ledger?.written_file ?? `${LEDGER_DIR}/ledger.md`,
   n_comparable: comparable.length, // 独立同业数，已排除锚自指
   anchor_self_listed: Boolean(anchorRow),
+  target_markets: TARGET_MARKETS,
+  regime_verdicts: (nav?.metrics ?? []).map((m) => ({ what: m.what, verdict: m.verdict, regime: m.regime_type })),
+  all_unobtainable: ALL_UNOBTAINABLE,
   signals_unverified: SIGNALS_UNVERIFIED,
   no_discrimination: NO_DISCRIMINATION,
   verdicts: ok.map((v) => ({ code: v.code, name: v.name, verdict: v.verdict })),
