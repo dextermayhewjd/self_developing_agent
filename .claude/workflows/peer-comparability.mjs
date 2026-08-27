@@ -26,6 +26,20 @@ const REGIMES = `${ROOT}/data/_peers/_regimes.json`
 
 // ── schema ────────────────────────────────────────────────────────────
 // key 走 ASCII（中文键名会让 agent 直接 400），中文说明放 description。
+
+// workflow 脚本没有文件系统 API，读不了原型表。若让每个判定 agent 各自去 Read，
+// 编排器就**不知道**当前原型有没有归属信号，也就无法据此改变行为（如强制标注未验证）。
+// 一个前置的廉价 agent 把原型表变成结构化数据，之后所有 prompt 从变量插值——
+// 既保证 N 个判定 agent 拿到的是同一份配置，也让判别力/未验证这类检查能写在 JS 里。
+const ARCHETYPE_CFG = {
+  type: 'object',
+  required: ['ownership_criteria', 'ownership_signals', 'must_compare'],
+  properties: {
+    ownership_criteria: { type: 'string', description: '归属判据字段的原文，逐字' },
+    ownership_signals: { type: 'string', description: '归属信号字段的原文，逐字。标着「尚未确定」也原样返回，不要替它编' },
+    must_compare: { type: 'array', items: { type: 'string' }, description: '必比口径逐条' },
+  },
+}
 const CANDIDATES = {
   type: 'object',
   required: ['candidates'],
@@ -58,7 +72,7 @@ const VERDICT = {
       type: 'string', enum: ['pass', 'partial', 'fail', 'skipped'],
       description:
         '第二层：把本原型的「归属判据」反过来套在它身上，它是不是同一类资产。' +
-        'partial 用于「是同类但关键特征弱」（如有矿但矿只占小头）。第一层 fail 时给 skipped',
+        'partial 用于「是同类资产但关键特征弱」。第一层 fail 时给 skipped',
     },
     layer3_regime: {
       type: 'string', enum: ['pass', 'fail', 'skipped'],
@@ -134,6 +148,20 @@ const LEDGER = {
   },
 }
 
+// ── 读配置 ────────────────────────────────────────────────────────────
+phase('读配置')
+const cfg = await agent(
+  `只做一件事：从 ${SKILL}/equity-thesis-cn/valuation_archetypes.md 里找到「${ARCHETYPE}」那一段，
+把 归属判据 / 归属信号 / 必比口径 三个字段**原样**返回。
+
+不要判断、不要发挥、不要替它补全。归属信号若标着「尚未确定」，原样返回那句话——
+下游要靠它决定是否标注「本原型判定未经验证」，你替它编就把这个信号抹掉了。`,
+  { label: '读配置', phase: '读配置', schema: ARCHETYPE_CFG, model: 'haiku', effort: 'low' }
+)
+const SIGNALS = cfg?.ownership_signals ?? ''
+const SIGNALS_UNVERIFIED = SIGNALS.includes('尚未确定') || !SIGNALS.trim()
+log(`原型配置：必比口径 ${cfg?.must_compare?.length ?? 0} 条；归属信号${SIGNALS_UNVERIFIED ? ' **尚未确定——本轮第二层判定为模型自由发挥**' : '已定义'}`)
+
 // ── 候选发现 ──────────────────────────────────────────────────────────
 phase('候选发现')
 log(`${VARIETY}（${ARCHETYPE}）：找候选，本地优先`)
@@ -170,23 +198,28 @@ const verdicts = await pipeline(
 先 Read ${SKILL}/equity-thesis-cn/valuation_archetypes.md 里「${ARCHETYPE}」那一段的「归属判据」，
 然后判：**这家公司是不是也属于这个原型**。
 ⚠️ **同品种 ≠ 同原型**——一家公司可能产这个品种，但它的资产是加工产能而不是本原型要求的那类资产。
-这一层需要读年报：用 \`python3 ${ROOT}/tools/fetch_annual_pdf.py ${c.code}\` 或直接找它最新年报，
-查关键证据（对耗竭资源型：有无自有矿山、自产比例、成本结构是按要素分还是按产品分）。
-不满足归属判据 → layer2_nature=fail。
+**本原型的归属判据（原文）**：${cfg?.ownership_criteria ?? '（读取失败，去原型表自行确认）'}
+
+**本原型的归属信号（查什么）**：
+${SIGNALS || '（未定义）'}
+${SIGNALS_UNVERIFIED
+  ? '⚠️ **本原型的归属信号尚未确定** —— 你要按 lens 的方法自己从归属判据推出该查什么痕迹，'
+    + '并在 signals_source_note 里如实写明「本原型判定为模型自由发挥、可靠性未经验证」。'
+  : ''}
+
+这一层通常需要读年报：用 \`python3 ${ROOT}/tools/fetch_annual_pdf.py ${c.code}\` 或直接找它最新年报。
+不满足归属判据 → layer2_nature=fail，并写明它实际属于哪个原型。
 
 **第三层 · 披露制度**：它所处的披露制度，是否强制披露本原型的必比口径？
 先 Read ${REGIMES}（不存在就当空），看这些口径有没有现成的制度判定。
 没有就自己判并**把判定写回该文件**（JSON，键是口径名）：哪些制度强制它、哪些市场不覆盖。
 例：C1/AISC 由 NI 43-101（加）、JORC（澳）强制；中国 A 股企业会计准则只要求分部收入/成本，无实物量口径。
 
-**方法论**：先 Read ${SKILL}/equity-thesis-cn/lenses/可比性判定.md——它有八条已验证的会计指纹
-（折耗政策、原材料占成本比、该类资产占总资产比、分产品收入有无独立行、分部豁免、自给率、
-定价机制表述、专项计提规模）和三条反面判据。**优先用库里的信号**，不够再自己找。
-另读原型表本原型的「归属信号」字段（本原型专属）；**若它标着「尚未确定」，
-在 signals_source_note 里写明这一点**——不要让台账读者以为本原型的判定与已验证过的原型同等可靠。
+**方法论**：先 Read ${SKILL}/equity-thesis-cn/lenses/可比性判定.md——它给的是**跨原型通用的方法**
+（归属判据的每个要件→找报表里的痕迹）和三条反面判据。本原型该查哪些具体痕迹，见上面的「归属信号」。
 
 **证据要求**：evidence 字段必须指向具体出处（年报页码/章节/原文片段）。
-只写「不是矿业公司」这种结论、不给可被推翻的依据，等于没判。
+只写「不属于这个原型」这种结论、不给可被推翻的依据，等于没判。
 
 **信号报告（必填）**：把你实际用到的信号逐条填进 used_signals，标明每条是 library（lens/原型表已有）
 还是 improvised（你现编的），以及它在本次判定里是决定性还是辅助。库里有但本候选身上查不到的，
@@ -197,6 +230,14 @@ const verdicts = await pipeline(
     ),
 )
 const ok = (verdicts ?? []).filter(Boolean)
+// 判别力：一组信号若没能把任何候选分开（全过或全不过），它不是信号，是废话。
+// 这时交出的台账看起来正常，实则毫无判别依据——与「用中位数包装 N=1」同类的伪装。
+const kinds = new Set(ok.map((v) => v.verdict))
+const NO_DISCRIMINATION = ok.length >= 3 && kinds.size <= 1
+if (NO_DISCRIMINATION)
+  log(`⚠️ 判别力为零：${ok.length} 个候选全部判为「${[...kinds][0]}」。` +
+      `本原型的归属信号没能区分任何候选${SIGNALS_UNVERIFIED ? '（且该原型信号尚未确定）' : ''}，` +
+      `台账须写明此点，不得当作正常结果交付。`)
 const isAnchor = (v) => ANCHOR && String(v.code).includes(String(ANCHOR))
 // 锚自指不进独立同业计数——用锚自己的数去校准锚自己是循环论证。
 const comparable = ok.filter((v) => v.verdict === '可比' && !isAnchor(v))
@@ -227,7 +268,10 @@ ${ok.map((v) => `${v.name}: ${(v.metrics ?? []).map((m) => `${m.what}=${m.value}
 **硬规矩：N < 3 时禁止出现「中位数」三个字**，改写成「唯一可比样本」或「N=2 的两点区间」。
 用「中位数」包装 N=1 是伪装，正是本系统要消灭的东西。
 
-Read ${SKILL}/equity-thesis-cn/valuation_archetypes.md 里「${ARCHETYPE}」的「必比口径」，逐条给出可得性判定。`,
+本原型的必比口径（已读出，逐条给可得性判定）：
+${(cfg?.must_compare ?? []).map((x, i) => `${i + 1}. ${x}`).join('\n') || '（读取失败，去原型表确认）'}
+${SIGNALS_UNVERIFIED ? '\n⚠️ **本原型的归属信号尚未确定，第二层判定为模型自由发挥** —— 台账开头必须写明这一点。' : ''}
+${NO_DISCRIMINATION ? '\n⚠️ **本轮判别力为零**（所有候选判定相同）—— 台账必须写明信号未能区分任何候选，不要当正常结果呈现。' : ''}`,
   { label: '出台账', phase: '出台账', schema: LEDGER },
 )
 
@@ -239,6 +283,8 @@ return {
   ledger_file: ledger?.written_file ?? `${LEDGER_DIR}/ledger.md`,
   n_comparable: comparable.length, // 独立同业数，已排除锚自指
   anchor_self_listed: Boolean(anchorRow),
+  signals_unverified: SIGNALS_UNVERIFIED,
+  no_discrimination: NO_DISCRIMINATION,
   verdicts: ok.map((v) => ({ code: v.code, name: v.name, verdict: v.verdict })),
   obtainable: ledger?.obtainable ?? [],
   unobtainable: ledger?.unobtainable ?? [],
