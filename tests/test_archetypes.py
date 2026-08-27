@@ -8,7 +8,13 @@ import benchmark_lib
 
 ARCHETYPES = Path(__file__).resolve().parent.parent / ".claude/skills/equity-thesis-cn/valuation_archetypes.md"
 
-FIELDS = ["归属判据", "主估值方法", "失效指标", "必比口径", "必做分析", "排雷阈值变体", "典型悬空点"]
+FIELDS = ["归属判据", "主估值方法", "失效指标", "必比口径", "必做分析", "排雷阈值变体",
+          "典型悬空点", "归属信号"]
+
+# 「归属信号」是 peer-comparability 第二层判定（反向套归属判据）的专属信号。
+# 设计上按需生长：跑到哪个原型补哪个。但缺失必须**显式标注**而非留空——
+# 静默的空白会让台账读者以为该原型的判定与已验证过的原型同等可靠。
+UNVERIFIED_MARK = "尚未确定"
 
 # 下游 schema（equity-thesis.mjs 的 archetype enum）拿这份清单当枚举，改一个字就断，
 # 所以名称与序号在这里逐字钉死，不是靠数量 15 来兜。
@@ -134,3 +140,30 @@ class TestWorkflowArchetypeEnum(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestOwnershipSignals(unittest.TestCase):
+    """归属信号：可以未填，但不许静默留空——缺失要么带显式标记，要么就是真信号。"""
+
+    def setUp(self):
+        self.parsed = benchmark_lib.parse_archetypes(ARCHETYPES.read_text(encoding="utf-8"))
+
+    def test_every_archetype_has_signals_field(self):
+        for name, body in self.parsed.items():
+            self.assertIn("归属信号", body, f"原型「{name}」缺 归属信号 字段")
+            self.assertTrue(body["归属信号"].strip(), f"原型「{name}」的 归属信号 为空")
+
+    def test_unfilled_ones_are_explicitly_marked(self):
+        """未填的必须写明「尚未确定」，不能是一句含糊的话糊弄过去。"""
+        for name, body in self.parsed.items():
+            v = body["归属信号"]
+            if len(v) < 60:
+                self.assertIn(UNVERIFIED_MARK, v,
+                              f"原型「{name}」的 归属信号 过短（{len(v)}字）却未标 {UNVERIFIED_MARK}")
+
+    def test_depleting_resource_signals_are_filled(self):
+        """耗竭资源型已有 2026-08-27 钨实跑的实证，必须是真信号不是标记。"""
+        v = self.parsed["耗竭资源型"]["归属信号"]
+        self.assertNotIn(UNVERIFIED_MARK, v)
+        for kw in ("折耗", "自给率", "原材料"):
+            self.assertIn(kw, v, f"耗竭资源型的归属信号缺实证信号：{kw}")
