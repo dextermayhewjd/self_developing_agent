@@ -15,7 +15,11 @@ const ROOT = args?.root ?? '/home/hongshi/projects/sda-dev'
 const SKILL = `${ROOT}/.claude/skills`
 const VARIETY = args?.variety
 const ARCHETYPE = args?.archetype
-const SYMBOL = args?.symbol ?? null // 可选：有标的时用于取它自己的口径值做对照
+// 锚 = 被研究的标的。必须与「检索起点」分开：首跑时把 600549 同时当两者用，
+// 导致 discover_peers 按既有规则把它当标的排除、厦门钨业整个缺席，
+// 而真正的标的 03858 反被算进了 n_comparable（锚自指占了 N 的四分之一）。
+const ANCHOR = args?.anchor ?? null
+const SEED = args?.seed ?? ANCHOR // 检索起点，仅供 discover_peers 用；默认与锚相同
 if (!VARIETY || !ARCHETYPE) throw new Error('必须传 args: { variety, archetype }，例如 { variety: "钨", archetype: "耗竭资源型" }')
 const LEDGER_DIR = `${ROOT}/data/_peers/${VARIETY}`
 const REGIMES = `${ROOT}/data/_peers/_regimes.json`
@@ -45,7 +49,7 @@ const CANDIDATES = {
 // 依据必须能回溯到原文——「不可比」旁边只写结论、不写可被推翻的依据，等于没判。
 const VERDICT = {
   type: 'object',
-  required: ['code', 'name', 'layer1_variety', 'layer2_nature', 'verdict', 'evidence'],
+  required: ['code', 'name', 'layer1_variety', 'layer2_nature', 'verdict', 'evidence', 'used_signals'],
   properties: {
     code: { type: 'string' }, name: { type: 'string' },
     market_cap_yi: { type: 'number', description: '总市值（亿元本币），取不到给 null' },
@@ -62,6 +66,27 @@ const VERDICT = {
     },
     verdict: { type: 'string', enum: ['可比', '部分可比', '不可比'] },
     evidence: { type: 'string', description: '判定依据，必须指向具体出处（年报页码/章节/原文片段），不能只写结论' },
+    used_signals: {
+      type: 'array', minItems: 1,
+      description:
+        '你做这次判定实际用到的信号，逐条列出。这是本系统自我改进的唯一入口：' +
+        'source=improvised 且 weight=决定性 的信号是下一轮该固化进信号库的候选；' +
+        'library 里有却没能命中的，说明它对本原型不适用。如实报告，' +
+        '不要为了显得用了方法论而把现编的说成库里的',
+      items: {
+        type: 'object',
+        required: ['signal', 'source', 'weight'],
+        properties: {
+          signal: { type: 'string', description: '信号本身，带上具体数值与出处' },
+          source: { type: 'string', enum: ['library', 'improvised'], description: 'library=lens 或原型表已有；improvised=你现编的' },
+          weight: { type: 'string', enum: ['决定性', '辅助', '未命中'], description: '未命中=库里有这条但本候选身上查不到或不适用' },
+        },
+      },
+    },
+    signals_source_note: {
+      type: 'string',
+      description: '若本原型的「归属信号」字段标着尚未确定，在此写明：第二层判定为模型自由发挥，可靠性未经验证',
+    },
     metrics: {
       type: 'array',
       description: '本候选身上取到的必比口径值；取不到就不要编，留空数组',
@@ -154,16 +179,29 @@ const verdicts = await pipeline(
 没有就自己判并**把判定写回该文件**（JSON，键是口径名）：哪些制度强制它、哪些市场不覆盖。
 例：C1/AISC 由 NI 43-101（加）、JORC（澳）强制；中国 A 股企业会计准则只要求分部收入/成本，无实物量口径。
 
+**方法论**：先 Read ${SKILL}/equity-thesis-cn/lenses/可比性判定.md——它有八条已验证的会计指纹
+（折耗政策、原材料占成本比、该类资产占总资产比、分产品收入有无独立行、分部豁免、自给率、
+定价机制表述、专项计提规模）和三条反面判据。**优先用库里的信号**，不够再自己找。
+另读原型表本原型的「归属信号」字段（本原型专属）；**若它标着「尚未确定」，
+在 signals_source_note 里写明这一点**——不要让台账读者以为本原型的判定与已验证过的原型同等可靠。
+
 **证据要求**：evidence 字段必须指向具体出处（年报页码/章节/原文片段）。
 只写「不是矿业公司」这种结论、不给可被推翻的依据，等于没判。
+
+**信号报告（必填）**：把你实际用到的信号逐条填进 used_signals，标明每条是 library（lens/原型表已有）
+还是 improvised（你现编的），以及它在本次判定里是决定性还是辅助。库里有但本候选身上查不到的，
+填 weight=未命中。**这是系统自我改进的唯一入口，如实报告。**
 
 顺便：能顺手取到的必比口径值（如储量、产能、市值）放进 metrics，**取不到就留空，不要编**。`,
       { label: `判定:${c.name}`, phase: '三层判定', schema: VERDICT }
     ),
 )
 const ok = (verdicts ?? []).filter(Boolean)
-const comparable = ok.filter((v) => v.verdict === '可比')
-log(`判定完成 ${ok.length}/${cands.length}；可比 ${comparable.length}、部分可比 ${ok.filter((v) => v.verdict === '部分可比').length}、不可比 ${ok.filter((v) => v.verdict === '不可比').length}`)
+const isAnchor = (v) => ANCHOR && String(v.code).includes(String(ANCHOR))
+// 锚自指不进独立同业计数——用锚自己的数去校准锚自己是循环论证。
+const comparable = ok.filter((v) => v.verdict === '可比' && !isAnchor(v))
+const anchorRow = ok.find(isAnchor)
+log(`判定完成 ${ok.length}/${cands.length}；独立可比 ${comparable.length}${anchorRow ? '（另有锚自指 1 家，不计入）' : ''}、部分可比 ${ok.filter((v) => v.verdict === '部分可比').length}、不可比 ${ok.filter((v) => v.verdict === '不可比').length}`)
 
 // ── 口径可得性 + 出台账 ───────────────────────────────────────────────
 phase('出台账')
@@ -184,6 +222,8 @@ ${ok.map((v) => `${v.name}: ${(v.metrics ?? []).map((m) => `${m.what}=${m.value}
 2. **可得口径**：只在判定为「可比」的集合上计算。每条标明 **N（实际样本数）**。
 3. **不可得口径**：区分「制度性不可得」与「个案未披露」——前者换样本才有用，后者换一家可能就有，两者要写不同的话。
 
+**锚不计入 N**：被研究的标的自己若出现在判定结果里，单列一行标「锚，自指」，**不进独立同业计数**——用锚自己的数校准锚自己是循环论证。每条口径的 N 一律指独立同业数。
+
 **硬规矩：N < 3 时禁止出现「中位数」三个字**，改写成「唯一可比样本」或「N=2 的两点区间」。
 用「中位数」包装 N=1 是伪装，正是本系统要消灭的东西。
 
@@ -197,7 +237,8 @@ return {
   variety: VARIETY,
   archetype: ARCHETYPE,
   ledger_file: ledger?.written_file ?? `${LEDGER_DIR}/ledger.md`,
-  n_comparable: ledger?.n_comparable ?? 0,
+  n_comparable: comparable.length, // 独立同业数，已排除锚自指
+  anchor_self_listed: Boolean(anchorRow),
   verdicts: ok.map((v) => ({ code: v.code, name: v.name, verdict: v.verdict })),
   obtainable: ledger?.obtainable ?? [],
   unobtainable: ledger?.unobtainable ?? [],
