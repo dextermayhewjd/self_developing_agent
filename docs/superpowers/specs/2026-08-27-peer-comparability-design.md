@@ -200,12 +200,22 @@
 
 ### 被 `equity-thesis.mjs` 内联调用
 
-Workflow 允许一层嵌套。`/thesis-wf`（顶层）→ `equity-thesis`（第一层）→ `peer-comparability`（子步骤）合法：
+Workflow 允许一层嵌套。`/thesis-wf`（顶层）→ `equity-thesis`（第一层）→ `peer-comparability`（子步骤）合法。
+
+**但按名称解析有时机问题（2026-08-27 实测，见第八节）**：`.claude/workflows/` 的名称注册表在会话启动时加载，**当天新写的 workflow 在本会话里按名称解析不到**。所以内联调用要写成能降级的形式：
 
 ```js
-const ledger = await workflow('peer-comparability', {
-  symbol: SYMBOL, archetype: doubt.archetype, root: ROOT
-})
+// 名称优先（注册表已刷新时命中），失败则回退到 scriptPath——
+// 新写的 workflow 在写它的那个会话里按名称必然解析不到。
+let ledger
+try {
+  ledger = await workflow('peer-comparability', { variety, archetype: doubt.archetype, root: ROOT })
+} catch (e) {
+  ledger = await workflow(
+    { scriptPath: `${ROOT}/.claude/workflows/peer-comparability.mjs` },
+    { variety, archetype: doubt.archetype, root: ROOT }
+  )
+}
 ```
 
 板块基准 agent 从「自己跑 discover_peers 两阶段」简化为「读台账」。`discover_peers.py` 降级为候选发现的通道之一。
@@ -236,16 +246,44 @@ data/_peers/_regimes.json         口径 → 披露制度 缓存（全局）
 
 ---
 
-## 八、验收标准
+## 八、实跑验证（2026-08-27）
+
+设计定稿后先写了一个最小但真实的 `peer-comparability.mjs`（按设计跑真 agent，范围锁在「钨」）验跑通。**三个发现全部是缺陷，不实跑不会知道。**
+
+### ① workflow 名称注册表在会话启动时加载（设计缺陷）
+
+`Workflow({name: 'peer-comparability'})` 报 `not found. Available: deep-research`——`.claude/workflows/` 下的脚本在**写它的那个会话里**按名称解析不到，必须用 `{scriptPath}`。
+
+影响第七节的内联调用接口：直接写 `workflow('peer-comparability', ...)` 在新写当天会抛错。已改为「名称优先 + scriptPath 回退」的形式。
+
+### ② `meta` 必须是纯字面量，而既有校验器验不出（工具缺陷）
+
+`whenToUse` 里用了字符串拼接，`tools/check_workflow_syntax.mjs` **放行了**，运行时才报
+`meta must be a pure literal: non-literal node type in meta: BinaryExpression`。
+
+**一个会放行跑不起来的脚本的校验器，比没有校验器更糟**——它给出「已经验过」的错觉。这与本项目要消灭的失败形状同类：形式合规、实质无效、无信号。
+
+已给校验器补 meta 纯字面量检查：剥掉注释与字符串字面量后，骨架里不得出现 `+`、模板串、展开运算符、函数调用。
+
+### ③ 第一版补丁是坏的，反例照样放行（同一教训第三次）
+
+补上的第一版正则太弱，拼接反例仍 EXIT=0。重写为「剥字符串后查骨架」才真抓到，并用两个反例（拼接、模板串）验证 EXIT=1。
+
+**「只加不会失败的断言等于没加」在本项目群里已出现三次**：参照系接地的原型表结构断言、硬门的攻击测试、这里的 meta 检查。凡新增校验，必须用反例验证它真会失败——这条应视为本仓的通用工序，而非个案提醒。
+
+---
+
+## 九、验收标准
 
 1. `peer-comparability` 能独立跑通，对「钨」产出台账，判定结果与探针一致：章源可比、厦钨/中钨部分可比、翔鹭不可比、江钨装备/厦钨新能品种层即出局。
 2. 台账中「不可比」各行都有可回溯到年报的依据文字。
 3. `N=1` 时产物中不出现「中位数」三字。
 4. `_regimes.json` 至少含耗竭资源型的四条口径，且「C1 成本曲线分位」标为 A 股制度性不可得。
-5. 由 `equity-thesis.mjs` 内联调用能拿到台账（一层嵌套不抛错）。
+5. 由 `equity-thesis.mjs` 内联调用能拿到台账（一层嵌套不抛错）；**名称解析失败时 scriptPath 回退生效**。
 6. 台账按品种落盘，第二次对同品种不同标的运行能命中缓存。
+7. `tools/check_workflow_syntax.mjs` 对「meta 含拼接」「meta 含模板串」两个反例返回 1（防止第八节②③再次发生）。
 
-## 九、已知边界
+## 十、已知边界
 
 - **跨市场抽取依赖联网**。NI 43-101 技术报告在 SEDAR+ 上公开但需检索；本设计只保证「制度层判定告诉你去哪找」，不保证一定抓得到。
 - **平台网络型等原型的关键口径无制度强制**，永远只能估算——系统的正确行为是判「制度性不可得」并降级，不是硬凑。
