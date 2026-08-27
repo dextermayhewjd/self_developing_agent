@@ -27,10 +27,45 @@ if (metaMatch) {
   }
 }
 
+let fn
 try {
-  new AsyncFunction('args', 'budget', 'agent', 'parallel', 'pipeline', 'phase', 'log', 'workflow', src)
-  console.log(`语法 OK: ${path}`)
+  fn = new AsyncFunction('args', 'budget', 'agent', 'parallel', 'pipeline', 'phase', 'log', 'workflow', src)
 } catch (e) {
   console.error(`语法错误: ${path}\n  ${e.name}: ${e.message}`)
   process.exit(1)
+}
+
+// 烟测：把所有 hook 桩掉，真跑一遍脚本体。
+// 语法校验抓不到 ReferenceError——重命名漏改一处变量、拼错字段名，都是合法 JS，
+// 只有真跑才炸。实测教训：peer-comparability 重命名 SYMBOL→SEED 漏了模板串里那处，
+// 语法 OK 而运行时 6ms 就崩在 "SYMBOL is not defined"。
+// 用法：check_workflow_syntax.mjs <file> --smoke '<argsJSON>'
+const smokeIdx = process.argv.indexOf('--smoke')
+if (smokeIdx !== -1) {
+  const smokeArgs = process.argv[smokeIdx + 1] ? JSON.parse(process.argv[smokeIdx + 1]) : {}
+  const stubAgent = async () => ({})
+  const stub = {
+    agent: stubAgent,
+    parallel: async (thunks) => Promise.all(thunks.map((t) => t())),
+    pipeline: async (items, ...stages) =>
+      Promise.all(items.map(async (it, i) => {
+        let acc = it
+        for (const st of stages) acc = await st(acc, it, i)
+        return acc
+      })),
+    phase: () => {},
+    log: () => {},
+    workflow: async () => ({}),
+    budget: { total: null, spent: () => 0, remaining: () => Infinity },
+  }
+  try {
+    await fn(smokeArgs, stub.budget, stub.agent, stub.parallel, stub.pipeline, stub.phase, stub.log, stub.workflow)
+    console.log(`语法 OK + 烟测通过: ${path}`)
+  } catch (e) {
+    console.error(`烟测失败: ${path}\n  ${e.name}: ${e.message}`)
+    console.error('  （桩函数返回空对象，故只报运行期引用/结构问题，业务逻辑错不在此范围）')
+    process.exit(1)
+  }
+} else {
+  console.log(`语法 OK: ${path}`)
 }

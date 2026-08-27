@@ -141,7 +141,7 @@ const found = await agent(
   `你为「${VARIETY}」这个品种找可比候选。目标原型是「${ARCHETYPE}」。
 
 **本地优先是硬规矩**：先跑
-\`python3 ${ROOT}/tools/discover_peers.py ${SYMBOL ?? '600549'} --terms ${VARIETY}\`
+\`python3 ${ROOT}/tools/discover_peers.py ${SEED ?? '600549'} --terms ${VARIETY}\`
 它会产出候选（每条带主营节选与 hint，keep 恒为 null——脚本不做判定，判定在下一阶段）。
 
 本地通道取不到的（境外同业）才允许 WebSearch。**这一步只管找出候选，不要判它可不可比**——
