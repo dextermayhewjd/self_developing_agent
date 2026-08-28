@@ -59,6 +59,27 @@ const CANDIDATES = {
   },
 }
 
+// 盘点：跨会话续跑的文件级机制。equity-thesis 8-25 就有（commit 3b8d6e8），
+// 本文件写的时候漏抄了——spec 组件 3 明明写了「盘点：已有台账？缓存命中？」。
+// 判据同样是「存在且字节数 > 200」。workflow 脚本没有文件系统 API，也不能用 Date.now()
+//（会破坏 resume），所以「台账过没过期」由盘点 agent 自己跑 date 比对后返回布尔值。
+const INVENTORY = {
+  type: 'object',
+  required: ['has_nav', 'judged', 'has_ledger'],
+  properties: {
+    has_nav: { type: 'boolean', description: '制度导航.md 存在且 > 200 字节' },
+    judged: {
+      type: 'array', items: { type: 'string' },
+      description: '判定/ 下已存在且 > 200 字节的文件名（不含 .md 后缀），原样返回不要改写',
+    },
+    has_ledger: { type: 'boolean', description: 'ledger.md 存在且 > 200 字节' },
+    ledger_fresh: {
+      type: 'boolean',
+      description: '台账是否仍在有效期内（30 天）。跑 date 取今天，与 ledger.md 里的生成日期比。ledger 不存在时给 false',
+    },
+  },
+}
+
 // 制度导航：逐条必比口径 → 由哪类制度强制 → 该制度覆盖哪些市场。
 // 这是本设计唯一跨行业成立的规律：口径可得性由披露制度决定，而制度只有约五类
 // （证券法定披露 / 行业监管强制 / 专业技术标准 / 自愿行业惯例 / 商业数据库），
@@ -187,6 +208,35 @@ const LEDGER = {
   },
 }
 
+// 候选的 code 形如「NASDAQ: ALM（TSX: AII）」「AIM: GMET / NYSE American: GMTL」，
+// 直接当文件名会炸。编排器与 prompt 两侧用同一个确定性函数算安全名，盘点才对得上。
+const safeName = (c) =>
+  String(c?.code || c?.name || 'unknown')
+    .replace(/[^A-Za-z0-9\u4e00-\u9fff]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 32) || 'unknown'
+
+// ── 盘点 ──────────────────────────────────────────────────────────────
+phase('盘点')
+const inv = await agent(
+  `只做一件事：盘点 ${LEDGER_DIR}/ 下已有的产物。不做任何分析、不读文件内容做判断、不修改任何文件。
+
+跑 \`ls -la ${LEDGER_DIR}/ ${LEDGER_DIR}/判定/ 2>&1\`，对存在的文件再跑 \`wc -c\`。
+判据：**存在且字节数 > 200 才算已完成**，其余一律算未完成；目录不存在就是全空。
+
+台账新鲜度：若 ledger.md 存在，跑 \`date +%Y-%m-%d\` 取今天，
+读 ledger.md 里的生成日期（通常在开头），相差 30 天以内给 ledger_fresh=true，否则 false。
+ledger.md 不存在时 ledger_fresh 给 false。`,
+  { label: '盘点', phase: '盘点', schema: INVENTORY, model: 'haiku', effort: 'low' }
+)
+const doneNav = inv?.has_nav === true
+const doneJudged = new Set(inv?.judged ?? [])
+const LEDGER_HIT = inv?.has_ledger === true && inv?.ledger_fresh === true
+if (doneNav || doneJudged.size || inv?.has_ledger)
+  log(`盘点：制度导航 ${doneNav ? '✓' : '✗'}／已判定 ${doneJudged.size} 家／台账 ${inv?.has_ledger ? (LEDGER_HIT ? '✓ 未过期' : '✓ 但已过期') : '✗'}` +
+      ` —— 已完成的跳过，不重跑`)
+if (LEDGER_HIT) log('台账命中且未过期：本轮只做校验，不重跑判定')
+
 // ── 读配置 ────────────────────────────────────────────────────────────
 phase('读配置')
 const cfg = await agent(
@@ -204,7 +254,9 @@ log(`原型配置：必比口径 ${cfg?.must_compare?.length ?? 0} 条；归属�
 // ── 制度导航（方案 A）──────────────────────────────────────────────
 // 先问「这条口径由什么制度强制」，再决定去哪个市场找候选。
 phase('制度导航')
-const nav = await agent(
+const nav = doneNav
+  ? (log('制度导航：已在，跳过'), null)
+  : await agent(
   `你为「${VARIETY} · ${ARCHETYPE}」做**制度导航**：逐条判定必比口径由哪类披露制度强制，
 据此得出候选发现该去哪些市场。**这一步不找公司、不做可比性判定**，只回答「这些数在哪儿能拿到」。
 
@@ -226,11 +278,19 @@ ${(cfg?.must_compare ?? []).map((x, i) => `${i + 1}. ${x}`).join('\n') || '（�
 然后给出 target_markets：**综合各条口径，候选发现应该去哪些市场找**。
 例：若关键口径由 NI 43-101/JORC 强制而 A 股不覆盖，target_markets 就该是 TSX/ASX/AIM 而不是 A 股。
 
+**判完落盘到 ${LEDGER_DIR}/制度导航.md**（先 mkdir -p），一行一条口径：
+\`- [判定] 口径 ｜ 制度类型 ｜ 强制它的制度 ｜ 可得市场\`，末尾单起一行写 target_markets。
+落盘是硬要求——不落盘的话下次续跑要重判一遍。
+
 若全部口径都判为「制度性不可得」或「方法论上不可回溯」，把 all_unobtainable 置 true——
 下游会跳过候选发现，直接出一份说明为什么答不了的台账。**这不是失败，是省下无意义的检索。**`,
   { label: '制度导航', phase: '制度导航', schema: REGIME_NAV }
 )
 const TARGET_MARKETS = nav?.target_markets ?? []
+// 导航被跳过时编排器手上没有 target_markets（它在磁盘上），让下游 agent 自己去读那份文件。
+const NAV_HINT = nav
+  ? `**制度导航已定的目标市场：${TARGET_MARKETS.join(' / ') || '（未定，本地优先）'}**`
+  : `**制度导航结论已在 ${LEDGER_DIR}/制度导航.md，先 Read 它拿目标市场清单**`
 const ALL_UNOBTAINABLE = nav?.all_unobtainable === true
 log(`制度导航：口径 ${nav?.metrics?.length ?? 0} 条；目标市场 ${TARGET_MARKETS.join('/') || '（未定）'}` +
     (ALL_UNOBTAINABLE ? ' —— 全部不可得，跳过候选发现' : ''))
@@ -243,7 +303,7 @@ const found = ALL_UNOBTAINABLE
   : await agent(
   `你为「${VARIETY}」这个品种找可比候选。目标原型是「${ARCHETYPE}」。
 
-**制度导航已定的目标市场：${TARGET_MARKETS.join(' / ') || '（未定，本地优先）'}**
+${NAV_HINT}
 按这个市场清单找，不要在导航判为不覆盖的市场上撒网——那是上一轮花了 137 万 token
 才发现的教训（A 股钨业全灭是制度性的，不是找得不够仔细）。
 
@@ -265,7 +325,9 @@ phase('三层判定')
 const verdicts = await pipeline(
   cands,
   (c) =>
-    agent(
+    doneJudged.has(safeName(c))
+      ? (log(`判定:${c.name} 已在，跳过`), { code: c.code, name: c.name, verdict: '已有判定', skipped: true, _file: `${LEDGER_DIR}/判定/${safeName(c)}.md` })
+      : agent(
       `你判定 ${c.code} ${c.name}（${c.market}）相对「${VARIETY} · ${ARCHETYPE}」的**可比性**，分三层，
 **一层不过就停下，不要继续往下查**——第二层要读年报，是最贵的一步，别浪费在已经出局的候选上。
 
@@ -304,15 +366,22 @@ ${SIGNALS_UNVERIFIED
 还是 improvised（你现编的），以及它在本次判定里是决定性还是辅助。库里有但本候选身上查不到的，
 填 weight=未命中。**这是系统自我改进的唯一入口，如实报告。**
 
-顺便：能顺手取到的必比口径值（如储量、产能、市值）放进 metrics，**取不到就留空，不要编**。`,
+顺便：能顺手取到的必比口径值（如储量、产能、市值）放进 metrics，**取不到就留空，不要编**。
+
+**判完必须落盘到 ${LEDGER_DIR}/判定/${safeName(c)}.md**（先 mkdir -p），写清三层各自结论、
+最终判定、以及可回溯的依据原文。**这是断点续跑的唯一凭据**——不落盘的话，
+下次被中断重跑时你这一家要从头再判一遍。`,
       { label: `判定:${c.name}`, phase: '三层判定', schema: VERDICT }
     ),
 )
 const ok = (verdicts ?? []).filter(Boolean)
+// 跳过的家没有本轮的真值判定（结论在磁盘上），不参与判别力与计数统计——
+// 但它们的文件仍在，出台账的 agent 会读全部 判定/*.md。
+const fresh = ok.filter((v) => !v.skipped)
 // 判别力：一组信号若没能把任何候选分开（全过或全不过），它不是信号，是废话。
 // 这时交出的台账看起来正常，实则毫无判别依据——与「用中位数包装 N=1」同类的伪装。
-const kinds = new Set(ok.map((v) => v.verdict))
-const NO_DISCRIMINATION = ok.length >= 3 && kinds.size <= 1
+const kinds = new Set(fresh.map((v) => v.verdict))
+const NO_DISCRIMINATION = fresh.length >= 3 && kinds.size <= 1
 if (NO_DISCRIMINATION)
   log(`⚠️ 判别力为零：${ok.length} 个候选全部判为「${[...kinds][0]}」。` +
       `本原型的归属信号没能区分任何候选${SIGNALS_UNVERIFIED ? '（且该原型信号尚未确定）' : ''}，` +
@@ -325,17 +394,20 @@ log(`判定完成 ${ok.length}/${cands.length}；独立可比 ${comparable.lengt
 
 // ── 口径可得性 + 出台账 ───────────────────────────────────────────────
 phase('出台账')
-const brief = ok
+const brief = fresh
   .map((v) => `${v.code} ${v.name}｜${v.verdict}｜L1=${v.layer1_variety} L2=${v.layer2_nature} L3=${v.layer3_regime}｜${v.evidence}`)
   .join('\n')
 const ledger = await agent(
   `你把「${VARIETY} · ${ARCHETYPE}」的可比性台账落盘到 ${LEDGER_DIR}/ledger.md（先 mkdir -p）。
 
-判定结果（${ok.length} 家）：
+**先 Read ${LEDGER_DIR}/判定/ 下的全部 *.md** —— 那里有本品种**历次**判定的完整结论，
+包含本轮跳过（上轮已判）的那些家。下面只是本轮新判的摘要，不是全集。
+
+本轮新判（${fresh.length} 家，另有 ${ok.length - fresh.length} 家沿用已有判定）：
 ${brief}
 
 各家取到的口径值：
-${ok.map((v) => `${v.name}: ${(v.metrics ?? []).map((m) => `${m.what}=${m.value}（${m.source}）`).join('; ') || '无'}`).join('\n')}
+${fresh.map((v) => `${v.name}: ${(v.metrics ?? []).map((m) => `${m.what}=${m.value}（${m.source}）`).join('; ') || '无'}`).join('\n')}
 
 台账要包含：
 1. **判定表**：代码/名称/市值/三层各自结论/最终判定/**依据**。依据必须可回溯，不能只写结论。
