@@ -101,12 +101,15 @@ def rebalance_table_widths(md_text: str) -> str:
 
 def output_stem(md_path: pathlib.Path) -> str:
     """判断稿一律是 reports/{代码}_thesis_{日期}/report.md，stem 全叫 report——
-    两份判断稿会输出到同一个 report.pdf 互相覆盖。stem 认不出代码时改用目录名。"""
+    两份判断稿会输出到同一个 report.pdf 互相覆盖。stem 认不出代码时改用目录名。
+
+    代码是 5~6 位：A 股 6 位、港股 5 位。曾经只认 \\d{6}，于是港股判断稿
+    （00521 / 03858）全部落回 stem="report" 互相覆盖——正是本函数要防的那件事。"""
     stem = md_path.stem
-    if re.match(r"^\d{6}[_-]", stem):
+    if re.match(r"^\d{5,6}[_-]", stem):
         return stem
     parent = md_path.parent.name
-    if re.match(r"^\d{6}[_-]", parent):
+    if re.match(r"^\d{5,6}[_-]", parent):
         return parent
     return stem
 
@@ -145,6 +148,38 @@ def promote_header_to_yaml(md_text: str) -> str:
     body = "\n".join(lines[body_start:]).lstrip("\n")
     return "\n".join(parts) + "\n" + body
 
+
+
+def sanitize_frontmatter(md_text: str) -> str:
+    """把已有 YAML frontmatter 的值整体引号化。
+
+    判断稿的 frontmatter 由成稿 agent 自由书写，值里常含 `: `——
+    300570 写的是 `收盘: ¥200.86 ｜ 总市值: 456.2 亿元 ｜ 总股本: 2.2713 亿股`，
+    YAML 把第二个冒号读成嵌套映射，pandoc 报
+    "mapping values are not allowed in this context" 直接失败。
+
+    封面不经过 YAML（build_cover_tex 用正则读原文，且在本函数之前调用），
+    pandoc 侧这些中文键也全是无人认领的元数据——所以只需让它可解析，
+    值本身不参与任何渲染。已经带引号的值（promote_header_to_yaml 的产物）保持原样。
+    """
+    lines = md_text.splitlines()
+    if not lines or lines[0].strip() != "---":
+        return md_text
+    try:
+        end = next(i for i in range(1, len(lines)) if lines[i].strip() in ("---", "..."))
+    except StopIteration:
+        return md_text
+
+    kv_re = re.compile(r"^([^:\s][^:]*):\s*(.*)$")
+    for i in range(1, end):
+        m = kv_re.match(lines[i])
+        if not m:
+            continue
+        key, val = m.group(1), m.group(2).strip()
+        if not val or (val[0] in "\"'" and val[-1] == val[0] and len(val) > 1):
+            continue
+        lines[i] = f'{key}: "{val.replace(chr(92), chr(92) * 2).replace(chr(34), chr(92) + chr(34))}"'
+    return "\n".join(lines)
 
 
 def latex_escape(t: str) -> str:
@@ -348,6 +383,7 @@ def build_pdf(md_path: pathlib.Path) -> pathlib.Path:
     text = add_table_captions(text)
     text = rebalance_table_widths(text)
     text = promote_header_to_yaml(text)
+    text = sanitize_frontmatter(text)
 
     with tempfile.TemporaryDirectory() as td:
         tmp_md = pathlib.Path(td) / md_path.name

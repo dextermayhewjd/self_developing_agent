@@ -557,9 +557,13 @@ return {
     补: benchFill ? (benchFill.items?.length ?? 0) : 0,
   },
   report: report ?? null,
+  // 这四条按顺序执行，顺序本身是约束不是排版：
+  // 建档必须在硬门之前（硬约束 2 查档案存在且「最近更新」==报告日，先跑门必吃 FAIL）；
+  // 转 PDF 必须在硬门之后（门挂了要改 report.md，先转就是一份过期 PDF）。
   编排器待办: [
     `校验 ${RUN}/ 下 疑惑.md / findings(5) / 参照系/ / report.md 是否齐全`,
-    `更新 ${ROOT}/positions/${SYMBOL}.md（评分、评级、估值锚及变更理由、假设记分板、未决疑问、变更日志）`,
+    `更新 ${ROOT}/positions/${SYMBOL}.md（评分、评级、估值锚及变更理由、假设记分板、未决疑问、变更日志），frontmatter 的「最近更新」写成 ${DATE.slice(0, 4)}-${DATE.slice(4, 6)}-${DATE.slice(6, 8)}`,
     `跑 .venv/bin/python tools/check_thesis.py ${SYMBOL} reports/${SYMBOL}_thesis_${DATE}/report.md，退出码 1 必须回去修`,
+    `过门后转 PDF：.venv/bin/python tools/md_to_pdf.py --md reports/${SYMBOL}_thesis_${DATE}/report.md → reports/pdf/${SYMBOL}_thesis_${DATE}.pdf（--md 不能省，不带它会去找 equity-report-cn 的扁平路径 reports/${SYMBOL}_${DATE}.md）`,
   ],
 }
