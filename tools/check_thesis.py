@@ -192,6 +192,165 @@ def check_opening_benchmark(report, bench, values=None):
     return errs
 
 
+# 需要做外部环节表的两个估值原型。判据不是"是不是周期股"，而是
+# "本环售价是否由链上另一环生成"——这两型是唯一会出现这种关系的。
+_CHAIN_ARCHETYPES = ("耗竭资源型", "周期加工型")
+# 15 个合法原型名。这里冗余一份而不是去读 valuation_archetypes.md，是因为
+# check_thesis 可能在任意 cwd 下跑（测试就在临时目录里）。漂移由
+# tests/test_check_thesis_chain_table.py 的防漂移用例守着。
+# **不认识的原型名必须报错而不是静默跳过**——对抗审查实测：写个错别字
+# （「耗竭资源型X」）就能让整条门连警告都不留，那是通道二的变体。
+_ALL_ARCHETYPES = (
+    "耗竭资源型", "周期加工型", "稳态现金流型", "成长渗透型", "研发管线型",
+    "平台网络型", "项目制工程型", "金融息差型", "金融承保型", "金融资本型",
+    "重资产公用型", "地产存货型", "持有型不动产", "渠道分销型", "亏损未验证型",
+)
+_ARCHETYPE_RE = re.compile(r"^\s*估值原型[：:]\s*(\S+)", re.M)
+_TABLE_SEP_RE = re.compile(r"^\|[\s\-:|]+\|\s*$")
+
+
+def _archetype_of(run_dir):
+    """从 疑惑.md 读估值原型。读不出返回 None（旧 run 没有这一行）。"""
+    p = run_dir / "疑惑.md"
+    if not p.exists():
+        return None
+    m = _ARCHETYPE_RE.search(read(p))
+    return m.group(1).strip() if m else None
+
+
+# 「依据」列里算数的来路标记：页码 / 文件行号 / 材料名。
+# 不要求每一行都有——跳过行（"全文检索命中 0 次"）本来就没有页码，
+# 强制每行带页码会把 agent 逼去编页码，那比不查更糟。
+_SRC_RE = re.compile(r"[Pp]\.\s?[\dIVXivx]|第\s*\d+\s*[页行]|\.md[:：]?\d*|年报|附录|招股")
+# 空占位：这些填进「依据」列等于没填
+_EMPTY_CELL = {"", "-", "--", "—", "——", "无", "n/a", "待定", "略", "?", "？", "同上"}
+
+
+def _extract_table(text, anchor):
+    """取 anchor 之后那张 markdown 表，返回数据行（每行是单元格列表）。
+
+    anchor 可能在正文里出现多次（叙述一次、标题一次），取**能解析出最多数据行**
+    的那一处——对抗审查实测：只取第一处会被"正文随口提一句"骗过。
+    """
+    best = []
+    for m in re.finditer(re.escape(anchor), text):
+        tail = text[m.end():]
+        # 截到下一个标题为止。`#{1,6}` 而不是 `#{2,4}`——审查实测 `#` 与 `#####`
+        # 分节时会把后文别的表一起数进来。
+        nxt = re.search(r"^#{1,6}\s", tail, re.M)
+        if nxt:
+            tail = tail[: nxt.start()]
+        pipe_lines = [ln.strip() for ln in tail.splitlines() if ln.strip().startswith("|")]
+        if not any(_TABLE_SEP_RE.match(ln) for ln in pipe_lines):
+            continue  # 没有分隔行 = 不是表格
+        rows = []
+        seen_sep = False
+        for ln in pipe_lines:
+            if _TABLE_SEP_RE.match(ln):
+                seen_sep = True
+                continue
+            if not seen_sep:
+                continue  # 表头
+            cells = [c.strip() for c in ln.strip("|").split("|")]
+            rows.append(cells)
+        if len(rows) > len(best):
+            best = rows
+    return best
+
+
+def check_chain_table(report, run_dir):
+    """硬约束 8：商品类标的必须有「外部环节表」，且必须写出定价锚。
+
+    03858 实测的失效形态：`findings/产业.md` 已经写出"精矿价是 APT 的折扣价、
+    比价 1.47"，但 framework 第五节的三分法只有"本公司产品线"一个槽位，
+    产业环节的分析没有地方挂，于是整条被丢弃；而 核查/ 只查"数字抄对没有"，
+    不查"该进正文的判断有没有进正文"——所以这次丢失是静默的。
+    这条门把静默丢失变成可见失败。它检查槽位在不在、有没有结论，
+    **检查不了表里写得对不对**——那仍然需要人看。
+
+    返回 (hard, soft)。
+    """
+    hard, soft = [], []
+    archetype = _archetype_of(run_dir)
+
+    if archetype is None:
+        # 2026-08-28 对抗审查实测的绕过通道二：这里若只给 soft，
+        # **门的开关就握在被检查者手里**——从自己写的 疑惑.md 里删掉一行即可放行。
+        # workflow 步骤 2 本来就明文要求该文件第一行是 `估值原型：<判定>`，
+        # 缺行是违反既有约定，按 hard 报。旧 run（该约定之前的）会因此不合格，
+        # 那是如实反映，不是误报——补一行即可。
+        hard.append(
+            "疑惑.md 里没有 `估值原型：<判定>` 行（workflow 步骤 2 要求该文件第一行就是它）。"
+            "缺了它，硬约束 8 无法判定是否需要外部环节表——**这条不能降级为警告："
+            "否则删掉一行就能关掉整条门**"
+        )
+        return hard, soft
+
+    if archetype not in _ALL_ARCHETYPES:
+        hard.append(
+            f"疑惑.md 的 `估值原型：{archetype}` 不是 15 个原型之一"
+            "（workflow 步骤 2：原型名原样抄，含「型」字，不要自造词、不要写自然语言行业名）。"
+            "认不出原型，硬约束 8 就无从判定——**这条同样不能降级：一个错别字"
+            "不该关掉整条门**"
+        )
+        return hard, soft
+
+    if archetype not in _CHAIN_ARCHETYPES:
+        return hard, soft  # 非商品类，本条不适用
+
+    rows = _extract_table(report, "外部环节表")
+    if "外部环节表" not in report:
+        hard.append(
+            f"估值原型={archetype}，但第五节没有「外部环节表」"
+            "（framework.md 第五节要求它与三分法并列，不是三分法的一栏）。"
+            "三分法的入口只有「本公司产品线」，链上环节没有槽位就会被静默丢弃"
+        )
+    elif len(rows) < 2:
+        hard.append(
+            f"「外部环节表」只有 {len(rows)} 行数据：每一环都要有一行，**包括跳过的**"
+            "（跳过要写理由，沉默略过等于没写）"
+        )
+    else:
+        # ---- 反凑数：依据列不得是空占位 ----
+        blank = [r[0] for r in rows if len(r) < 2 or r[-1].strip().lower() in _EMPTY_CELL]
+        if blank:
+            hard.append(
+                f"「外部环节表」有 {len(blank)} 行的「依据 / 跳过理由」是空占位"
+                f"（{'、'.join(blank[:4])}）：跳过也要写理由，写「无」等于没写"
+            )
+        # ---- 反凑数：至少半数行要有来路（页码/文件行号/材料名）----
+        with_src = sum(1 for r in rows if _SRC_RE.search(" ".join(r)))
+        if with_src * 2 < len(rows):
+            hard.append(
+                f"「外部环节表」{len(rows)} 行里只有 {with_src} 行给了来路"
+                "（页码 / 文件:行号 / 材料名），应至少半数。"
+                "**不要为凑这个去编页码**——真拿不到就把该环节的行写成跳过并说明是哪一种拿不到"
+            )
+
+    # ---- 定价锚必须与表连通 ----
+    if "定价锚" not in report:
+        hard.append(
+            f"估值原型={archetype}，但正文没有写出「定价锚」在哪一环。"
+            "判据 1 的结论必须明写——没有它，外部环节表只是清单没有结论"
+        )
+    elif rows:
+        labels = [re.sub(r"[*`（(].*", "", r[0]).strip() for r in rows]
+        labels = [l for l in labels if len(l) >= 2]
+        hit = False
+        for m in re.finditer("定价锚", report):
+            window = report[m.start(): m.start() + 60]
+            if any(l and l in window for l in labels):
+                hit = True
+                break
+        if not hit:
+            hard.append(
+                "「定价锚」写了，但它指的那一环没有出现在外部环节表的第一列里"
+                f"（表内环节：{'、'.join(labels[:6])}）。"
+                "结论要和表连通，否则表和结论各说各的"
+            )
+    return hard, soft
+
+
 def main():
     if len(sys.argv) != 3:
         print("用法：python tools/check_thesis.py <SYMBOL> <REPORT_PATH>", file=sys.stderr)
@@ -301,6 +460,11 @@ def main():
             (hard if level == "hard" else soft).append(msg)
         # bench 为 None 时 check_opening_benchmark 整体跳过（向后兼容旧 run）。
         hard.extend(check_opening_benchmark(report, _collected.bench, _collected.values))
+
+    # ---- 硬约束 8：商品类标的的外部环节表 ----
+    _h8, _s8 = check_chain_table(report, run_dir)
+    hard.extend(_h8)
+    soft.extend(_s8)
 
     # ---- 软约束：观点段 / 数据段 配比 >= 1/3 ----
     data_chars = char_count(blocks_after(report, SEG_DATA))

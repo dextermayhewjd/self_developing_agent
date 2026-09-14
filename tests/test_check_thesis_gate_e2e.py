@@ -44,6 +44,24 @@ def _body():
     return "\n".join(out)
 
 
+def _chain_table():
+    """硬约束 8 要的外部环节表。
+
+    本 fixture 的 疑惑.md 写的是「耗竭资源型」（商品类），硬约束 8 因此触发。
+    这里内容是占位——本文件测的是硬约束 7 的参照系逻辑，不是链条分析质量；
+    但占位也必须真的满足硬约束 8 的五项，否则 fixture 就不再是
+    「能过其余硬约束的 run」，所有测试会因为一个无关的原因一起红。
+    """
+    return (
+        "### 外部环节表\n\n"
+        "| 环节 | 在材料价值链上的位置 | 与本环的关系 | 深度档 | 依据 / 跳过理由 |\n"
+        "|---|---|---|---|---|\n"
+        "| 甲环节 | 招股章程 P.1 价值链图中游首环 | 本环售价是它的折扣价 | L2 | 招股章程 P.1 原文 |\n"
+        "| 乙环节 | 图上无此节点，来自外部分类树 | 旁路，不经本环 | L0 | 年报未给分流量 |\n\n"
+        "**定价锚**在甲环节那一环。\n"
+    )
+
+
 def build_run(root, opening, bench_files=None, check_files=None, bench_dir_empty=False):
     """在 root 下造一个能过其余硬约束的 run，返回 report 路径（相对 root）。"""
     root = Path(root)
@@ -67,7 +85,10 @@ def build_run(root, opening, bench_files=None, check_files=None, bench_dir_empty
         (run / "核查").mkdir(exist_ok=True)
         (run / "核查" / name).write_text(text, encoding="utf-8")
 
-    report = f"---\n报告日期：2026-08-26\n---\n\n## 〇、开篇结论\n\n{opening}\n\n{_body()}"
+    report = (
+        f"---\n报告日期：2026-08-26\n---\n\n## 〇、开篇结论\n\n{opening}\n\n"
+        f"{_body()}\n\n{_chain_table()}"
+    )
     (run / "report.md").write_text(report, encoding="utf-8")
     return run / "report.md"
 
