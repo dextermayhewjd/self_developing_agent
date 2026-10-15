@@ -23,7 +23,7 @@ function claimedPaths(value, paths = []) {
   return paths
 }
 
-export async function openState({ dir, fingerprint, artifactRoots, artifactsFor = () => [], reset = false, emit = () => {} }) {
+export async function openState({ dir, fingerprint, artifactRoots, artifactsFor = () => [], reset = false, resetArtifacts = [], invocation = {}, emit = () => {} }) {
   dir = resolve(dir)
   await mkdir(dir, { recursive: true })
   const lockPath = join(dir, 'run.lock')
@@ -57,6 +57,7 @@ export async function openState({ dir, fingerprint, artifactRoots, artifactsFor 
     } catch (error) { if (error.code !== 'ENOENT') throw error }
   }
   try {
+    fingerprint = typeof fingerprint === 'function' ? await fingerprint() : fingerprint
     const roots = await Promise.all(artifactRoots.map(async p => {
       try { return await realpath(p) } catch (e) { if (e.code === 'ENOENT') return resolve(p); throw e }
     }))
@@ -90,13 +91,14 @@ export async function openState({ dir, fingerprint, artifactRoots, artifactsFor 
     }
     if (data.fingerprint !== fingerprint && !reset) throw new Error('Workflow or inputs changed; use --reset to archive prior workflow outputs and restart')
     if (reset) {
-      await quarantine(Object.values(data.stages).flatMap(s => s.artifacts ?? []))
+      await quarantine([...resetArtifacts, ...Object.values(data.stages).flatMap(s => s.artifacts ?? [])])
       if (await exists(statePath)) {
         await mkdir(archive, { recursive: true })
         await rename(statePath, join(archive, 'state.json'))
       }
       data = { version: 1, fingerprint, stages: {} }
     }
+    data.invocation = invocation
     for (const record of Object.values(data.stages)) {
       if (record.status !== 'succeeded') await quarantine(record.artifacts ?? [])
     }

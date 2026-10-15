@@ -75,3 +75,15 @@ test('output claims cannot escape artifact roots through paths or symlinks', asy
   await assert.rejects(state.run('x', { label: 'bad' }, async () => ({ written_file: join(root, 'link/out.md') })), /outside.*artifact/i)
   await state.close()
 })
+
+test('explicit reset archives legacy artifacts and records invocation for reproducible resume', async t => {
+  const { config, output } = await setup(t)
+  await writeFile(output, 'legacy Claude output')
+  const invocation = { name: 'equity-thesis', args: { symbol: '00700', date: '20261015' }, noPdf: true }
+  let state = await openState({ ...config, invocation })
+  await state.close()
+  state = await openState({ ...config, invocation, reset: true, resetArtifacts: [output] })
+  await assert.rejects(readFile(output), { code: 'ENOENT' })
+  assert.deepEqual(state.data.invocation, invocation)
+  await state.close()
+})

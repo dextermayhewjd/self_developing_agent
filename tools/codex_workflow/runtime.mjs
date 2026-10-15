@@ -13,11 +13,12 @@ export function createRuntime({ runAgent, jobs = 3, signal, emit = () => {} } = 
   const controller = new AbortController()
   const combined = signal ? AbortSignal.any([signal, controller.signal]) : controller.signal
   const waiters = []
+  const tasks = new Set()
   let running = 0
   combined.addEventListener('abort', () => {
     for (const waiter of waiters.splice(0)) waiter.reject(combined.reason)
   }, { once: true })
-  async function agent(prompt, options = {}) {
+  async function work(prompt, options = {}) {
     combined.throwIfAborted()
     if (running >= jobs) await new Promise((resolve, reject) => waiters.push({ resolve, reject }))
     combined.throwIfAborted()
@@ -32,10 +33,17 @@ export function createRuntime({ runAgent, jobs = 3, signal, emit = () => {} } = 
       waiters.shift()?.resolve()
     }
   }
+  function agent(prompt, options) {
+    const task = work(prompt, options)
+    tasks.add(task)
+    task.then(() => tasks.delete(task), () => tasks.delete(task))
+    return task
+  }
   return {
     agent,
     signal: combined,
     abort: reason => controller.abort(reason),
+    drain: () => Promise.allSettled([...tasks]),
     parallel: thunks => Promise.all(thunks.map(thunk => Promise.resolve().then(thunk))),
     pipeline: (items, ...stages) => Promise.all(items.map(async (item, index) => {
       let value = item
