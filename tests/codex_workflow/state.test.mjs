@@ -3,7 +3,9 @@ import assert from 'node:assert/strict'
 import { mkdtemp, writeFile, readFile, unlink, rm, symlink } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { openState } from '../../tools/codex_workflow/state.mjs'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
+import { openState, acquireRunLock } from '../../tools/codex_workflow/state.mjs'
 
 async function setup(t) {
   const root = await mkdtemp(join(tmpdir(), 'workflow-state-'))
@@ -86,4 +88,50 @@ test('explicit reset archives legacy artifacts and records invocation for reprod
   await assert.rejects(readFile(output), { code: 'ENOENT' })
   assert.deepEqual(state.data.invocation, invocation)
   await state.close()
+})
+
+test('failed position update restores the previous persistent file', async t => {
+  const { root } = await setup(t)
+  const run = join(root, 'report')
+  const position = join(root, 'position.md')
+  await writeFile(position, 'previous complete position')
+  const state = await openState({ dir: join(run, '.codex-workflow'), fingerprint: 'v1',
+    artifactRoots: [run, position], artifactsFor: () => [position] })
+  await assert.rejects(state.run('update', { label: '更新档案' }, async () => {
+    await writeFile(position, '最近更新: 2026-10-15\npartial')
+    throw new Error('worker interrupted')
+  }), /interrupted/)
+  assert.equal(await readFile(position, 'utf8'), 'previous complete position')
+  assert.equal(state.canReuse(), false)
+  await state.close()
+})
+
+test('missing upstream output invalidates and removes downstream artifacts before inventory', async t => {
+  const { root, config } = await setup(t)
+  const paths = { dig: join(root, 'find.md'), check: join(root, 'check.md'), report: join(root, 'report.md') }
+  const settings = { ...config, artifactsFor: label => [paths[label]],
+    dependents: label => ({ dig: ['check', 'report'], check: ['report'] }[label] ?? []) }
+  let state = await openState(settings)
+  for (const label of ['dig', 'check', 'report']) await state.run(label, { label }, async () => {
+    await writeFile(paths[label], 'round 1'); return { written_file: paths[label] }
+  })
+  await state.close()
+  await unlink(paths.dig)
+  state = await openState(settings)
+  await assert.rejects(readFile(paths.check), { code: 'ENOENT' })
+  await assert.rejects(readFile(paths.report), { code: 'ENOENT' })
+  assert.equal(state.canReuse(), false)
+  await state.close()
+})
+
+test('dead parent lock is not reclaimed while a registered detached worker survives', async t => {
+  const { root } = await setup(t)
+  const module = new URL('../../tools/codex_workflow/state.mjs', import.meta.url).href
+  const code = `import {spawn} from 'node:child_process'; import {acquireRunLock,createProcessRegistry} from ${JSON.stringify(module)};
+const registry=createProcessRegistry(${JSON.stringify(root)}); await acquireRunLock(${JSON.stringify(root)},{processesFile:registry.path});
+const child=spawn(process.execPath,['-e','setTimeout(()=>{},30000)'],{detached:true,stdio:'ignore'});registry.started(child.pid);console.log(child.pid);process.exit(0);`
+  const result = await promisify(execFile)(process.execPath, ['--input-type=module', '-e', code])
+  const pid = Number(result.stdout.trim())
+  t.after(() => { try { process.kill(-pid, 'SIGKILL') } catch {} })
+  await assert.rejects(acquireRunLock(root), /worker.*running/i)
 })

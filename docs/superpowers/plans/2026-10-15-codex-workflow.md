@@ -1,6 +1,6 @@
 # Codex workflow Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 在当前 Codex CLI 中运行共享研究 workflow，保留调度、续跑、结构化返回与交付硬门。
 
@@ -32,11 +32,11 @@
 
 **Interfaces:** Produces `transportSchema(schema)`, `decodeResult(schema,value)`, `validateEvidence(value)`.
 
-- [ ] Write failing tests for optional nulls, Chinese enum, nested arrays, minItems, unsupported schema, and external evidence requirements.
-- [ ] Run `node --test tests/codex_workflow/schema.test.mjs`; expect feature missing.
-- [ ] Implement schema adapter using Ajv; pin dependency and lockfile.
-- [ ] Run schema tests; expect all pass.
-- [ ] Commit only Task 1 files.
+- [x] Write failing tests for optional nulls, Chinese enum, nested arrays, minItems, unsupported schema, and external evidence requirements.
+- [x] Run `node --test tests/codex_workflow/schema.test.mjs`; expect feature missing.
+- [x] Implement schema adapter using Ajv; pin dependency and lockfile.
+- [x] Run schema tests; expect all pass.
+- [x] Commit only Task 1 files.
 
 ### Task 2: Runtime and Codex backend
 
@@ -44,11 +44,11 @@
 
 **Interfaces:** `createRuntime({runAgent,jobs,signal,emit})` produces agent/parallel/pipeline/phase/log; `loadWorkflow(path)` produces callable script; `createBackend(options)` produces validated `runAgent(prompt,options)`.
 
-- [ ] Write failing tests for pipelined timing, ordered results, jobs limit and cancellation; backend tests execute a fake CLI subprocess at the external boundary.
-- [ ] Run `node --test tests/codex_workflow/runtime.test.mjs tests/codex_workflow/backend.test.mjs`; expect missing implementation.
-- [ ] Implement runtime and backend, unique attempt files, bounded format retry, model alias filtering, stdin prompts, and terminal/JSONL events.
-- [ ] Run all Node tests; expect pass.
-- [ ] Commit Task 2 files.
+- [x] Write failing tests for pipelined timing, ordered results, jobs limit and cancellation; backend tests execute a fake CLI subprocess at the external boundary.
+- [x] Run `node --test tests/codex_workflow/runtime.test.mjs tests/codex_workflow/backend.test.mjs`; expect missing implementation.
+- [x] Implement runtime and backend, unique attempt files, bounded format retry, model alias filtering, stdin prompts, and terminal/JSONL events.
+- [x] Run all Node tests; expect pass.
+- [x] Commit Task 2 files.
 
 ### Task 3: Durable state and restore
 
@@ -56,11 +56,11 @@
 
 **Interfaces:** `openState({dir,fingerprint,artifactRoots,reset})` returns lock/release, begin/succeed/fail stage operations, cached results and artifact validation; stale/failed artifacts are quarantined inside the state directory before running the shared script.
 
-- [ ] Write failing tests for duplicate lock, dead lock owner, interrupted output quarantine, unchanged success replay, missing artifact, and changed fingerprint requiring explicit reset.
-- [ ] Run state tests and observe failures.
-- [ ] Implement atomic state files and path checks; successful returned file paths must be within allowed roots and nonempty.
-- [ ] Run all Node tests; expect pass.
-- [ ] Commit Task 3 files.
+- [x] Write failing tests for duplicate lock, dead lock owner, interrupted output quarantine, unchanged success replay, missing artifact, and changed fingerprint requiring explicit reset.
+- [x] Run state tests and observe failures.
+- [x] Implement atomic state files and path checks; successful returned file paths must be within allowed roots and nonempty.
+- [x] Run all Node tests; expect pass.
+- [x] Commit Task 3 files.
 
 ### Task 4: Complete thesis delivery and CLI
 
@@ -68,12 +68,12 @@
 
 **Interfaces:** `runThesis({root,args,runtime,runCommand,noPdf,...})` returns delivery summary. CLI validates flags, resolves named scripts, preflights dependencies and owns state/runtime lifecycle. `--check` runs schema/syntax and fake execution without state or business writes.
 
-- [ ] Write failing tests for zero-preserving codes, invalid dates, three real workflow check runs, warning propagation, position→gate→PDF ordering, failing gate bounded repair, and already-delivered reuse.
-- [ ] Run tests and observe missing feature failures.
-- [ ] Implement data validation, shared script execution, scoped prompts, position update, maximum two repair attempts, PDF verification and summary counts.
-- [ ] Implement CLI and recovery flags; tests use a temp root and external-boundary fixtures.
-- [ ] Run all Node tests and existing Python regression suite; report baseline dependency errors separately if still present.
-- [ ] Commit Task 4 files.
+- [x] Write failing tests for zero-preserving codes, invalid dates, three real workflow check runs, warning propagation, position→gate→PDF ordering, failing gate bounded repair, and already-delivered reuse.
+- [x] Run tests and observe missing feature failures.
+- [x] Implement data validation, shared script execution, scoped prompts, position update, maximum two repair attempts, PDF verification and summary counts.
+- [x] Implement CLI and recovery flags; tests use a temp root and external-boundary fixtures.
+- [x] Run all Node tests and existing Python regression suite; report baseline dependency errors separately if still present.
+- [x] Commit Task 4 files.
 
 ### Task 5: Codex skill, documentation and live probe
 
@@ -81,8 +81,12 @@
 
 **Interfaces:** `$thesis-wf SYMBOL [DATE]` calls the same tested CLI; docs expose install/check/run/resume/reset commands.
 
-- [ ] Read skill authoring requirements; add the thin entry and exact operational instructions.
-- [ ] Run an isolated real Codex probe for structured output and file writing; record sandbox/network limitations if blocked.
-- [ ] Run CLI `--check` for all three workflows and Node suite, complete available Python suite.
-- [ ] Request one fresh whole-change review, fix important findings with regression tests, and update docs to the actually verified behavior.
-- [ ] Commit task files and report usage plus verification limits; do not merge or publish.
+- [x] Read skill authoring requirements; add the thin entry and exact operational instructions.
+- [x] Run an isolated real Codex probe for structured output and file writing; record sandbox/network limitations if blocked.
+- [x] Run CLI `--check` for all three workflows and Node suite, complete available Python suite.
+- [x] Request one fresh whole-change review, fix important findings with regression tests, and update docs to the actually verified behavior.
+- [x] Commit task files and report usage plus verification limits; do not merge or publish.
+
+## Final verification
+
+33 Node tests and 172 existing Python tests passed. Two isolated real Codex CLI probes passed. Independent review findings were fixed with regression coverage for transactional recovery, source invalidation, shared locks and orphan workers. Real stock-report quality remains untested. Auxiliary workflows omit an automatic date; peer workflows serialize their shared regime cache. Work stays on dev; no production merge or push.

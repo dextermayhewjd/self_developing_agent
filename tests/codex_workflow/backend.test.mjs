@@ -5,6 +5,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createBackend } from '../../tools/codex_workflow/backend.mjs'
+import { createProcessRegistry } from '../../tools/codex_workflow/state.mjs'
+import { setTimeout as delay } from 'node:timers/promises'
 
 const schema = { type: 'object', required: ['answer'], properties: { answer: { type: 'integer' } } }
 const fixture = fileURLToPath(new URL('./fixtures/fake-codex.mjs', import.meta.url))
@@ -44,4 +46,22 @@ test('missing output is a failure and interruption terminates a running process'
   const promise = backend('TEST:{"wait":30000}', { schema, label: 'slow' }, control.signal)
   setTimeout(() => control.abort(new Error('cancelled')), 30)
   await assert.rejects(promise, /cancelled/)
+})
+
+test('actual backend process groups are registered before execution and removed on exit', async t => {
+  const { dir } = await setup(t)
+  const registry = createProcessRegistry(dir)
+  const backend = createBackend({ root: dir, logDir: dir, executable: process.execPath, executableArgs: [fixture], processRegistry: registry })
+  const control = new AbortController()
+  const run = backend('TEST:{"wait":30000}', { schema, label: 'registered' }, control.signal)
+  const checked = assert.rejects(run, /cancelled/)
+  let groups = []
+  for (let tries = 0; tries < 100 && !groups.length; tries++) {
+    await delay(5)
+    try { groups = JSON.parse(await readFile(registry.path, 'utf8')).groups } catch {}
+  }
+  assert.equal(groups.length, 1)
+  control.abort(new Error('cancelled'))
+  await checked
+  assert.deepEqual(JSON.parse(await readFile(registry.path, 'utf8')).groups, [])
 })

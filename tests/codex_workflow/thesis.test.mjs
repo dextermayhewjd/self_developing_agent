@@ -78,3 +78,10 @@ test('a complete existing report skips research and no-pdf is explicit', async t
   assert.equal(summary.reused, true)
   assert.equal(summary.pdf.status, 'skipped')
 })
+
+test('failed delivery stage cannot reuse a date-only partial position even if the old gate passes', async t => {
+  const f = await setup(t)
+  await f.runWorkflow(); await f.runtime.agent('', { label: '更新档案' }); f.events.length = 0
+  await runThesis({ ...f, allowReuse: false, noPdf: true, prepared: { warnings: [] }, runCommand: async () => ({ code: 0, stdout: '', stderr: '' }) })
+  assert.deepEqual(f.events, ['research', '更新档案'])
+})

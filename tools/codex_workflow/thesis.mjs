@@ -55,7 +55,7 @@ async function totals(run) {
 }
 
 export async function runThesis({ root, args, runtime, runWorkflow, noPdf = false,
-  prepared, signal, runCommand = runProcess }) {
+  prepared, signal, runCommand = runProcess, allowReuse = true }) {
   const { symbol, date } = args
   const run = join(root, `reports/${symbol}_thesis_${date}`)
   const reportPath = join(run, 'report.md')
@@ -70,6 +70,7 @@ export async function runThesis({ root, args, runtime, runWorkflow, noPdf = fals
   }
   let reused = false, gateResult, researchResult
   try {
+    if (!allowReuse) throw new Error('Incomplete prior workflow stages require reconciliation')
     await requireArtifacts(run)
     await requirePosition(positionPath, date)
     gateResult = await gate()

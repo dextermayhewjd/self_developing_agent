@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { transportSchema, decodeResult, validateEvidence } from './schema.mjs'
 
-export function runProcess(executable, args, { cwd, input, signal, stdoutFile, onEvent } = {}) {
+export function runProcess(executable, args, { cwd, input, signal, stdoutFile, onEvent, onSpawn, onClose } = {}) {
   signal?.throwIfAborted()
   return new Promise((resolve, reject) => {
     const child = spawn(executable, args, { cwd, detached: process.platform !== 'win32', stdio: ['pipe', 'pipe', 'pipe'] })
@@ -48,12 +48,15 @@ export function runProcess(executable, args, { cwd, input, signal, stdoutFile, o
       signal?.removeEventListener('abort', abort)
       clearTimeout(killTimer)
       try {
+        if (child.pid) onClose?.(child.pid)
         if (output) { output.end(); await finished(output) }
         if (signal?.aborted) throw signal.reason
         if (spawnError) throw spawnError
         resolve({ code, signal: killedBy, stdout, stderr })
       } catch (error) { reject(error) }
     })
+    try { if (child.pid) onSpawn?.(child.pid) }
+    catch (error) { spawnError = error; abort() }
     child.stdin.end(input ?? '')
   })
 }
@@ -66,7 +69,7 @@ const workerInstructions = `你正在执行一个已授权的研究 workflow 中
 `
 
 export function createBackend({ root, logDir, executable = 'codex', executableArgs = [], model,
-  effort, emit = () => {}, prelude = '', repairAttempts = 1 } = {}) {
+  effort, emit = () => {}, prelude = '', repairAttempts = 1, processRegistry } = {}) {
   return async function runAgent(prompt, options, signal) {
     const label = options.label ?? 'agent'
     const schema = transportSchema(options.schema)
@@ -90,6 +93,7 @@ export function createBackend({ root, logDir, executable = 'codex', executableAr
       args.push('-')
       emit({ type: 'agent.started', label, phase: options.phase, attempt, directory: stageDir })
       const proc = await runProcess(executable, args, { cwd: root, input, signal,
+        onSpawn: processRegistry?.started, onClose: processRegistry?.ended,
         stdoutFile: join(stageDir, `events-${attempt}.jsonl`), onEvent: event => {
           if (event.type === 'turn.completed') emit({ type: 'agent.usage', label, usage: event.usage })
         } })
