@@ -1,0 +1,4 @@
+interface:
+  display_name: "Codex 判断稿工作流"
+  short_description: "在 Codex CLI 中生成或续跑股票判断稿，保留并行研究、核查和交付校验"
+  default_prompt: "请使用 $thesis-wf 为指定股票生成判断型研究报告。"

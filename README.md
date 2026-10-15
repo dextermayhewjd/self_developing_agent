@@ -2,6 +2,8 @@
 
 使用 Claude Code 和自定义 skills 生成结构化的 A 股研究报告。
 
+也可在 Codex CLI 中运行判断型研究 workflow：使用 `$thesis-wf`，或运行 `node tools/run_codex_workflow.mjs equity-thesis --symbol <代码>`。安装、检查与恢复方式见 [Codex workflow 操作说明](docs/codex-workflow.md)。
+
 ## 快速开始
 
 ### 生成单个报告
