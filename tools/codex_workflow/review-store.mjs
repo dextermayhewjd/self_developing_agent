@@ -125,6 +125,23 @@ export async function openReviewStore({ runDir, maxRounds, emit = () => {}, fail
   return store
 }
 
+/** Pure audit inspection: validates immutable authority and reports display drift.
+ * Never calls recovery, materialization, mkdir, or any Store mutation. */
+export async function inspectReviewStore({ runDir }) {
+  const store = new ReviewStore({ runDir: resolve(runDir) })
+  const reference = await store.head()
+  if (reference === null) return null
+  const loaded = await store.load(reference)
+  const displays = []
+  for (const [path, { bytes, label }] of store.displays(loaded)) {
+    const physical = await optionalBytes(path)
+    displays.push({ path, label, status: physical === null ? 'missing' : physical.equals(bytes) ? 'current' : 'conflict' })
+  }
+  let deliveryError = null
+  try { store.checkDeliverable(loaded, loaded.commit.snapshot) } catch (error) { deliveryError = error.message }
+  return { ...store.state(loaded), evidence: clone(loaded.values.evidence), inputLedger: clone(loaded.values.review_input_ledger), displays, deliveryError }
+}
+
 class ReviewStore {
   constructor({ runDir, maxRounds, emit, failpoint }) {
     this.runDir = runDir
@@ -447,7 +464,9 @@ class ReviewStore {
   }
   /** snapshot MUST be recomputed by the caller from the current physical evidence inventory. */
   async assertDeliverable({ snapshot }) {
-    const current = await this.current()
+    return this.checkDeliverable(await this.current(), snapshot)
+  }
+  checkDeliverable(current, snapshot) {
     checkSnapshot(snapshot, current.commit.snapshot)
     const { ledger, review, receipt } = current.values
     if (!review || !receipt || review.verdict !== 'pass') fail('latest independent review must pass')
