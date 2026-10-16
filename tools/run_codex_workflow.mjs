@@ -9,8 +9,13 @@ import { createRuntime, loadWorkflow } from './codex_workflow/runtime.mjs'
 import { createBackend, runProcess } from './codex_workflow/backend.mjs'
 import { transportSchema, decodeResult, validDate } from './codex_workflow/schema.mjs'
 import { openState, writeJson, acquireRunLock, createProcessRegistry } from './codex_workflow/state.mjs'
-import { prepareData, runThesis, lensNames } from './codex_workflow/thesis.mjs'
+import { prepareData, runThesis } from './codex_workflow/thesis.mjs'
 import { resolveExecutionConfig, resolveStageSettings, readStageConfig, readCodexVersion } from './codex_workflow/config.mjs'
+import { resolveThesisInputManifest, assertClassified, assertDerivedCurrent, createThesisInputTracker, diagnoseLegacyReviewState } from './codex_workflow/thesis-inputs.mjs'
+import { calibrationLocations, calibrationDocuments, calibrationStages, runCalibration } from './codex_workflow/calibration.mjs'
+
+import { reviewStages } from './codex_workflow/review-coordinator.mjs'
+import { recoverDelivery } from './codex_workflow/thesis-delivery.mjs'
 
 const defaultRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const workflows = ['equity-thesis', 'peer-comparability', 'calibrate-equity-thesis']
@@ -19,7 +24,7 @@ export function parseArguments(argv) {
   const { values: v, positionals } = parseArgs({ args: argv, allowPositionals: true, options: {
     symbol: { type: 'string' }, date: { type: 'string' }, root: { type: 'string' },
     jobs: { type: 'string', default: '3' }, model: { type: 'string' }, effort: { type: 'string' },
-    'stage-config': { type: 'string' },
+    'stage-config': { type: 'string' }, 'review-max-rounds': { type: 'string' },
     'args-file': { type: 'string' }, 'no-pdf': { type: 'boolean' }, check: { type: 'boolean' },
     reset: { type: 'boolean' }, help: { type: 'boolean' },
   } })
@@ -28,20 +33,22 @@ export function parseArguments(argv) {
   const jobs = Number(v.jobs)
   if (!Number.isInteger(jobs) || jobs < 1) throw new Error('jobs must be a positive integer')
   if (v.effort && !/^[a-z][a-z0-9_-]*$/i.test(v.effort)) throw new Error('effort must be a reasoning level supported by the model catalog')
+  const reviewMaxRounds=Number(v['review-max-rounds']??2)
+  if(!Number.isInteger(reviewMaxRounds)||reviewMaxRounds<1||reviewMaxRounds>10)throw Error('review-max-rounds must be an integer from 1 to 10')
   const now = new Date()
   const today = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`
   const args = {}
   if (v.symbol) args.symbol = v.symbol.toUpperCase().replace(/\.HK$/, '')
   if (args.symbol && !/^(?:\d{5}|\d{6})$/.test(args.symbol)) throw new Error('symbol must be 5 HK digits or 6 A-share digits')
-  if (v.date || positionals[0] === 'equity-thesis') {
+  if (v.date || ['equity-thesis', 'calibrate-equity-thesis'].includes(positionals[0])) {
     args.date = v.date ?? today
     if (!/^\d{8}$/.test(args.date) || !validDate(`${args.date.slice(0, 4)}-${args.date.slice(4, 6)}-${args.date.slice(6, 8)}`)) throw new Error('date must be a valid YYYYMMDD')
   }
   if (positionals[0] === 'equity-thesis' && !v.symbol && !v['args-file']) throw new Error('equity-thesis requires --symbol')
   const root = resolve(v.root ?? defaultRoot)
   return { name: positionals[0], root, args: { ...args, root }, jobs, model: v.model, effort: v.effort,
-    stageConfigPath: v['stage-config'] ? resolve(v['stage-config']) : undefined,
-    provided: Object.fromEntries(['jobs', 'model', 'effort', 'stage-config', 'no-pdf'].map(key => [key, argv.some(value => value === `--${key}` || value.startsWith(`--${key}=`))])),
+    reviewMaxRounds, stageConfigPath: v['stage-config'] ? resolve(v['stage-config']) : undefined,
+    provided: Object.fromEntries(['jobs', 'model', 'effort', 'stage-config', 'no-pdf', 'review-max-rounds'].map(key => [key, argv.some(value => value === `--${key}` || value.startsWith(`--${key}=`))])),
     argsFile: v['args-file'], noPdf: !!v['no-pdf'], check: !!v.check, reset: !!v.reset }
 }
 
@@ -60,23 +67,20 @@ export async function inspectWorkflow({ root, name, args }) {
     transportSchema(options.schema)
     stages.push({ label: options.label, phase: options.phase })
     const value = sample(options.schema)
-    if (options.label?.startsWith('成稿审查:')) {
-      value.written_file = join(root, `reports/${args.symbol}_thesis_${args.date}/成稿审查.json`)
-      value.report_sha256 = '0'.repeat(64)
-      value.reviewed_sources = ['疑惑.md', ...lensNames.map(lens => `findings/${lens}.md`)]
-      value.verdict = 'pass'
-      value.blocking_issues = []
-      value.sections = Array.from({ length: 12 }, (_, i) => ({ section: i + 1, status: 'pass', evidence: 'synthetic check' }))
-      value.coverage = lensNames.map(lens => ({ lens, findings: [{ finding: 'synthetic', source: `findings/${lens}.md`,
-        source_quote: 'synthetic', disposition: 'covered', report_quote: 'synthetic', exclusion_reason: '' }] }))
-    }
     if (options.label === '盘点') for (const [key, field] of Object.entries(options.schema.properties)) {
       if (field.type === 'array') value[key] = []
     }
     return decodeResult(options.schema, value)
   } })
-  const run = await loadWorkflow(join(root, `.claude/workflows/${name}.mjs`))
+  const run = await loadWorkflow(join(root, `.codex/workflows/${name}.mjs`))
   await run(args, runtime)
+  if (name === 'equity-thesis') for (const {label,phase,schema} of reviewStages) {
+    transportSchema(schema); stages.push({label,phase})
+  }
+  if (name === 'calibrate-equity-thesis') for (const { label, phase, schema } of calibrationStages) {
+    transportSchema(schema)
+    stages.push({ label, phase })
+  }
   return { workflow: name, checked: true, model_calls: 0, stages }
 }
 
@@ -101,7 +105,11 @@ export async function resolveRunExecutionConfig(config, run, { resolveConfig = r
   return resolveConfig({ root: config.root, ...requested })
 }
 
-export async function workflowFingerprint(root, name, args, config) {
+export async function workflowFingerprint(root, name, args, config, { inputManifest } = {}) {
+  args = { ...args }
+  delete args.review_only
+  delete args.reviewMaxRounds
+  delete args.review_max_rounds
   const hash = createHash('sha256').update(JSON.stringify({ name, args,
     executionConfig: config.executionConfig ?? { model: config.model, effort: config.effort } }))
   const visited = new Set()
@@ -121,21 +129,26 @@ export async function workflowFingerprint(root, name, args, config) {
     if (visited.has(physical)) return
     visited.add(physical)
     for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
-      if (!['.codex-workflow', 'peers_curated.json'].includes(entry.name)) await include(join(path, entry.name))
+      // Calibration evidence is a durable workflow output, not executable methodology.
+      if (entry.name === 'evidence' && path.endsWith('/calibrate-equity-thesis')) continue
+      if (entry.name !== '.codex-workflow') await include(join(path, entry.name))
     }
   }
-  await include(join(root, `.claude/workflows/${name}.mjs`))
-  await include(join(root, '.claude/skills'))
+  await include(join(root, `.codex/workflows/${name}.mjs`))
+  await include(join(root, '.codex/skills'))
   await include(fileURLToPath(new URL('./codex_workflow/', import.meta.url)))
   await include(fileURLToPath(import.meta.url))
   if (name === 'equity-thesis') {
-    await include(join(root, `data/${args.symbol}`))
+    inputManifest ??= await resolveThesisInputManifest({ root, symbol: args.symbol })
+    assertClassified(inputManifest)
+    hash.update(JSON.stringify(inputManifest.originals))
     await include(fileURLToPath(new URL('./check_thesis_review.mjs', import.meta.url)))
   }
-  if (name === 'calibrate-equity-thesis' && !(Array.isArray(args.digests) && args.digests.length === 5)) {
-    const source = await readFile(join(root, '.claude/workflows/calibrate-equity-thesis.mjs'), 'utf8')
-    const directory = source.match(/const DIR = '([^']+)'/)[1]
-    for (const match of source.matchAll(/file: '([^']+\.pdf)'/g)) await include(join(directory, match[1]))
+  if (name === 'calibrate-equity-thesis') {
+    for (const doc of calibrationDocuments(args)) {
+      try { await include(doc.file) }
+      catch (error) { if (error.code !== 'ENOENT') throw error }
+    }
   }
   return hash.digest('hex')
 }
@@ -144,7 +157,7 @@ export function workflowLocations({ root, name, args }) {
   if (name === 'equity-thesis') {
     const run = join(root, `reports/${args.symbol}_thesis_${args.date}`)
     const position = join(root, `positions/${args.symbol}.md`)
-    return { run, sharedLock: join(root, 'positions/.codex-workflow', args.symbol), roots: [run, position], resetArtifacts: ['疑惑.md', 'report.md', 'findings', '核查', '参照系', '成稿审查.json'].map(p => join(run, p)),
+    return { run, sharedLock: join(root, 'positions/.codex-workflow', args.symbol), roots: [run, position], resetArtifacts: ['疑惑.md', '初稿.md', 'report.md', 'findings', '核查', '参照系', '成稿审查.json'].map(p => join(run, p)),
       dependents: (label, labels) => labels.filter(target => {
         if (label === '立疑') return target !== label && target !== '盘点'
         if (label.startsWith('挖掘:') && target === `核查:${label.slice(3)}`) return true
@@ -154,19 +167,20 @@ export function workflowLocations({ root, name, args }) {
         if (label === '成稿' || label.startsWith('修订成稿:')) return postReport && target !== label
         if (label.startsWith('成稿审查:')) return /^(更新档案|修复)/u.test(target)
         return false
-      }), artifactsFor: label => {
+      }), artifactsFor: (label, prompt = '') => {
       if (label === '立疑') return [join(run, '疑惑.md')]
       if (label.startsWith('挖掘:')) return [join(run, `findings/${label.slice(3)}.md`)]
       if (label.startsWith('核查:')) return [join(run, `核查/${label.slice(3)}.md`), { path: join(run, `findings/${label.slice(3)}.md`), retainOnInvalidate: true }]
       if (label === '板块基准') return [join(run, '参照系/板块基准.md')]
       if (label === '补参照系') return [{ path: join(run, '参照系/补.md'), optional: true }]
-      if (label === '成稿') return [join(run, 'report.md')]
-      if (label.startsWith('成稿审查:')) return [join(run, '成稿审查.json')]
-      if (label.startsWith('修订成稿:')) return [join(run, 'report.md')]
-      if (label.startsWith('更新档案')) return [position]
-      if (label.startsWith('修复硬门')) return [position, join(run, 'report.md'), join(run, '疑惑.md'),
-        ...lensNames.flatMap(n => [join(run, `findings/${n}.md`), join(run, `核查/${n}.md`)]),
-        ...['板块基准', '补'].map(n => ({ path: join(run, `参照系/${n}.md`), optional: true }))]
+      if (label === '成稿') return [join(run, '初稿.md')]
+      if (label.startsWith('成稿审查:')) return []
+      if (label.startsWith('修订成稿:')) return []
+      if(label.startsWith('更新档案')) {
+        const output=prompt.match(/^输出路径：(.+)$/m)?.[1] ?? prompt.match(/更新暂存档案，输出路径：(.+)/)?.[1]
+        if(!output || !output.startsWith(join(run,'.codex-workflow/delivery')+'/'))return []
+        return [output]
+      }
       return []
     } }
   }
@@ -191,19 +205,28 @@ export function workflowLocations({ root, name, args }) {
       return []
     } }
   }
-  const run = '/tmp/doc-digest'
-  return { run, roots: [run], dependents: label => label.startsWith('盲抽:') ? ['归纳'] : [], resetArtifacts: ['石基', '澜起', '开立', '中控', '乐鑫'].map(p => join(run, `${p}.md`)), artifactsFor: label => label.startsWith('盲抽:') ? [join(run, `${label.slice(3)}.md`)] : [] }
+  const { run, evidence, blind } = calibrationLocations({ root, args })
+  return { run, sharedLock: join(root, '.codex/calibration-lock'), roots: [run, evidence, blind],
+    dependents: (label, labels) => labels.filter(target => {
+      if (label.startsWith('盲抽:')) return ['归纳', '方法对撞', '抽查', '校准报告'].includes(target)
+      if (['规则测绘', '归纳'].includes(label)) return ['方法对撞', '抽查', '校准报告'].includes(target)
+      if (label === '方法对撞') return ['抽查', '校准报告'].includes(target)
+      return label === '抽查' && target === '校准报告'
+    }),
+    resetArtifacts: ['报告.md', 'rules.md', 'rules.json', 'collision.json', 'checks.json', 'proposals.json', 'patches'].map(p => join(run, p)),
+    artifactsFor: label => label.startsWith('盲抽:') ? [join(blind, `${label.slice(3)}.md`)] : [] }
 }
 
 export async function main(argv = process.argv.slice(2)) {
   const config = parseArguments(argv)
   if (config.help) {
-    console.log('Usage: node tools/run_codex_workflow.mjs <equity-thesis|peer-comparability|calibrate-equity-thesis>\n  --symbol CODE --date YYYYMMDD --args-file FILE --root DIR\n  --jobs 3 --model MODEL --effort LEVEL --stage-config FILE --check --reset --no-pdf')
+    console.log('Usage: node tools/run_codex_workflow.mjs <equity-thesis|peer-comparability|calibrate-equity-thesis>\n  --symbol CODE --date YYYYMMDD --args-file FILE --root DIR\n  --jobs 3 --model MODEL --effort LEVEL --stage-config FILE --check --reset --no-pdf --review-max-rounds 2')
     return
   }
   if (config.argsFile) {
     const supplied = JSON.parse(await readFile(resolve(config.argsFile), 'utf8'))
     if (!supplied || Array.isArray(supplied) || typeof supplied !== 'object') throw new Error('args-file must contain a JSON object')
+    if(['reviewMaxRounds','review_max_rounds','review-max-rounds'].some(key=>key in supplied))throw Error('Use CLI --review-max-rounds outside research args')
     config.args = { ...config.args, ...supplied, root: config.root }
     // Apply the same symbol/date validation to JSON input.
     if (config.name === 'equity-thesis') {
@@ -218,42 +241,101 @@ export async function main(argv = process.argv.slice(2)) {
     return
   }
   const { run, sharedLock, roots, artifactsFor, resetArtifacts, dependents } = workflowLocations(config)
-  if (config.name === 'calibrate-equity-thesis' && !config.args.digests) {
-    await access('/home/hongshi/ work_document/模板报告（之前的文件）')
-  }
   const control = new AbortController()
   const interrupt = () => control.abort(new Error('Workflow interrupted'))
-  process.once('SIGINT', interrupt); process.once('SIGTERM', interrupt)
-  let state, runtime, prepared, sharedRelease, logWrites = Promise.resolve()
+  let state, runtime, prepared, sharedRelease, inputTracker, preparedManifest, logWrites = Promise.resolve()
   const emit = event => {
     const item = { time: new Date().toISOString(), ...event }
     process.stderr.write(`[${item.type}] ${item.label ?? item.name ?? item.message ?? item.path ?? ''}\n`)
     if (state) logWrites = logWrites.then(() => appendFile(join(state.directory, 'events.jsonl'), JSON.stringify(item) + '\n'))
   }
+  // Legacy refusal is deliberately read-only and precedes worker registry/locks,
+  // configuration resolution, preparation and generic artifact recovery.
+  if (config.name === 'equity-thesis' && !config.reset) {
+    const inputManifest = await resolveThesisInputManifest({ root: config.root, symbol: config.args.symbol }).catch(error => {
+      if (error.code === 'ENOENT') return undefined
+      throw error
+    })
+    const diagnosis = await diagnoseLegacyReviewState({ runDir: run, inputManifest })
+    if (!diagnosis.migratable || diagnosis.proofs.requiresExplicitImport) throw new Error(
+      'Legacy thesis state requires explicit migration; no files changed. ' +
+      diagnosis.reasons.join('; ') + (diagnosis.proofs.requiresExplicitImport
+        ? ' Evidence eligible, but legacy import is not enabled; used rounds=' + diagnosis.usedRounds + ', valid reviews=' + diagnosis.proofs.validReviews + ', final verdict=' + diagnosis.proofs.finalVerdict : ''))
+  }
   const registry = createProcessRegistry(join(run, '.codex-workflow'))
-  const runCommand = (command, args, options) => runProcess(command, args, { ...options, onSpawn: registry.started, onClose: registry.ended })
+  process.once('SIGINT', interrupt); process.once('SIGTERM', interrupt)
+  const runCommand = async (command, args, options) => {
+    if (inputTracker && args.some(arg => /(?:check_thesis\.py|md_to_pdf\.py)$/.test(arg))) await inputTracker.assertCurrent()
+    return runProcess(command, args, { ...options, onSpawn: registry.started, onClose: registry.ended })
+  }
   try {
     if (sharedLock) sharedRelease = await acquireRunLock(sharedLock, { processesFile: registry.path })
+    if(config.name==='equity-thesis')await recoverDelivery({runDir:run,targets:{position:join(config.root,'positions',config.args.symbol+'.md'),pdf:join(config.root,'reports/pdf',config.args.symbol+'_thesis_'+config.args.date+'.pdf')}})
     config.executionConfig = await resolveRunExecutionConfig(config, run)
-    state = await openState({ dir: join(run, '.codex-workflow'), artifactRoots: roots, artifactsFor, resetArtifacts, dependents, processesFile: registry.path, reset: config.reset, emit,
-      invocation: { name: config.name, args: config.args, jobs: config.jobs, model: config.model ?? null, effort: config.effort ?? null, noPdf: config.noPdf,
+    state = await openState({ dir: join(run, '.codex-workflow'), artifactRoots: roots, protectedPaths: config.name==='equity-thesis'?[join(config.root,'positions',config.args.symbol+'.md')]:[], artifactsFor, resetArtifacts, dependents, processesFile: registry.path, reset: config.reset, emit,
+      invocation: { ...(config.name === 'equity-thesis' ? { reviewProtocol: 2 } : {}), name: config.name, args: config.args, jobs: config.jobs, model: config.model ?? null, effort: config.effort ?? null, noPdf: config.noPdf,
         stageConfigPath: config.stageConfigPath ?? null, executionConfig: config.executionConfig },
       fingerprint: async () => {
-        if (config.name === 'equity-thesis') prepared = await prepareData({ root: config.root, symbol: config.args.symbol, signal: control.signal, runCommand })
+        if (config.name === 'equity-thesis') {
+          let previousManifest
+          try { previousManifest = JSON.parse(await readFile(join(run, '.codex-workflow/input-manifest.json'), 'utf8')) } catch (error) { if (error.code !== 'ENOENT') throw error }
+          if (config.reset && previousManifest) {
+            if (Object.keys(previousManifest.producers?.active ?? {}).length) {
+              const recovered = await createThesisInputTracker({ root:config.root, symbol:config.args.symbol, runDir:run, previousManifest })
+              previousManifest = recovered.manifest
+            }
+            const current = await resolveThesisInputManifest({root:config.root,symbol:config.args.symbol,previousManifest})
+            assertClassified(current); assertDerivedCurrent(current)
+          }
+          const resuming=!!previousManifest && !config.reset
+          if(resuming)prepared={warnings:['恢复使用冻结的原始输入；本次未重新取数。']}
+          else {
+            const candidate=await access(join(run,'初稿.md')).then(()=>true,()=>false) || await access(join(run,'.codex-workflow/review/HEAD.json')).then(()=>true,()=>false)
+            if(!config.reset && (candidate||config.args.review_only))throw Error('Candidate resume requires original input manifest; no data fetched')
+            prepared=await prepareData({root:config.root,symbol:config.args.symbol,signal:control.signal,runCommand})
+          }
+          // An explicit reset authorizes fresh originals after old active producers
+          // were recovered; ordinary resume never replaces that frozen baseline.
+          if (config.reset && previousManifest) previousManifest = { ...previousManifest, originals:(await resolveThesisInputManifest({root:config.root,symbol:config.args.symbol,previousManifest})).originals }
+          inputTracker = await createThesisInputTracker({ root: config.root, symbol: config.args.symbol, runDir: run, previousManifest })
+          const inputManifest = inputTracker.manifest
+          assertClassified(inputManifest); assertDerivedCurrent(inputManifest)
+          if(resuming && !isDeepStrictEqual(inputManifest.originals,previousManifest.originals))throw Error('Research original inputs changed or missing; resume blocked')
+          preparedManifest = inputManifest
+          // Scoped lifecycle recovery runs under both locks before fingerprint acceptance;
+          // originals/unknown paths fail before recovery and no research conclusion is adopted.
+          return workflowFingerprint(config.root, config.name, config.args, config, { inputManifest })
+        }
         return workflowFingerprint(config.root, config.name, config.args, config)
       } })
+    if (config.name === 'equity-thesis' && !inputTracker) inputTracker = await createThesisInputTracker({ root: config.root, symbol: config.args.symbol, runDir: run, previousManifest: preparedManifest })
     await writeJson(join(state.directory, 'execution-config.json'), config.executionConfig)
     const backend = createBackend({ root: config.root, logDir: join(state.directory, 'agents'), executionConfig: config.executionConfig, emit, processRegistry: registry })
-    runtime = createRuntime({ jobs: config.jobs, signal: control.signal, emit, runAgent: (prompt, options, signal) => {
+    runtime = createRuntime({ jobs: config.jobs, signal: control.signal, emit, runAgent: async (prompt, options, signal) => {
       if (config.name === 'equity-thesis' && ['立疑', '成稿'].includes(options.label)) {
         prompt += `\n读取 ${config.root}/positions/${config.args.symbol}.md（不存在就是首次建档）。带入上次估值锚及理由、假设记分板、未决疑问，保留人工注入信息。\n数据警告必须在成稿披露：${prepared.warnings.join('\n') || '无'}\n`
       }
-      return state.run(prompt, { ...options, execution: resolveStageSettings(config.executionConfig, options) }, backend, signal)
+      if (inputTracker && /^(核查:|补参照系$)/u.test(options.label)) prompt += '\n辅助核查取数仅写入 ' + join(config.root, 'data', config.args.symbol, 'check_sources', options.label.replace('核查:', '')) + '/；不得修改原始输入。\n'
+      if(inputTracker)await inputTracker.assertCurrent({ admission:true })
+      const result = await state.run(prompt, { ...options, dependencyDigests: {inputs:await inputTracker?.dependencies(options.label),reportSnapshot:options.reportSnapshot}, execution: resolveStageSettings(config.executionConfig, options) }, async (...params) => {
+        const before = inputTracker ? await inputTracker.beforeStage(options.label) : null
+        const value = await backend(...params)
+        if (inputTracker) await inputTracker.afterStage(options.label, before)
+        return value
+      }, signal)
+      if (inputTracker && options.label === '盘点') {
+        const pending = inputTracker.pendingStages
+        return { ...result, checked_done: (result.checked_done ?? []).filter(lens => !pending.includes('核查:' + lens)), bench_done: (result.bench_done ?? []).filter(name => !pending.includes(name)) }
+      }
+      return result
     } })
-    const workflow = await loadWorkflow(join(config.root, `.claude/workflows/${config.name}.mjs`))
+    const workflow = await loadWorkflow(join(config.root, `.codex/workflows/${config.name}.mjs`))
     const result = config.name === 'equity-thesis'
-      ? await runThesis({ root: config.root, args: config.args, runtime, runWorkflow: workflow, prepared, noPdf: config.noPdf, signal: runtime.signal, runCommand, allowReuse: state.canReuse() })
-      : await workflow(config.args, runtime)
+      ? await runThesis({ root: config.root, args: config.args, runtime, runWorkflow: workflow, prepared, noPdf: config.noPdf, signal: runtime.signal, runCommand, reviewMaxRounds: config.provided['review-max-rounds']?config.reviewMaxRounds:undefined, assertInputsCurrent:()=>inputTracker.assertCurrent(), emit })
+      : config.name === 'calibrate-equity-thesis'
+        ? await runCalibration({ root: config.root, args: config.args, runtime, runWorkflow: workflow })
+        : await workflow(config.args, runtime)
+    await inputTracker?.assertCurrent()
     result.execution_config = join(state.directory, 'execution-config.json')
     await writeJson(join(state.directory, 'result.json'), result)
     await state.complete()

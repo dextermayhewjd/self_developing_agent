@@ -111,6 +111,7 @@ createInterface({input:process.stdin}).on('line', line => {
  const m=JSON.parse(line); appendFileSync(${JSON.stringify(transcript)}, line+'\\n');
  if (m.method==='initialize') { if (${JSON.stringify(mode)}==='timeout') return; send(m.id,{userAgent:'codex_cli_rs/0.162.1'}); }
  if (m.method==='config/read') { if (${JSON.stringify(mode)}==='exit') { process.stderr.write('SECRET-CREDENTIAL'); process.exit(3); } send(m.id, ${JSON.stringify({ config: fixture().config, origins: fixture().origins })}); }
+ if (m.method==='skills/list') send(m.id,{data:[{cwd:m.params.cwds[0],errors:[],skills:[{path:'/safe/skills/example/SKILL.md'}]}]});
  if (m.method==='model/list') {
   if (${JSON.stringify(mode)}==='catalog-error') { process.stdout.write(JSON.stringify({id:m.id,error:{message:'SECRET-CREDENTIAL'}})+'\\n'); return; }
   send(m.id,{data:m.params.cursor?[${JSON.stringify(catalog[1])}]:[${JSON.stringify(catalog[0])}],nextCursor:m.params.cursor?null:'page-2'});
@@ -123,11 +124,12 @@ test('RPC probe initializes, reads effective settings, paginates models and reda
   const { dir, script, transcript } = await rpcFixture(t, 'success')
   const result = await probeCodexConfig({ root: dir, executable: process.execPath, executableArgs: [script], timeoutMs: 1500 })
   assert.equal(result.models.length, 2)
+  assert.deepEqual(result.skillPaths, ['/safe/skills/example/SKILL.md'])
   assert.equal(result.config.model, 'codex-main')
   assert.equal(result.codexVersion, '0.162.1')
   assert.equal(JSON.stringify(result).includes('SECRET'), false)
   const messages = (await readFile(transcript, 'utf8')).trim().split('\n').map(JSON.parse)
-  assert.deepEqual(messages.map(x => x.method), ['initialize', 'initialized', 'config/read', 'model/list', 'model/list'])
+  assert.deepEqual(messages.map(x => x.method), ['initialize', 'initialized', 'config/read', 'model/list', 'model/list', 'skills/list'])
   assert.deepEqual(messages[2].params, { cwd: dir, includeLayers: false })
   assert.equal(messages[3].params.includeHidden, true)
   assert.equal(messages[4].params.cursor, 'page-2')
@@ -194,3 +196,46 @@ test('RPC catalog failure can be resolved using explicit CLI settings when confi
   assert.deepEqual(snapshot.defaults, { model: 'custom-codex', effort: 'ultra', modelProvider: 'openai' })
   assert.equal(snapshot.catalogAvailable, false)
 })
+
+test('explicit shared effort remains below CLI and task-stage overrides', async () => {
+  const label = '问题修订:RT-000001:A-0001'
+  const plain = await resolve()
+  assert.equal(resolveStageSettings(plain, { label, effort: 'low' }).effort, 'low')
+  assert.equal(resolveStageSettings(plain, { label: '证据转录:S-1', effort: 'low' }).effort, 'low')
+  assert.equal(resolveStageSettings(plain, { label: '成稿审查:1' }).effort, 'xhigh')
+  const stageConfig = { default: { effort: 'low' }, stages: { 问题修订: { effort: 'high' }, 证据转录: { effort: 'high' }, 成稿审查: { effort: 'xhigh' } } }
+  const configured = await resolve({ stageConfig })
+  assert.equal(resolveStageSettings(configured, { label, effort: 'low' }).effort, 'high')
+  assert.equal(resolveStageSettings(configured, { label: '证据转录:S-1', effort: 'low' }).effort, 'high')
+  const cli = await resolve({ stageConfig, effort: 'xhigh' })
+  assert.equal(resolveStageSettings(cli, { label, effort: 'low' }).effort, 'xhigh')
+  await assert.rejects(resolve({ stageConfig: { stages: { [label]: { effort: 'low' } } } }), /unknown stage config label/)
+  const unsupported = await resolve({ model: 'codex-fast' })
+  assert.throws(() => resolveStageSettings(unsupported, { label, effort: 'low' }), /Unsupported reasoning effort low/)
+})
+
+test('execution snapshot never promotes unknown or malformed skill inventory to complete', async () => {
+  for (const patch of [{}, { skillCatalogAvailable: false, skillPaths: [] },
+    { skillCatalogAvailable: true }, { skillCatalogAvailable: true, skillPaths: 'bad' },
+    { skillCatalogAvailable: true, skillPaths: ['relative/SKILL.md'] },
+    { skillCatalogAvailable: true, skillPaths: [42] }]) {
+    const snapshot = await resolve({}, patch)
+    assert.equal(snapshot.skillCatalogAvailable, false)
+  }
+  for (const skillPaths of [[], ['/safe/SKILL.md']]) {
+    const snapshot = await resolve({}, { skillCatalogAvailable: true, skillPaths })
+    assert.equal(snapshot.skillCatalogAvailable, true)
+    assert.deepEqual(snapshot.skillPaths, skillPaths)
+  }
+})
+
+for (const inventory of [[], [{cwd:'/wrong',errors:[],skills:[]}], [{cwd:'ROOT',errors:[{message:'SECRET'}],skills:[]}], [{cwd:'ROOT',skills:[]}], [{cwd:'ROOT',errors:[],skills:[{path:'relative/SKILL.md'}]}], [{cwd:'ROOT',errors:[],skills:null}]]) test('RPC skill inventory rejects incomplete, error-bearing or malformed response '+JSON.stringify(inventory), async t=>{
+ const {dir,script}=await rpcFixture(t,'success');
+ let source=await readFile(script,'utf8');
+ source=source.replace("{data:[{cwd:m.params.cwds[0],errors:[],skills:[{path:'/safe/skills/example/SKILL.md'}]}]}",JSON.stringify({data:inventory}).replaceAll('ROOT',dir));
+ await writeFile(script,source);
+ const result=await probeCodexConfig({root:dir,executable:process.execPath,executableArgs:[script],timeoutMs:1500});
+ assert.equal(result.skillCatalogAvailable,false);
+ assert.deepEqual(result.skillPaths,[]);
+ assert.equal(JSON.stringify(result).includes('SECRET'),false);
+});

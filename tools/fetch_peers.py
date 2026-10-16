@@ -10,6 +10,7 @@
 - 最新年度营收 YoY
 """
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -21,7 +22,10 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
 from lib import DATA_DIR, symbol_dir  # noqa: E402
 
-POOL_PATH = ROOT / ".claude" / "skills" / "equity-report-cn" / "competitor_pool.json"
+POOL_PATH = Path(os.environ.get(
+    "SDA_COMPETITOR_POOL",
+    str(ROOT / ".codex" / "skills" / "equity-report-cn" / "competitor_pool.json"),
+))
 
 
 def get_industry(symbol: str) -> str:
@@ -69,6 +73,42 @@ def lookup_pool(industry: str) -> dict:
                 return pool[v["alias"]]
             return v
     return pool["_unknown_fallback"]
+
+
+MAX_NEIGHBORS = 6
+NEIGHBOR_TAG = "（东财行业近邻，非同品种确认）"
+
+
+def resolve_peers(symbol: str, pool_entry: dict, neighbors_fn):
+    """定同业名单，返回 (peers, labels, source)。
+
+    行业池命中 → 用手工维护的 stars（source=competitor_pool）。
+    行业池没有这个行业 → 回退到 neighbors_fn（东财 datacenter「同行比较」的排名近邻窗口，
+    discover_peers 通道②），标签里写明"行业近邻、非同品种确认"，报告层不得把它当成
+    同品种对手（301557：返回的是风电塔筒/轴承/主机厂，不是罩体/芯材厂）。
+    回退也失败 → 只剩本公司（source=none），由报告写"未取得"。
+    """
+    stars = list(pool_entry.get("stars") or [])
+    labels = dict(pool_entry.get("labels") or {})
+    if stars:
+        peers, source = stars, "competitor_pool"
+    else:
+        peers, source = [], "none"
+        try:
+            candidates, _ = neighbors_fn(symbol)
+            for c in candidates:
+                if c["code"] == symbol or len(peers) >= MAX_NEIGHBORS:
+                    continue
+                peers.append(c["code"])
+                labels[c["code"]] = f"{c.get('name', c['code'])}{NEIGHBOR_TAG}"
+            if peers:
+                source = "eastmoney_industry_neighbors"
+        except Exception as e:
+            print(f"  industry neighbors ERR: {e}", file=sys.stderr)
+    if symbol not in peers:
+        peers = [symbol] + peers
+        labels = {symbol: f"{symbol}（本公司）", **labels}
+    return peers, labels, source
 
 
 def fetch_peer_snapshot(symbol: str) -> dict:
@@ -129,12 +169,9 @@ def main():
     industry = get_industry(symbol)
     print(f"  industry: {industry}", file=sys.stderr)
     pool = lookup_pool(industry)
-    peers = pool.get("stars", [])
-    labels = pool.get("labels", {})
-    if symbol not in peers:
-        peers = [symbol] + peers
-        labels = {symbol: f"{symbol}（本公司）", **labels}
-    print(f"  peers ({len(peers)}): {peers}", file=sys.stderr)
+    from discover_peers import _channel2_industry_compare
+    peers, labels, source = resolve_peers(symbol, pool, _channel2_industry_compare)
+    print(f"  peers ({len(peers)}, source={source}): {peers}", file=sys.stderr)
 
     results = []
     for p in peers:
@@ -150,6 +187,7 @@ def main():
 
     out = {
         "symbol": symbol, "industry": industry,
+        "peer_source": source,
         "peers": results,
     }
     out_path = symbol_dir(symbol) / "peers.json"

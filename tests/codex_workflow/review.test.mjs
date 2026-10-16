@@ -9,7 +9,7 @@ import { createRuntime, loadWorkflow } from '../../tools/codex_workflow/runtime.
 import { transportSchema, decodeResult } from '../../tools/codex_workflow/schema.mjs'
 
 const lenses = ['财务排雷', '尽调', '产业', '竞争', '战略驱动']
-const validator = async run => (await import('../../tools/check_thesis_review.mjs')).validateThesisReview(run)
+const validator = async run => (await import('../../tools/check_thesis_review.mjs')).validateReviewRecord({runDir:run,review:JSON.parse(await readFile(join(run,'成稿审查.json'),'utf8'))})
 const reportTemplate = `# 判断型报告
 ## 〇、开篇结论
 判断：现金流可支持投入。
@@ -70,13 +70,17 @@ async function fixture(t) {
   return { root, args, run, put, review, save }
 }
 
-test('accepts evidence bound to actual files and normalizes whitespace in quotations', async t => {
+test('raw diagnostics accept exact quotes; changed whitespace rejects and legacy pass cannot authorize CLI delivery', async t => {
   const f = await fixture(t)
   f.review.coverage[0].findings[0].report_quote = '现金流可\n 支持投入。'
   await f.save()
+  await assert.rejects(validator(f.run), /quote/i)
+  f.review.coverage[0].findings[0].report_quote = '现金流可支持投入。'
+  await f.save()
   assert.equal((await validator(f.run)).verdict, 'pass')
   const result = spawnSync(process.execPath, ['tools/check_thesis_review.mjs', f.run], { encoding: 'utf8' })
-  assert.equal(result.status, 0, result.stderr)
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /v2 Store proof/i)
 })
 
 test('rejects missing or malformed review artifacts and stale report digests', async t => {
@@ -210,49 +214,15 @@ async function execute(t, { reviewOnly = true, verdicts = ['pass'], malicious = 
     if (options.label === '成稿') return { written_file: join(f.run, 'report.md'), rating: 'B', decisive_variable: '现金流' }
     throw new Error(`Unexpected research stage: ${options.label}`)
   } })
-  const workflow = await loadWorkflow(new URL('../../.claude/workflows/equity-thesis.mjs', import.meta.url))
+  const workflow = await loadWorkflow(new URL('../../.codex/workflows/equity-thesis.mjs', import.meta.url))
   return { ...f, stages, result: workflow({ ...f.args, review_only: reviewOnly }, runtime) }
 }
 
-test('review_only reviews actual existing report without starting any research stages', async t => {
-  const f = await execute(t)
-  const result = await f.result
-  assert.deepEqual(f.stages, ['成稿审查:0'])
-  assert.equal(result.content_review.verdict, 'pass')
-  assert.equal(result.report.written_file, join(f.run, 'report.md'))
-  await validator(f.run)
+test('review_only workflow performs no model call and delegates candidate review to host',async t=>{
+ const f=await execute(t);const result=await f.result
+ assert.deepEqual(f.stages,[]);assert.equal(result.report.written_file,join(f.run,'report.md'))
 })
-
-test('normal workflow independently reviews the completed manuscript', async t => {
-  const f = await execute(t, { reviewOnly: false })
-  const result = await f.result
-  assert.deepEqual(f.stages, ['盘点', '补参照系', '成稿', '成稿审查:0'])
-  assert.equal(result.symbol, '00700')
-  assert.equal(result.content_review.verdict, 'pass')
-})
-
-test('revision uses at most two rounds and each mutated manuscript gets a new review', async t => {
-  const f = await execute(t, { verdicts: ['revise', 'revise', 'pass'] })
-  const result = await f.result
-  assert.deepEqual(f.stages, ['成稿审查:0', '修订成稿:1', '成稿审查:1', '修订成稿:2', '成稿审查:2'])
-  assert.equal(result.content_review.verdict, 'pass')
-  assert.equal((await validator(f.run)).report_sha256, result.content_review.report_sha256)
-})
-
-test('normal workflow returns the final revised rating instead of stale first-draft metadata', async t => {
-  const f = await execute(t, { reviewOnly: false, verdicts: ['revise', 'pass'] })
-  const result = await f.result
-  assert.equal(result.report.rating, 'C')
-  assert.equal(result.report.decisive_variable, '现金流限制')
-})
-
-test('third failed review blocks completion and cannot cause a third revision', async t => {
-  const f = await execute(t, { verdicts: ['revise', 'revise', 'revise'] })
-  await assert.rejects(f.result, /review|审查/i)
-  assert.deepEqual(f.stages, ['成稿审查:0', '修订成稿:1', '成稿审查:1', '修订成稿:2', '成稿审查:2'])
-})
-
-test('a worker cannot label omitted findings as passing', async t => {
-  const f = await execute(t, { malicious: true })
-  await assert.rejects(f.result, /review|审查/i)
+test('research workflow emits initial draft without inline review or revision',async t=>{
+ const f=await execute(t,{reviewOnly:false});const result=await f.result
+ assert.deepEqual(f.stages,['盘点','补参照系','成稿']);assert.equal(result.symbol,'00700');assert.equal(result.content_review,undefined)
 })

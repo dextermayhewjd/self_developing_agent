@@ -1,9 +1,11 @@
 import { spawn, execFile } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
 import { createInterface } from 'node:readline'
+import { isAbsolute, resolve } from 'node:path'
 
 const aliases = new Set(['haiku', 'sonnet', 'opus'])
-const stages = new Set(['盘点', '立疑', '挖掘', '核查', '板块基准', '补参照系', '成稿', '成稿审查', '修订成稿', '更新档案', '修复硬门'])
+const stages = new Set(['盘点', '立疑', '挖掘', '核查', '板块基准', '补参照系', '成稿', '成稿审查', '修订成稿', '问题修订', '证据转录', '更新档案', '修复硬门',
+  '读配置', '制度导航', '候选发现', '判定', '出台账', '盲抽', '规则测绘', '归纳', '方法对撞', '抽查', '校准报告'])
 const lenses = ['财务排雷', '尽调', '产业', '竞争', '战略驱动']
 for (const stage of ['挖掘', '核查']) for (const lens of lenses) stages.add(`${stage}:${lens}`)
 const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -29,7 +31,7 @@ function validateStageConfig(value = {}) {
     if (!isObject(value.stages)) throw new Error('stage config stages must be an object')
     out.stages = {}
     for (const [label, settings] of Object.entries(value.stages)) {
-      if (!stages.has(label)) throw new Error(`unknown stage config label ${label}`)
+      if (!stages.has(label) && !/^(?:判定|盲抽):[^:]+$/u.test(label)) throw new Error(`unknown stage config label ${label}`)
       out.stages[label] = validateSettings(settings, label)
     }
   }
@@ -161,7 +163,10 @@ export async function resolveExecutionConfig({ root, model, effort, stageConfig 
     effort: origins.model_reasoning_effort?.name ?? (config.model_reasoning_effort ? 'effective-config' : models.find(item => item.model === defaults.model)?.defaultReasoningEffort ? 'model-catalog' : 'cli'),
     modelProvider: origins.model_provider?.name ?? (config.model_provider ? 'effective-config' : 'builtin-default'),
   }
-  const snapshot = { version: 1, codexVersion: result.codexVersion.trim(), defaults, overrides, stageConfig: configured, models, sources, catalogAvailable }
+  const validSkillPaths = Array.isArray(result.skillPaths) && result.skillPaths.every(path => isText(path) && isAbsolute(path))
+  const snapshot = { version: 1, codexVersion: result.codexVersion.trim(), defaults, overrides, stageConfig: configured, models, sources, catalogAvailable,
+    skillPaths: Array.isArray(result.skillPaths) ? result.skillPaths.filter(isText) : [],
+    skillCatalogAvailable: result.skillCatalogAvailable === true && validSkillPaths }
   resolveStageSettings(snapshot)
   for (const label of Object.keys(configured.stages ?? {})) resolveStageSettings(snapshot, { label })
   return snapshot
@@ -253,7 +258,18 @@ export async function probeCodexConfig({ root, executable = 'codex', executableA
       // this read-only probe, rejects an incomplete final model/effort pair.
       models = []; catalogAvailable = false
     }
-    return { codexVersion, config, origins, models, catalogAvailable }
+    let skillPaths = [], skillCatalogAvailable = true
+    try {
+      const listed = await rpc('skills/list', { cwds: [root], forceReload: true })
+      if (!Array.isArray(listed?.data) || !listed.data.length || !listed.data.some(item => typeof item?.cwd === 'string' && resolve(item.cwd) === resolve(root)) ||
+          listed.data.some(item => !isText(item?.cwd) || !isAbsolute(item.cwd) || !Array.isArray(item.errors) || item.errors.length || !Array.isArray(item.skills) ||
+            item.skills.some(skill => !isText(skill?.path) || !isAbsolute(skill.path)))) throw new Error('Skill inventory unavailable')
+      skillPaths = [...new Set(listed.data.flatMap(item => item.skills.map(skill => skill.path)))].sort()
+    } catch (error) {
+      if (terminalError) throw terminalError
+      skillCatalogAvailable = false
+    }
+    return { codexVersion, config, origins, models, catalogAvailable, skillPaths, skillCatalogAvailable }
   } finally {
     clearTimeout(timeout)
     lines.close()

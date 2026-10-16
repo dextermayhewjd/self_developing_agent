@@ -1,8 +1,11 @@
-import { access, readFile, stat, readdir } from 'node:fs/promises'
+import { access, readFile, stat, copyFile } from 'node:fs/promises'
 import { constants } from 'node:fs'
 import { join } from 'node:path'
 import { runProcess } from './backend.mjs'
 import { validateThesisReview } from '../check_thesis_review.mjs'
+import { coordinateThesisReview } from './review-coordinator.mjs'
+import { beginDelivery, recoverDelivery } from './thesis-delivery.mjs'
+import { validateExclusiveOutput, validateExclusiveOutputPath } from './stage-output.mjs'
 
 export const lensNames = ['财务排雷', '尽调', '产业', '竞争', '战略驱动']
 export async function pythonFor(root) {
@@ -55,79 +58,101 @@ async function totals(run) {
   return { verified_total: checked, doubts_answered: new Set(report.match(/现在回答开篇的问题\s*\d+/g) ?? []).size }
 }
 
+const exists = async path => { try { await access(path); return true } catch (e) { if(e.code==='ENOENT')return false;throw e } }
+export async function establishInitialCandidate(run) {
+  if(await exists(join(run,'.codex-workflow/review/HEAD.json')))return false
+  const draft=join(run,'初稿.md'),report=join(run,'report.md')
+  const bytes=await readFile(draft)
+  if(await exists(report)) {
+    if(!(await readFile(report)).equals(bytes))throw Error('Initial candidate conflict: '+report)
+    return false
+  }
+  await copyFile(draft,report,constants.COPYFILE_EXCL)
+  return true
+}
+
 export async function runThesis({ root, args, runtime, runWorkflow, noPdf = false,
-  prepared, signal, runCommand = runProcess, allowReuse = true }) {
-  const { symbol, date } = args
-  const run = join(root, `reports/${symbol}_thesis_${date}`)
-  const reportPath = join(run, 'report.md')
-  const positionPath = join(root, `positions/${symbol}.md`)
-  const pdfPath = join(root, `reports/pdf/${symbol}_thesis_${date}.pdf`)
-  const python = await pythonFor(root)
-  const { warnings } = prepared ?? await prepareData({ root, symbol, signal, runCommand })
-  const gate = async () => {
-    const result = await runCommand(python, [join(root, 'tools/check_thesis.py'), symbol, reportPath], { cwd: root, signal })
-    if (![0, 1, 2].includes(result.code)) throw new Error(`Gate tool failed (${result.code}): ${output(result)}`)
-    return result
+  prepared, signal, runCommand = runProcess, coordinateReview = coordinateThesisReview,
+  reviewStore, reviewMaxRounds, assertInputsCurrent = async()=>{}, emit }) {
+  const {symbol,date}=args, run=join(root,`reports/${symbol}_thesis_${date}`)
+  const reportPath=join(run,'report.md'),positionPath=join(root,`positions/${symbol}.md`),pdfPath=join(root,`reports/pdf/${symbol}_thesis_${date}.pdf`)
+  const targets={position:positionPath,pdf:pdfPath}
+  await recoverDelivery({runDir:run,targets})
+  const hasHead=await exists(join(run,'.codex-workflow/review/HEAD.json'))
+  const reused=hasHead || await exists(join(run,'初稿.md'))
+  let researchResult
+  if(!reused) {
+    if(args.review_only)throw Error('review_only requires an existing candidate; research not started')
+    if(await exists(reportPath))throw Error('Legacy candidate requires explicit migration')
+    prepared ??= await prepareData({root,symbol,signal,runCommand})
+    researchResult=await runWorkflow(args,runtime)
   }
-  let reused = false, gateResult, researchResult, contentReview
-  const checkReview = async () => {
-    const review = await validateThesisReview(run)
-    if (review.verdict !== 'pass') throw new Error('Content review requires revision; delivery blocked')
-    contentReview = review
-    return review
+  if(!await exists(join(run,'.codex-workflow/review/HEAD.json')))await establishInitialCandidate(run)
+  await requireArtifacts(run)
+  const warnings=[...(prepared?.warnings??[])],python=await pythonFor(root)
+  let coordination,contentReview
+  const coordinate=async gateFeedback=>{
+    await assertInputsCurrent()
+    coordination=await coordinateReview({root,args,runtime,store:reviewStore,reviewMaxRounds,signal,emit,
+      reason:gateFeedback?'gate':args.review_only?'review_only':reused?'resume':'initial',gateFeedback})
+    if(coordination.terminalReason || coordination.review?.verdict!=='pass')throw Error('Content review blocks delivery: '+(coordination.terminalReason??'revise'))
   }
-  const reReview = async () => {
-    await runWorkflow({ ...args, review_only: true }, runtime)
-    await checkReview()
+  const guard=async()=>{
+    await assertInputsCurrent()
+    if(coordination.terminalReason)throw Error('Content review blocks delivery: '+coordination.terminalReason)
+    contentReview=await validateThesisReview(run)
+    if(contentReview.verdict!=='pass')throw Error('Content review requires revision; delivery blocked')
+    if(contentReview.review_id!==coordination.receipt?.review_id ||
+      contentReview.report_sha256!==coordination.snapshot?.report_sha256 ||
+      contentReview.evidence_sha256!==coordination.snapshot?.evidence_sha256)throw Error('Delivery receipt changed from the staged snapshot')
   }
-  const updatePosition = async (label = '更新档案') => {
-    await runtime.agent(`根据 ${reportPath} 更新 ${positionPath}，先读取已有档案及
-${root}/.claude/skills/equity-thesis-cn/position_file.md。保留人工注入区，更新评分、评级、估值锚及变更理由、
-假设记分板、未决疑问和变更日志。frontmatter 最近更新必须为 ${date.slice(0, 4)}-${date.slice(4, 6)}-${date.slice(6, 8)}。
-只更新档案，不重做研究，不修改输入数据或检验规则。`, {
-      label, phase: '交付', schema: { type: 'object', required: ['written_file'], properties: { written_file: { type: 'string' } } },
-    })
-    await requirePosition(positionPath, date)
-  }
+  await coordinate();await guard()
+  const tx=await beginDelivery({runDir:run,targets:noPdf?{position:positionPath}:targets,snapshot:coordination.snapshot,receipt:coordination.receipt})
+  let gateResult,positionRepairs=0
   try {
-    if (!allowReuse) throw new Error('Incomplete prior workflow stages require reconciliation')
-    await requireArtifacts(run)
-    await requirePosition(positionPath, date)
-    gateResult = await gate()
-    reused = [0, 2].includes(gateResult.code)
-  } catch (error) {
-    // Missing prior files are normal on a first run. Tool errors are not.
-    if (error.message.startsWith('Gate tool failed')) throw error
+    const updatePosition=async(feedback='')=>{
+      await guard()
+      await validateExclusiveOutputPath(tx.staged.position)
+      const positionResult = await runtime.agent(`根据 ${reportPath} 更新暂存档案，输出路径：${tx.staged.position}
+先读取已有档案 ${positionPath} 及 ${root}/.codex/skills/equity-thesis-cn/position_file.md。
+保留人工注入区，更新评分、评级、估值锚及变更理由、假设记分板、未决疑问和变更日志。
+最近更新必须为 ${date.slice(0,4)}-${date.slice(4,6)}-${date.slice(6,8)}。
+只写暂存输出路径，不修改正式档案、报告、底稿或数据。${feedback}
+报告快照：${JSON.stringify(coordination.snapshot)}`,{
+        label:'更新档案',phase:'交付',stagedPosition:tx.staged.position,exclusiveOutputPath:tx.staged.position,reportSnapshot:coordination.snapshot,
+        schema:{type:'object',additionalProperties:false,required:['written_file'],properties:{written_file:{type:'string',enum:[tx.staged.position]}}},
+      })
+      await validateExclusiveOutput(positionResult,tx.staged.position)
+      await requirePosition(tx.staged.position,date)
+    }
+    await updatePosition()
+    for(;;) {
+      await guard()
+      gateResult=await runCommand(python,[join(root,'tools/check_thesis.py'),symbol,reportPath,'--position',tx.staged.position],{cwd:root,signal})
+      if(![0,1,2].includes(gateResult.code))throw Error(`Gate tool failed (${gateResult.code}): ${output(gateResult)}`)
+      if(gateResult.code!==1)break
+      const feedback=output(gateResult)
+      // Only the checker's two explicit position diagnostics are position-only.
+      const failures=feedback.split('\n').filter(line=>/^\s*\[FAIL\]/.test(line))
+      const positionOnly=failures.length>0 && failures.every(line=>/档案不存在|档案未更新到报告日/.test(line))
+      if(positionOnly && positionRepairs++<2)await updatePosition(feedback)
+      else if(positionOnly)throw Error('Hard gate position repair exhausted: '+feedback)
+      else {await coordinate({gateId:'check-thesis-report',feedback});await guard();await updatePosition()}
+    }
+    if(gateResult.code===2)warnings.push(output(gateResult))
+    await guard()
+    if(!noPdf) {
+      const result=await runCommand(python,[join(root,'tools/md_to_pdf.py'),'--md',reportPath,'--output',tx.staged.pdf],{cwd:root,signal})
+      if(result.code!==0)throw Error(`PDF generation failed (${result.code}): ${output(result)}`)
+      if((await stat(tx.staged.pdf)).size===0)throw Error('Empty PDF: '+tx.staged.pdf)
+    }
+    await tx.publish({guard,emit,snapshot:coordination.snapshot,receipt:coordination.receipt})
+  } catch(error) {
+    try {await tx.rollback()}catch(conflict){throw new AggregateError([error,conflict],error.message+'; '+conflict.message)}
+    throw error
   }
-  if (!reused) {
-    researchResult = await runWorkflow(args, runtime)
-    await requireArtifacts(run)
-    await checkReview()
-  } else await reReview()
-  await updatePosition()
-  gateResult = await gate()
-  for (let attempt = 1; gateResult.code === 1 && attempt <= 2; attempt++) {
-    await runtime.agent(`交付硬门失败。只根据下面的反馈修复 ${reportPath}、${positionPath}，
-必要时修正本 run 下已有的 findings/核查/参照系文件；不重跑全套研究，不修改校验器或源数据，
-不得编造缺失证据。修复后保持最近更新为报告日。\n${output(gateResult)}`, {
-      label: `修复硬门:${attempt}`, phase: '交付', schema: { type: 'object', required: ['written_file'], properties: { written_file: { type: 'string' } } },
-    })
-    await reReview()
-    await updatePosition(`更新档案:硬门${attempt}`)
-    gateResult = await gate()
-  }
-  if (gateResult.code === 1) throw new Error(`Hard gate failed after two repairs: ${output(gateResult)}`)
-  await checkReview()
-  if (gateResult.code === 2) warnings.push(output(gateResult))
-  const pdf = { status: 'skipped', path: null }
-  if (!noPdf) {
-    const result = await runCommand(python, [join(root, 'tools/md_to_pdf.py'), '--md', reportPath], { cwd: root, signal })
-    if (result.code !== 0) throw new Error(`PDF generation failed (${result.code}): ${output(result)}`)
-    if ((await stat(pdfPath)).size === 0) throw new Error(`Empty PDF: ${pdfPath}`)
-    pdf.status = 'generated'; pdf.path = pdfPath
-  }
-  return { symbol, run_dir: run, report: reportPath, position: positionPath, reused,
-    gate_exit_code: gateResult.code, warnings, pdf, ...await totals(run),
-    content_review: { written_file: contentReview.written_file, verdict: contentReview.verdict, report_sha256: contentReview.report_sha256 },
-    verified_this_run: researchResult?.checked_total ?? 0 }
+  return {symbol,run_dir:run,report:reportPath,position:positionPath,reused,gate_exit_code:gateResult.code,warnings,
+    pdf:{status:noPdf?'skipped':'generated',path:noPdf?null:pdfPath},...await totals(run),
+    content_review:{written_file:contentReview.written_file,verdict:contentReview.verdict,report_sha256:contentReview.report_sha256},
+    verified_this_run:researchResult?.checked_total??0}
 }

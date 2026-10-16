@@ -1,0 +1,4 @@
+interface:
+  display_name: "财务排雷"
+  short_description: "按财务全景、九项排雷和杜邦拆解检查公司财报中的异常与风险"
+  default_prompt: "请使用 $financial-redflags-cn 检查指定股票的财务异常。"

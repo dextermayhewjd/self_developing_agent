@@ -1,0 +1,4 @@
+interface:
+  display_name: "结构化股票研究报告"
+  short_description: "使用流水线数据和完整中文研究模板生成结构化股票报告及 PDF"
+  default_prompt: "请使用 $equity-report-cn 为指定股票生成结构化研究报告。"

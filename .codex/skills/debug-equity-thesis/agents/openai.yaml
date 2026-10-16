@@ -1,0 +1,4 @@
+interface:
+  display_name: "判断稿运行审计"
+  short_description: "审计 Codex 工作流阶段、文件交接和工具轨迹并比较行为变化"
+  default_prompt: "请使用 $debug-equity-thesis 审计指定判断稿运行的实际执行行为。"
