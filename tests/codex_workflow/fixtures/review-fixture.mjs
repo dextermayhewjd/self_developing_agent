@@ -56,3 +56,24 @@ export function reviewFixtureV2({ ledgerSha256, reviewId = 'RV-000001', snapshot
     new_issues: [], task_dispositions: [], visual_attestations: [], ...overrides,
   }
 }
+
+/** Disposable test setup: genuine first v2 proof, or reuse an unchanged proof.
+ * Does not repair, reset or adopt a direct writer edit to the canonical report. */
+export async function writeStoreReviewFixtureV2(run) {
+  const { snapshotEvidence } = await import('../../../tools/codex_workflow/review-evidence.mjs')
+  const { openReviewStore } = await import('../../../tools/codex_workflow/review-store.mjs')
+  const { reconcileReview } = await import('../../../tools/codex_workflow/review-ledger.mjs')
+  const { canonicalJson, sha256 } = await import('../../../tools/codex_workflow/review-contracts.mjs')
+  const candidate = await readFile(join(run, 'report.md'))
+  const evidence = await snapshotEvidence({runDir:run})
+  const store = await openReviewStore({runDir:run})
+  const state = await store.read() ?? await store.initialize({reportBytes:candidate,evidence})
+  if(state.review?.verdict==='pass')return state.review
+  const review=reviewFixtureV2({ledgerSha256:sha256(canonicalJson(state.ledger)),reviewId:'RV-fixture-1',snapshot:state.snapshot,
+    reviewed_sources:evidence.sources.map(source=>source.path),
+    coverage:await Promise.all(reviewLensesV2.map(async lens=>({lens,findings:[{finding:'fixture finding',source:`findings/${lens}.md`,source_quote:(await readFile(join(run,`findings/${lens}.md`),'utf8')).split('\n').find(line=>line.trim()),disposition:'covered',report_quote:candidate.toString('utf8').split('\n').find(line=>line.trim()),exclusion_reason:''}]}))),
+  })
+  const result=reconcileReview({ledger:state.ledger,review,snapshot:state.snapshot})
+  await store.commitReview({review,...result,evidence})
+  return review
+}

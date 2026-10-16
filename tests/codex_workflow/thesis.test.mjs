@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { runThesis, prepareData, lensNames } from '../../tools/codex_workflow/thesis.mjs'
-import { reportFixture, writeReviewFixture } from './fixtures/review-fixture.mjs'
+import { reportFixture, writeStoreReviewFixtureV2 } from './fixtures/review-fixture.mjs'
 
 async function setup(t) {
   const root = await mkdtemp(join(tmpdir(), 'thesis-'))
@@ -14,7 +14,7 @@ async function setup(t) {
   const events = []
   const make = async file => { await mkdir(join(file, '..'), { recursive: true }); await writeFile(file, '内容'.repeat(160)) }
   const runWorkflow = async (options = {}) => {
-    if (options.review_only) { events.push('review-only'); return { content_review: await writeReviewFixture(run) } }
+    if (options.review_only) { events.push('review-only'); return { content_review: await writeStoreReviewFixtureV2(run) } }
     events.push('research')
     for (const name of lensNames) {
       await make(join(run, `findings/${name}.md`))
@@ -23,7 +23,7 @@ async function setup(t) {
     await make(join(run, '疑惑.md'))
     await make(join(run, 'report.md'))
     await writeFile(join(run, 'report.md'), reportFixture())
-    await writeReviewFixture(run)
+    await writeStoreReviewFixtureV2(run)
     return { checked_total: 5 }
   }
   const runtime = { agent: async (prompt, options) => {
@@ -98,11 +98,11 @@ test('missing or stale content review blocks position update and PDF delivery', 
     return {}
   }
   await assert.rejects(runThesis({ ...f, runWorkflow, prepared: { warnings: [] },
-    runCommand: async () => { throw new Error('must not reach gate or PDF') } }), /digest|sha256/i)
+    runCommand: async () => { throw new Error('must not reach gate or PDF') } }), /digest|sha256|conflict/i)
   assert.deepEqual(f.events, ['research'])
 })
 
-test('hard-gate repair is followed by fresh content review and synchronized position', async t => {
+test('legacy hard-gate worker edits cannot bypass v2 Store report ownership or reach PDF delivery', async t => {
   const f = await setup(t)
   const agent = f.runtime.agent
   f.runtime.agent = async (prompt, options) => {
@@ -110,14 +110,13 @@ test('hard-gate repair is followed by fresh content review and synchronized posi
     return agent(prompt, options)
   }
   let gates = 0
-  const result = await runThesis({ ...f, prepared: { warnings: [] }, runCommand: async (cmd, argv) => {
+  await assert.rejects(runThesis({ ...f, prepared: { warnings: [] }, runCommand: async (cmd, argv) => {
     const script = argv[0].split('/').at(-1)
     f.events.push(script)
     if (script === 'check_thesis.py') return { code: ++gates === 1 ? 1 : 0, stdout: 'fix', stderr: '' }
     await f.make(join(f.root, 'reports/pdf/00700_thesis_20261015.pdf'))
     return { code: 0, stdout: '', stderr: '' }
-  } })
-  assert.deepEqual(f.events, ['research', '更新档案', 'check_thesis.py', '修复硬门:1', 'review-only', '更新档案:硬门1', 'check_thesis.py', 'md_to_pdf.py'])
-  assert.equal(result.content_review.verdict, 'pass')
+  } }), /manual edit conflict/i)
+  assert.deepEqual(f.events, ['research', '更新档案', 'check_thesis.py', '修复硬门:1', 'review-only'])
   assert.match(await readFile(join(f.run, 'report.md'), 'utf8'), /硬门修订内容/)
 })
