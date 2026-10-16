@@ -219,3 +219,16 @@ test('host gate registration is pure, idempotent per snapshot, add-only and neve
   assert.deepEqual(registerGateIssue({ ledger: registered, feedback, snapshot, gateId: 'report-check' }), registered)
   assert.throws(() => registerGateIssue({ ledger, feedback: { ...feedback, status: 'resolved' }, snapshot, gateId: 'report-check' }), /feedback|field/)
 })
+
+test('identical gate registration is a no-op during an active attempt while new feedback rejects', async () => {
+  const { registerGateIssue } = await import('../../tools/codex_workflow/review-ledger.mjs')
+  const feedback = { description: '第三节表格格式错误', locations: [{ section: 3 }], acceptance_criteria: ['修复表格'], judgment_constraints: [], route: 'local_patch' }
+  const ledger = registerGateIssue({ ledger: createLedger(), feedback, snapshot, gateId: 'report-check' })
+  ledger.active_attempt_id = 'A-0001'
+  ledger.budget.used_rounds = 1
+  const original = structuredClone(ledger)
+  assert.deepEqual(registerGateIssue({ ledger, feedback, snapshot, gateId: 'report-check' }), original)
+  assert.deepEqual(ledger, original)
+  assert.throws(() => registerGateIssue({ ledger, feedback: { ...feedback, description: '另一个门禁问题' }, snapshot, gateId: 'report-check' }), /active attempt/)
+  assert.deepEqual(ledger, original)
+})

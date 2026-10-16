@@ -437,3 +437,35 @@ test('referenced proposal archive tampering is detected on resume before another
   await assert.rejects(coordinateThesisReview({ ...f, runtime }), /archive|reference|digest/)
   assert.equal(runtime.calls.length, count)
 })
+
+test('same gate feedback resumes its reserved attempt after transport failure without charging another round', async t => {
+  const f = await fixture(t)
+  let interrupted = true
+  const runtime = fake((context, options) => {
+    if (options.contract === 'review') return review(context)
+    if (interrupted) throw new Error('gate proposal transport interruption')
+    return proposal(context)
+  })
+  await coordinateThesisReview({ ...f, runtime })
+  const gateFeedback = { gateId: 'report-check', feedback: { description: '补充第三节限制', locations: [{ section: 3 }], acceptance_criteria: ['补充限制'], judgment_constraints: [], route: 'local_patch' } }
+  await assert.rejects(coordinateThesisReview({ ...f, runtime, gateFeedback }), /gate proposal transport interruption/)
+  const reserved = await f.store.read()
+  assert.equal(reserved.attempt.id, 'A-0001')
+  assert.equal(reserved.attempt.cursor, 0)
+  assert.equal(reserved.ledger.tasks.length, 1)
+  assert.deepEqual([reserved.ledger.budget.used_rounds, reserved.ledger.budget.valid_reviews], [1, 1])
+  assert.equal(await readFile(join(f.run, 'report.md'), 'utf8'), reportFixture(quote))
+  interrupted = false
+  const resumedStore = await openReviewStore({ runDir: f.run })
+  const result = await coordinateThesisReview({ ...f, store: resumedStore, runtime, gateFeedback })
+  const final = await resumedStore.read()
+  assert.equal(result.review.verdict, 'pass')
+  assert.equal(result.terminalReason, null)
+  assert.equal(final.attempt.id, reserved.attempt.id)
+  assert.equal(final.ledger.tasks.length, 1)
+  assert.equal(final.ledger.tasks[0].id, reserved.ledger.tasks[0].id)
+  assert.equal(final.ledger.tasks[0].status, 'resolved')
+  assert.deepEqual([final.ledger.budget.used_rounds, final.ledger.budget.valid_reviews], [1, 2])
+  assert.equal(final.attempt.results.length, 1)
+  assert.deepEqual(runtime.calls.map(call => call.options.contract), ['review', 'proposal', 'proposal', 'review'])
+})

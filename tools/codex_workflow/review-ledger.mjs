@@ -189,7 +189,6 @@ export function registerGateIssue({ ledger, feedback, snapshot, gateId }) {
   checkLedger(ledger)
   checkSnapshot(snapshot)
   if (!nonempty(gateId)) fail('gateId is required')
-  if (ledger.active_attempt_id !== null) fail('cannot register gate feedback during an active attempt')
   if (typeof feedback === 'string') feedback = {
     description: feedback, locations: Array.from({ length: 12 }, (_, i) => ({ section: i + 1 })),
     acceptance_criteria: [feedback], route: 'full_revision',
@@ -203,6 +202,7 @@ export function registerGateIssue({ ledger, feedback, snapshot, gateId }) {
   mergeIssues([issue], snapshot)
   if (issue.locations.length === 0 || !nonempty(issue.description)) fail('invalid gate feedback')
   if (ledger.tasks.some(task => task.issue_key === issue.issue_key)) return structuredClone(ledger)
+  if (ledger.active_attempt_id !== null) fail('cannot register gate feedback during an active attempt')
   const result = structuredClone(ledger)
   const task = { ...issue, id: `RT-${String(result.next_task_number++).padStart(6, '0')}`, status: 'open',
     created_review_id: '', last_review_id: '', ...snapshot, history: [] }
