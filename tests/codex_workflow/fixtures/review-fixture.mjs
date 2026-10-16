@@ -35,3 +35,24 @@ export async function writeReviewFixture(run) {
   await writeFile(review.written_file, JSON.stringify(review))
   return review
 }
+
+// Synthetic v2 contracts are deliberately separate from the legacy on-disk fixture.
+export const reviewLensesV2 = ['财务排雷', '尽调', '产业', '竞争', '战略驱动']
+export const snapshotFixtureV2 = { report_sha256: 'a'.repeat(64), evidence_sha256: 'b'.repeat(64) }
+export function issueFixtureV2(overrides = {}) {
+  return {
+    issue_key: 'cash-flow-limit', kind: 'blocking', blocks_delivery: true,
+    description: '现金流限制未披露', locations: [{ section: 3 }],
+    evidence_refs: [{ source: 'findings/财务排雷.md', source_sha256: 'c'.repeat(64), evidence_sha256: 'b'.repeat(64), quote: '现金流依赖回款。' }],
+    acceptance_criteria: ['第三节明确说明回款限制'], route: 'local_patch', ...overrides,
+  }
+}
+export function reviewFixtureV2({ ledgerSha256, reviewId = 'RV-000001', snapshot = snapshotFixtureV2, ...overrides } = {}) {
+  return {
+    version: 2, review_id: reviewId, ...snapshot, input_ledger_sha256: ledgerSha256,
+    verdict: 'pass', reviewed_sources: ['疑惑.md', ...reviewLensesV2.map(lens => `findings/${lens}.md`)],
+    sections: Array.from({ length: 12 }, (_, i) => ({ section: i + 1, status: 'pass', evidence: '已核对章节证据', issue_keys: [], task_ids: [] })),
+    coverage: reviewLensesV2.map(lens => ({ lens, findings: [{ finding: '回款影响现金流', source: `findings/${lens}.md`, source_quote: '现金流依赖回款。', disposition: 'covered', report_quote: '现金流依赖回款。', exclusion_reason: '', issue_keys: [], task_ids: [] }] })),
+    new_issues: [], task_dispositions: [], visual_attestations: [], ...overrides,
+  }
+}
