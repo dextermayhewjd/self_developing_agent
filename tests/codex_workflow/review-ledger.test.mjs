@@ -206,3 +206,16 @@ test('review contract carries exact judgment constraints into tasks and rejects 
   conflict.review.new_issues.push({ ...conflict.review.new_issues[0], judgment_constraints: [] })
   assert.throws(() => reconcileReview(conflict), /conflict/i)
 })
+
+test('host gate registration is pure, idempotent per snapshot, add-only and never closes tasks', async () => {
+  const { registerGateIssue } = await import('../../tools/codex_workflow/review-ledger.mjs')
+  const ledger = createLedger()
+  const feedback = { description: '第三节表格格式错误', locations: [{ section: 3 }], acceptance_criteria: ['修复表格'], judgment_constraints: [], route: 'local_patch' }
+  const registered = registerGateIssue({ ledger, feedback, snapshot, gateId: 'report-check' })
+  assert.equal(ledger.tasks.length, 0)
+  assert.equal(registered.tasks[0].id, 'RT-000001')
+  assert.equal(registered.tasks[0].history[0].event, 'gate_registered')
+  assert.deepEqual(registered.budget, ledger.budget)
+  assert.deepEqual(registerGateIssue({ ledger: registered, feedback, snapshot, gateId: 'report-check' }), registered)
+  assert.throws(() => registerGateIssue({ ledger, feedback: { ...feedback, status: 'resolved' }, snapshot, gateId: 'report-check' }), /feedback|field/)
+})

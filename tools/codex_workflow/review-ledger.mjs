@@ -183,3 +183,30 @@ export function reconcileReview({ ledger, review: rawReview, snapshot }) {
     receipt: { review_id: review.review_id, ...snapshot, input_ledger_sha256: review.input_ledger_sha256, output_ledger_sha256: sha256(canonicalJson(result)) },
   }
 }
+
+/** Independent technical checker input; host may append an issue, never resolve it. */
+export function registerGateIssue({ ledger, feedback, snapshot, gateId }) {
+  checkLedger(ledger)
+  checkSnapshot(snapshot)
+  if (!nonempty(gateId)) fail('gateId is required')
+  if (ledger.active_attempt_id !== null) fail('cannot register gate feedback during an active attempt')
+  if (typeof feedback === 'string') feedback = {
+    description: feedback, locations: Array.from({ length: 12 }, (_, i) => ({ section: i + 1 })),
+    acceptance_criteria: [feedback], route: 'full_revision',
+  }
+  const allowed = ['description', 'locations', 'acceptance_criteria', 'route', 'evidence_refs', 'judgment_constraints']
+  if (!feedback || typeof feedback !== 'object' || Array.isArray(feedback) || Object.keys(feedback).some(key => !allowed.includes(key))) fail('invalid gate feedback fields')
+  const issue = decodeResult(REVIEW_SCHEMA.properties.new_issues.items, {
+    ...feedback, issue_key: 'gate:' + sha256(canonicalJson({ gateId, feedback, snapshot })),
+    kind: 'blocking', blocks_delivery: true, evidence_refs: feedback.evidence_refs ?? [], route: feedback.route ?? 'full_revision',
+  })
+  mergeIssues([issue], snapshot)
+  if (issue.locations.length === 0 || !nonempty(issue.description)) fail('invalid gate feedback')
+  if (ledger.tasks.some(task => task.issue_key === issue.issue_key)) return structuredClone(ledger)
+  const result = structuredClone(ledger)
+  const task = { ...issue, id: `RT-${String(result.next_task_number++).padStart(6, '0')}`, status: 'open',
+    created_review_id: '', last_review_id: '', ...snapshot, history: [] }
+  task.history.push({ ...historyEvent(task, { event: 'gate_registered', snapshot, reason: issue.description }), gate_id: gateId })
+  result.tasks.push(task)
+  return result
+}
