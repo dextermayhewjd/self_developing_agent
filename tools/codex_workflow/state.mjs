@@ -3,6 +3,7 @@ import { mkdirSync, readFileSync, writeFileSync, renameSync, realpathSync } from
 import { resolve, relative, isAbsolute, join, dirname, basename } from 'node:path'
 import { createHash, randomUUID } from 'node:crypto'
 import { hostname } from 'node:os'
+import { validateExclusiveOutput, validateExclusiveOutputPath } from './stage-output.mjs'
 
 const hash = value => createHash('sha256').update(value).digest('hex')
 const within = (path, root) => { const rel = relative(root, path); return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel)) }
@@ -124,7 +125,15 @@ export async function openState({ dir, fingerprint, artifactRoots, artifactsFor 
         emit({ type: 'artifact.quarantined', path, archive })
       }
     }
+    const validateOwnership = async record => {
+      if (record.exclusiveOutputPath === undefined) return
+      const path = record.exclusiveOutputPath
+      await validateExclusiveOutputPath(path)
+      const claims = [...(record.artifacts ?? []), ...(record.outputs ?? []), ...(record.backups ?? []).map(entry => entry.path)]
+      if (claims.some(claim => claim !== path)) throw new Error('Exclusive output violation: persisted ownership differs from host-selected path')
+    }
     const restore = async record => {
+      await validateOwnership(record)
       if (record.restored) return
       if (record.backups) {
         for (const entry of record.backups) {
@@ -139,6 +148,7 @@ export async function openState({ dir, fingerprint, artifactRoots, artifactsFor 
       record.restored = true
     }
     if (data.fingerprint !== fingerprint && !reset) throw new Error('Workflow or inputs changed; use --reset to archive prior workflow outputs and restart')
+    for (const record of Object.values(data.stages)) await validateOwnership(record)
     if (!reset) for (const record of Object.values(data.stages)) {
       if (['running', 'failed'].includes(record.status)) await restore(record)
     }
@@ -164,6 +174,7 @@ export async function openState({ dir, fingerprint, artifactRoots, artifactsFor 
     for (const label of invalid) {
       const record = data.stages[label]
       if (!record) continue
+      await validateOwnership(record)
       await quarantine(record.outputs ?? record.artifacts ?? [])
       record.status = 'invalidated'
       emit({ type: 'agent.invalidated', label })
@@ -176,8 +187,10 @@ export async function openState({ dir, fingerprint, artifactRoots, artifactsFor 
     const run = async (prompt, options, execute, signal) => {
       const label = options.label ?? 'agent'
       const readonly = ['proposal', 'review', 'evidence_extract'].includes(options.contract)
+      const exclusiveOutputPath = options.exclusiveOutputPath
+      if (exclusiveOutputPath !== undefined) await validateExclusiveOutputPath(exclusiveOutputPath)
       const key = hash(JSON.stringify({ prompt, schema: options.schema, execution: options.execution,
-        contract: options.contract, isolation: options.isolation, images: options.images, dependencyDigests: options.dependencyDigests }))
+        contract: options.contract, isolation: options.isolation, images: options.images, dependencyDigests: options.dependencyDigests, exclusiveOutputPath }))
       const prior = data.stages[label]
       const cacheable = label !== '盘点' && !/^(修复|成稿审查|修订成稿|更新档案)/u.test(label)
       if (cacheable && prior?.status === 'succeeded' && prior.key === key) {
@@ -187,8 +200,8 @@ export async function openState({ dir, fingerprint, artifactRoots, artifactsFor 
           return prior.result
         } catch { /* Missing or moved output must be regenerated. */ }
       }
-      const expected = (readonly ? [] : artifactsFor(label, prompt)).map(p => typeof p === 'string' ? { path: p } : p).filter(entry => !storeOwned(entry.path))
-      const record = { key, contract: options.contract, execution: options.execution, status: 'running', started: new Date().toISOString(), artifacts: expected.map(p => p.path),
+      const expected = (readonly ? [] : exclusiveOutputPath !== undefined ? [exclusiveOutputPath] : artifactsFor(label, prompt)).map(p => typeof p === 'string' ? { path: p } : p).filter(entry => !storeOwned(entry.path))
+      const record = { key, exclusiveOutputPath, contract: options.contract, execution: options.execution, status: 'running', started: new Date().toISOString(), artifacts: expected.map(p => p.path),
         outputs: expected.filter(p => !p.retainOnInvalidate).map(p => p.path), backups: [] }
       for (const entry of expected) {
         let backup = null
@@ -204,6 +217,7 @@ export async function openState({ dir, fingerprint, artifactRoots, artifactsFor 
       await save()
       try {
         const result = await execute(prompt, options, signal)
+        if (exclusiveOutputPath !== undefined) await validateExclusiveOutput(result, exclusiveOutputPath)
         const paths = [...new Set([...expected.filter(p => !p.optional).map(p => p.path), ...(readonly ? [] : claimedPaths(result).filter(path => !storeOwned(path)))])]
         await checkFiles(paths)
         record.artifacts = [...new Set([...paths, ...expected.filter(p => p.optional).map(p => p.path)])]
