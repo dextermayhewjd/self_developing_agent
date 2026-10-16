@@ -68,7 +68,7 @@ test('real Store two sequential tasks consume one round; full review is independ
       return review(context)
     }
     assert.equal(options.contract, 'proposal')
-    assert.equal(options.effort, 'low')
+    assert.equal(options.effort, undefined)
     assert.ok(options.context_bytes <= 32768)
     assert.equal(context.methodology, undefined)
     return proposal(context)

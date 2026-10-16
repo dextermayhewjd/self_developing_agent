@@ -15,5 +15,7 @@ if(context.review_id){
 }
 if(args.includes('--full-scope')&&context.review_id&&result.new_issues.length)result.new_issues[0].description='全文核对后发现第三节遗漏回款限制'
 if(args.includes('--invalid-final')&&context.review_id&&context.ledger.tasks.length)result.task_dispositions[0].blocks_delivery=false
-writeFileSync(args[args.indexOf('--output-last-message')+1],JSON.stringify(result))
+const output=args[args.indexOf('--output-last-message')+1]
+writeFileSync(output+'.transport.json',JSON.stringify({args,cwd:process.cwd()}))
+writeFileSync(output,JSON.stringify(result))
 process.stdout.write(JSON.stringify({type:'turn.completed',usage:{input_tokens:10,output_tokens:20}})+'\n')

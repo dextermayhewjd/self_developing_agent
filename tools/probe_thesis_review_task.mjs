@@ -9,7 +9,7 @@ import {promisify} from 'node:util'
 import {parseArgs} from 'node:util'
 import {createBackend} from './codex_workflow/backend.mjs'
 import {createRuntime} from './codex_workflow/runtime.mjs'
-import {resolveExecutionConfig} from './codex_workflow/config.mjs'
+import {resolveExecutionConfig,resolveStageSettings} from './codex_workflow/config.mjs'
 import {coordinateThesisReview} from './codex_workflow/review-coordinator.mjs'
 import {inspectReviewStore} from './codex_workflow/review-store.mjs'
 import {sha256,REVIEW_LENSES} from './codex_workflow/review-contracts.mjs'
@@ -85,7 +85,15 @@ export async function runReviewTaskProbe({outputDir,symbol,executionConfig,backe
    const request=JSON.parse(await readFile(join(exchangeDir,name,'request.json')))
    if(request.context.review_id===result.review?.review_id)summary.independent_review.proposal_exposed=Object.hasOwn(request.context,'proposals')||Object.hasOwn(request.context,'acceptance_checks')
   }
-  if(result.terminalReason||result.review?.verdict!=='pass'||inspected.deliveryError||inspected.displays.some(item=>item.status!=='current')||result.receipt?.report_sha256!==sha256(after)||!summary.host_application.changed||summary.host_application.applications!==1||summary.independent_review.proposal_exposed||summary.workers.map(worker=>worker.contract).join(',')!=='review,proposal,review'||summary.workers[1].effort!=='low')throw new Error('Observed probe did not complete initial review, one host local application, and independent full review')
+  // Route identity comes from the coordinator checkpoint and dispatched stage,
+  // independently of effort: local and full workers may share the same setting.
+  const localWorker=summary.workers[1]
+  const localRoute=localWorker?.label.startsWith('问题修订:')&&localWorker.context_bytes>0&&localWorker.context_bytes<=32768&&inspected.attempt?.results.length===1&&inspected.attempt.results[0].result.mode==='local_patch'
+  const frozenSettings=summary.workers.every(worker=>{
+   const expected=resolveStageSettings(executionConfig,{label:worker.label})
+   return worker.model===expected.model&&worker.effort===expected.effort&&worker.modelProvider===expected.modelProvider
+  })
+  if(result.terminalReason||result.review?.verdict!=='pass'||inspected.deliveryError||inspected.displays.some(item=>item.status!=='current')||result.receipt?.report_sha256!==sha256(after)||!summary.host_application.changed||summary.host_application.applications!==1||summary.independent_review.proposal_exposed||summary.workers.map(worker=>worker.contract).join(',')!=='review,proposal,review'||!localRoute||!frozenSettings)throw new Error('Observed probe did not complete initial review, one host local application, and independent full review')
   summary.status='passed'
  }catch(error){
   summary.status='failed';summary.error={name:error.name,message:error.message};summary.receipt=null

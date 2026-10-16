@@ -99,11 +99,11 @@ async function archiveJson(runDir, path, value) {
 const reviewerInstructions = `独立完整审查当前报告十二节、五路底稿和全部附件。遵循提供的 methodology 完整方法文本与语义覆盖 rubric。仅使用提供的完整报告、证据与任务账本；不得依赖修订者自评。对全部旧任务 ID（包括 resolved）给出唯一独立处置，允许重新打开和发现新问题。status 与 kind/blocks_delivery 分开：blocking 必须 blocks_delivery:true，watch 必须 false；disclosure 按实际是否阻断决定。resolved 只关闭状态，不改变问题分类或阻断属性。例如旧阻断任务修复后合法处置是 {"task_id":"RT-000001","status":"resolved","reason":"独立核对验收条件已满足","kind":"blocking","blocks_delivery":true}。若确需升降级，须同时满足 kind/blocks_delivery 约束，并在 reason 说明改变依据；不能仅因任务已解决就把 blocking 的 blocks_delivery 改 false。每个新问题关联章节/coverage。局部候选须声明 judgment_constraints 的精确原文引用；没有跨节约束时明确 []，不确定则 full_revision。所有二进制附件必须逐一目视核对原图/全部 PDF 页及候选转录，返回绑定摘要的 visual_attestations。未知事实保留限制；不要制造证据。严格回传 host 分配的 review_id、Snapshot、input_ledger_sha256。只返回 schema JSON，不写文件。`
 const proposalInstructions = `full_revision 须遵循 methodology 完整方法文本及语义覆盖 rubric。full_revision 可使用 section:0 精确修改第一节之前的开篇/前言；局部提案禁止 section:0。若 preface_boundary_anchor 非空（第一节标题就在字节0），section:0 的 before 必须精确等于该完整标题，after 必须以原标题逐字结尾，只允许在其前插入开篇；禁止空 before。仍保留十二节顺序与边界。只返回任务修订 Proposal，不写文件、不研究新资料、不关闭任务。基于当前 Snapshot 和精确原文给出可唯一定位的 edits，完整覆盖任务验收条件和授权证据；信息不足返回 needs_evidence，局部范围不够返回 escalate。`
 
-async function exchange({ runDir, runtime, signal, context, label, phase, schema, contract, images, local = false, instructions }) {
+async function exchange({ runDir, runtime, signal, context, label, phase, schema, contract, images, instructions }) {
   signal?.throwIfAborted()
   const contextBytes = Buffer.byteLength(JSON.stringify(context), 'utf8')
   const prompt = instructions + '\nCONTEXT_JSON\n' + JSON.stringify(context)
-  const options = { label, phase, schema, contract, images, context_bytes: contextBytes, ...(local ? { effort: 'low' } : {}) }
+  const options = { label, phase, schema, contract, images, context_bytes: contextBytes }
   const dir = join(runDir, control, 'exchanges', `EX-${randomUUID()}`)
   const request = await archiveJson(runDir, join(dir, 'request.json'), { context, context_bytes: contextBytes, prompt, options })
   let response
@@ -218,7 +218,7 @@ export async function coordinateThesisReview({ root, args, runtime, store, reaso
     let built = buildTaskContext({ ...inputs, task, ledger: state.ledger })
     let tasks = [task], mode = 'local_patch', context = built.context, archive = [], applied
     if (built.route === 'local_patch') {
-      const called = await exchange({ runDir, runtime, signal, context, label: `问题修订:${taskId}:${attempt.id}`, phase: '问题修订', schema: PROPOSAL_SCHEMA, contract: 'proposal', images: evidenceImages(runDir, context.evidence), local: true, instructions: proposalInstructions })
+      const called = await exchange({ runDir, runtime, signal, context, label: `问题修订:${taskId}:${attempt.id}`, phase: '问题修订', schema: PROPOSAL_SCHEMA, contract: 'proposal', images: evidenceImages(runDir, context.evidence), instructions: proposalInstructions })
       archive.push(called.archive)
       await currentInputs(runDir, store)
       try {
