@@ -13,11 +13,11 @@
 | Claude 其余实质研究、修订、审查阶段 | 无额外阶段 effort，继承模型/会话设置 |
 | 当前 Claude 保存设置 | Opus 5/5.5 为 xhigh，当前选中的 Fable 5.1 为 high；根级 legacy xhigh 不覆盖每模型设置 |
 | 当前 Codex 只读解析 | CLI 0.162.1，gpt-6.1-sol / openai / xhigh；无 CLI 或阶段覆盖 |
-| 本次 Codex 映射 | 移除自动局部 low，继承阶段的冻结解析结果；保留现有默认 xhigh，没有改写任何用户全局设置，也没有将未回答的 Opus xhigh / Fable high 可选澄清算成已选档 |
+| 本次 Codex 映射 | 移除自动局部 low，继承阶段的冻结解析结果；用户明确选择对齐 Opus 研究基线 xhigh；保留原本已为 xhigh 的 Codex 有效默认，无须改写任何用户全局设置。Fable high 单列为当前 Claude 保存设置 |
 
 Codex 运行时没有新增 `.claude` 依赖。没有增加模型选择器、跨平台配置读取或全阶段 `--effort` 强制覆盖。模型和 effort 仍分别按 CLI → 完整阶段/同类前缀 → 脚本提示 → 文件 default → 冻结有效默认解析；切换模型且未指定强度时使用该模型目录默认值。
 
-局部、完整修订和独立审查分别使用合法阶段名 `问题修订`、`修订成稿`、`成稿审查`。例如冻结默认 xhigh、无其他覆盖/default 时三者均为 xhigh；显式 `stages.问题修订.effort=high` 只改变局部提案，审查仍为 xhigh。统一 CLI 覆盖仍优先。
+所选 Opus xhigh 基线适用于继承强度的实质阶段；上述 helper 显式 low 保留，不以统一 CLI effort 覆盖它们。局部、完整修订和独立审查分别使用合法阶段名 `问题修订`、`修订成稿`、`成稿审查`。例如冻结默认 xhigh、无其他覆盖/default 时三者均为 xhigh；显式 `stages.问题修订.effort=high` 只改变局部提案，审查仍为 xhigh。统一 CLI 覆盖仍优先。
 
 ## 代码与回归
 
