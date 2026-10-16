@@ -10,11 +10,14 @@ import { setTimeout as delay } from 'node:timers/promises'
 
 const schema = { type: 'object', required: ['answer'], properties: { answer: { type: 'integer' } } }
 const fixture = fileURLToPath(new URL('./fixtures/fake-codex.mjs', import.meta.url))
+const executionConfig = { version: 1, codexVersion: 'test',
+  defaults: { model: 'test-model', effort: 'high' }, overrides: {}, stageConfig: {}, sources: {},
+  models: [{ model: 'test-model', defaultReasoningEffort: 'high', supportedReasoningEfforts: ['low', 'high'] }], catalogAvailable: true }
 
 async function setup(t) {
   const dir = await mkdtemp(join(tmpdir(), 'codex workflow '))
   t.after(() => rm(dir, { recursive: true, force: true }))
-  const backend = createBackend({ root: dir, logDir: dir, executable: process.execPath, executableArgs: [fixture] })
+  const backend = createBackend({ root: dir, logDir: dir, executable: process.execPath, executableArgs: [fixture], executionConfig })
   return { dir, backend }
 }
 
@@ -51,7 +54,7 @@ test('missing output is a failure and interruption terminates a running process'
 test('actual backend process groups are registered before execution and removed on exit', async t => {
   const { dir } = await setup(t)
   const registry = createProcessRegistry(dir)
-  const backend = createBackend({ root: dir, logDir: dir, executable: process.execPath, executableArgs: [fixture], processRegistry: registry })
+  const backend = createBackend({ root: dir, logDir: dir, executable: process.execPath, executableArgs: [fixture], processRegistry: registry, executionConfig })
   const control = new AbortController()
   const run = backend('TEST:{"wait":30000}', { schema, label: 'registered' }, control.signal)
   const checked = assert.rejects(run, /cancelled/)
@@ -64,4 +67,23 @@ test('actual backend process groups are registered before execution and removed 
   control.abort(new Error('cancelled'))
   await checked
   assert.deepEqual(JSON.parse(await readFile(registry.path, 'utf8')).groups, [])
+})
+
+test('workers receive explicit effective settings and save only safe execution metadata', async t => {
+  const { dir } = await setup(t)
+  const events = []
+  const backend = createBackend({ root: dir, logDir: dir, executable: process.execPath,
+    executableArgs: [fixture], executionConfig, emit: e => events.push(e) })
+  const capture = join(dir, 'capture.json')
+  await backend(`TEST:${JSON.stringify({ result: { answer: 42 }, capture })}`, { schema, label: '成稿' })
+  const recorded = JSON.parse(await readFile(capture, 'utf8'))
+  assert.equal(recorded.args[recorded.args.indexOf('--model') + 1], 'test-model')
+  assert.ok(recorded.args.includes('model_reasoning_effort="high"'))
+  const started = events.find(e => e.type === 'agent.started')
+  assert.equal(started.execution.model, 'test-model')
+  const metadata = JSON.parse(await readFile(join(started.directory, 'execution.json'), 'utf8'))
+  assert.equal(metadata.codexVersion, 'test')
+  assert.equal(metadata.model, 'test-model')
+  assert.equal(metadata.effort, 'high')
+  assert.ok(!JSON.stringify(metadata).includes('api_key'))
 })

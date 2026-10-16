@@ -135,3 +135,33 @@ const child=spawn(process.execPath,['-e','setTimeout(()=>{},30000)'],{detached:t
   t.after(() => { try { process.kill(-pid, 'SIGKILL') } catch {} })
   await assert.rejects(acquireRunLock(root), /worker.*running/i)
 })
+
+test('stage cache keys and records include the effective execution settings', async t => {
+  const { config, output } = await setup(t)
+  const state = await openState(config)
+  t.after(() => state.close())
+  let calls = 0
+  const run = async () => { calls++; await writeFile(output, 'complete'); return { written_file: output } }
+  const first = { model: 'model-a', effort: 'high', sources: { model: 'config', effort: 'config' } }
+  const second = { ...first, model: 'model-b' }
+  await state.run('prompt', { label: 'stage', execution: first }, run)
+  assert.deepEqual(state.data.stages.stage.execution, first)
+  await state.run('prompt', { label: 'stage', execution: first }, run)
+  assert.equal(calls, 1)
+  await state.run('prompt', { label: 'stage', execution: second }, run)
+  assert.equal(calls, 2)
+  assert.equal(state.data.stages.stage.execution.model, 'model-b')
+})
+
+test('content review, revision and position synchronization do not reuse stale file inputs', async t => {
+  const { config, output } = await setup(t)
+  const state = await openState(config)
+  t.after(() => state.close())
+  let calls = 0
+  const run = async () => { calls++; await writeFile(output, 'complete'); return { written_file: output } }
+  for (const label of ['成稿审查:0', '修订成稿:1', '更新档案']) {
+    await state.run('prompt', { label }, run)
+    await state.run('prompt', { label }, run)
+  }
+  assert.equal(calls, 6)
+})

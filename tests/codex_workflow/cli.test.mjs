@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url'
 import { createRuntime, loadWorkflow } from '../../tools/codex_workflow/runtime.mjs'
 import { parseArguments, inspectWorkflow, workflowLocations } from '../../tools/run_codex_workflow.mjs'
 import { openState, acquireRunLock } from '../../tools/codex_workflow/state.mjs'
+import { reportFixture, writeReviewFixture } from './fixtures/review-fixture.mjs'
 
 test('CLI preserves HK leading zeros and rejects unsafe inputs and impossible dates', () => {
   const p = parseArguments(['equity-thesis', '--symbol', '00700.HK', '--date', '20261015'])
@@ -88,9 +89,21 @@ test('real CLI launches its backend, reuses success, rejects stale inputs and re
   await writeFile(params, JSON.stringify({ variety: '钨', archetype: '耗竭资源型' }))
   await writeFile(join(root, 'bin/codex'), `#!/usr/bin/env node
 const fs = require('node:fs'); const path = require('node:path'); const a=process.argv.slice(2);
+if (a[0] === '--version') { console.log('codex-cli 1.0.0'); }
+else if (a[0] === 'app-server') {
+  const readline = require('node:readline');
+  readline.createInterface({input:process.stdin}).on('line', line => {
+    const msg=JSON.parse(line); let result;
+    if(msg.method==='initialize') result={userAgent:'thesis-workflow/1.0.0'};
+    if(msg.method==='config/read') result={config:{model:'test-model',model_reasoning_effort:'high'},origins:{}};
+    if(msg.method==='model/list') result={data:[{model:'test-model',isDefault:true,defaultReasoningEffort:'high',supportedReasoningEfforts:[{reasoningEffort:'high'}]}]};
+    if(msg.id) process.stdout.write(JSON.stringify({id:msg.id,result})+'\\n');
+  });
+} else {
 fs.readFileSync(0); const root=a[a.indexOf('--cd')+1]; const out=path.join(root,'data/_peers/钨/fixture.md');
 fs.writeFileSync(out,'valid fixture'); fs.appendFileSync(path.join(root,'counter'),'called\\n');
 fs.writeFileSync(a[a.indexOf('--output-last-message')+1],JSON.stringify({written_file:out}));
+}
 `, { mode: 0o755 })
   const cli = fileURLToPath(new URL('../../tools/run_codex_workflow.mjs', import.meta.url))
   const argv = [cli, 'peer-comparability', '--root', root, '--args-file', params]
@@ -120,6 +133,7 @@ test('real equity workflow rechecks and rewrites after a missing finding is rege
   let round = 1
   async function execute(prompt, { label }) {
     called.push(label)
+    if (label.startsWith('成稿审查:')) return writeReviewFixture(layout.run)
     if (label === '盘点') {
       const find = [], checked = []
       for (const n of names) {
@@ -137,7 +151,7 @@ test('real equity workflow rechecks and rewrites after a missing finding is rege
     if (label === '补参照系') return { items: [] }
     if (label === '成稿') {
       file = join(layout.run, 'report.md')
-      await make(file, await readFile(join(layout.run, 'findings/产业.md'), 'utf8'))
+      await writeFile(file, reportFixture(await readFile(join(layout.run, 'findings/产业.md'), 'utf8')))
     } else await make(file, `round ${round}: ${label}\n`)
     return { written_file: file, archetype: '成长渗透型', doubts: [], checked: [], items: [] }
   }
@@ -170,4 +184,68 @@ test('a failed repair restores every research file it is allowed to edit', async
   }), /interrupted/)
   for (const file of paths) assert.equal(await readFile(file, 'utf8'), 'previous complete content')
   await state.close()
+})
+
+test('CLI exposes per-stage configuration and accepts catalog-defined reasoning levels', () => {
+  const parsed = parseArguments(['equity-thesis', '--symbol', '301248', '--stage-config', '/tmp/stages.json', '--effort', 'ultra'])
+  assert.equal(parsed.stageConfigPath, '/tmp/stages.json')
+  assert.equal(parsed.effort, 'ultra')
+})
+
+test('resume freezes resolved settings and preserves invocation options despite changed user defaults', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'frozen-execution-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const run = join(root, 'run')
+  await mkdir(join(run, '.codex-workflow'), { recursive: true })
+  const old = { version: 1, codexVersion: '1.0', defaults: { model: 'old-model', effort: 'high' }, overrides: {}, stageConfig: {}, models: [], sources: {} }
+  await writeFile(join(run, '.codex-workflow/state.json'), JSON.stringify({ invocation: { executionConfig: old, jobs: 2, noPdf: true } }))
+  const { resolveRunExecutionConfig } = await import('../../tools/run_codex_workflow.mjs')
+  assert.equal(typeof resolveRunExecutionConfig, 'function')
+  const parsed = parseArguments(['equity-thesis', '--symbol', '301248'])
+  const fresh = { ...old, defaults: { model: 'new-user-default', effort: 'low' } }
+  const locked = await resolveRunExecutionConfig(parsed, run, { readVersion: async () => '1.0', resolveConfig: async () => { throw new Error('must not resolve current defaults') } })
+  assert.deepEqual(locked, old)
+  assert.equal(parsed.jobs, 2)
+  assert.equal(parsed.noPdf, true)
+  await assert.rejects(resolveRunExecutionConfig(parsed, run, { readVersion: async () => '2.0', resolveConfig: async () => fresh }), /version.*reset/i)
+})
+
+test('repeating identical explicit settings resumes the frozen snapshot without current defaults', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'same-explicit-execution-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const run = join(root, 'run')
+  await mkdir(join(run, '.codex-workflow'), { recursive: true })
+  const stageFile = join(root, 'stages.json')
+  const stageConfig = { stages: { 成稿: { effort: 'high' } } }
+  await writeFile(stageFile, JSON.stringify(stageConfig))
+  const saved = { version: 1, codexVersion: '1.0', defaults: { model: 'old-model', effort: 'high' }, overrides: { model: 'old-model', effort: 'high' }, stageConfig, models: [], sources: {} }
+  await writeFile(join(run, '.codex-workflow/state.json'), JSON.stringify({ invocation: { executionConfig: saved, jobs: 2, noPdf: true } }))
+  const { resolveRunExecutionConfig } = await import('../../tools/run_codex_workflow.mjs')
+  const parsed = parseArguments(['equity-thesis', '--symbol', '301248', '--model', 'old-model', '--effort', 'high', '--stage-config', stageFile])
+  const result = await resolveRunExecutionConfig(parsed, run, { readVersion: async () => '1.0', resolveConfig: async () => { throw new Error('must not resolve current defaults') } })
+  assert.deepEqual(result, saved)
+})
+
+test('execution configuration is part of the run fingerprint', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'execution-fingerprint-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  await mkdir(join(root, '.claude/workflows'), { recursive: true })
+  await mkdir(join(root, '.claude/skills'), { recursive: true })
+  await writeFile(join(root, '.claude/workflows/peer-comparability.mjs'), 'return {}')
+  const { workflowFingerprint } = await import('../../tools/run_codex_workflow.mjs')
+  const a = await workflowFingerprint(root, 'peer-comparability', {}, { executionConfig: { defaults: { model: 'a', effort: 'high' } } })
+  const b = await workflowFingerprint(root, 'peer-comparability', {}, { executionConfig: { defaults: { model: 'b', effort: 'high' } } })
+  assert.notEqual(a, b)
+})
+
+test('review and revision artifacts follow research invalidation and reset', () => {
+  const root = '/tmp/thesis-layout'
+  const layout = workflowLocations({ root, name: 'equity-thesis', args: { symbol: '00700', date: '20261015' } })
+  const labels = ['成稿', '成稿审查:0', '修订成稿:1', '成稿审查:1', '更新档案', '更新档案:硬门1']
+  assert.ok(layout.resetArtifacts.includes(join(layout.run, '成稿审查.json')))
+  assert.deepEqual(layout.artifactsFor('成稿审查:0'), [join(layout.run, '成稿审查.json')])
+  assert.deepEqual(layout.artifactsFor('修订成稿:1'), [join(layout.run, 'report.md')])
+  assert.deepEqual(layout.artifactsFor('更新档案:硬门1'), [join(root, 'positions/00700.md')])
+  assert.ok(layout.dependents('挖掘:产业', labels).includes('成稿审查:0'))
+  assert.ok(layout.dependents('成稿', labels).includes('成稿审查:1'))
 })

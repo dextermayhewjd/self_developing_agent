@@ -161,9 +161,9 @@ export async function openState({ dir, fingerprint, artifactRoots, artifactsFor 
     await save()
     const run = async (prompt, options, execute, signal) => {
       const label = options.label ?? 'agent'
-      const key = hash(JSON.stringify({ prompt, schema: options.schema }))
+      const key = hash(JSON.stringify({ prompt, schema: options.schema, execution: options.execution }))
       const prior = data.stages[label]
-      const cacheable = label !== '盘点' && !label.startsWith('修复')
+      const cacheable = label !== '盘点' && !/^(修复|成稿审查|修订成稿|更新档案)/u.test(label)
       if (cacheable && prior?.status === 'succeeded' && prior.key === key) {
         try {
           await checkFiles(prior.artifacts)
@@ -172,7 +172,7 @@ export async function openState({ dir, fingerprint, artifactRoots, artifactsFor 
         } catch { /* Missing or moved output must be regenerated. */ }
       }
       const expected = artifactsFor(label, prompt).map(p => typeof p === 'string' ? { path: p } : p)
-      const record = { key, status: 'running', started: new Date().toISOString(), artifacts: expected.map(p => p.path),
+      const record = { key, execution: options.execution, status: 'running', started: new Date().toISOString(), artifacts: expected.map(p => p.path),
         outputs: expected.filter(p => !p.retainOnInvalidate).map(p => p.path), backups: [] }
       for (const entry of expected) {
         let backup = null

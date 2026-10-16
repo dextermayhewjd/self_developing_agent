@@ -2,6 +2,7 @@ import { access, readFile, stat, readdir } from 'node:fs/promises'
 import { constants } from 'node:fs'
 import { join } from 'node:path'
 import { runProcess } from './backend.mjs'
+import { validateThesisReview } from '../check_thesis_review.mjs'
 
 export const lensNames = ['财务排雷', '尽调', '产业', '竞争', '战略驱动']
 export async function pythonFor(root) {
@@ -68,7 +69,26 @@ export async function runThesis({ root, args, runtime, runWorkflow, noPdf = fals
     if (![0, 1, 2].includes(result.code)) throw new Error(`Gate tool failed (${result.code}): ${output(result)}`)
     return result
   }
-  let reused = false, gateResult, researchResult
+  let reused = false, gateResult, researchResult, contentReview
+  const checkReview = async () => {
+    const review = await validateThesisReview(run)
+    if (review.verdict !== 'pass') throw new Error('Content review requires revision; delivery blocked')
+    contentReview = review
+    return review
+  }
+  const reReview = async () => {
+    await runWorkflow({ ...args, review_only: true }, runtime)
+    await checkReview()
+  }
+  const updatePosition = async (label = '更新档案') => {
+    await runtime.agent(`根据 ${reportPath} 更新 ${positionPath}，先读取已有档案及
+${root}/.claude/skills/equity-thesis-cn/position_file.md。保留人工注入区，更新评分、评级、估值锚及变更理由、
+假设记分板、未决疑问和变更日志。frontmatter 最近更新必须为 ${date.slice(0, 4)}-${date.slice(4, 6)}-${date.slice(6, 8)}。
+只更新档案，不重做研究，不修改输入数据或检验规则。`, {
+      label, phase: '交付', schema: { type: 'object', required: ['written_file'], properties: { written_file: { type: 'string' } } },
+    })
+    await requirePosition(positionPath, date)
+  }
   try {
     if (!allowReuse) throw new Error('Incomplete prior workflow stages require reconciliation')
     await requireArtifacts(run)
@@ -82,25 +102,22 @@ export async function runThesis({ root, args, runtime, runWorkflow, noPdf = fals
   if (!reused) {
     researchResult = await runWorkflow(args, runtime)
     await requireArtifacts(run)
-    await runtime.agent(`根据 ${reportPath} 更新 ${positionPath}，先读取已有档案及
-${root}/.claude/skills/equity-thesis-cn/position_file.md。保留人工注入区，更新评分、评级、估值锚及变更理由、
-假设记分板、未决疑问和变更日志。frontmatter 最近更新必须为 ${date.slice(0, 4)}-${date.slice(4, 6)}-${date.slice(6, 8)}。
-只更新档案，不重做研究，不修改输入数据或检验规则。`, {
-      label: '更新档案', phase: '交付', schema: { type: 'object', required: ['written_file'], properties: { written_file: { type: 'string' } } },
-    })
-    await requirePosition(positionPath, date)
-    gateResult = await gate()
-    for (let attempt = 1; gateResult.code === 1 && attempt <= 2; attempt++) {
-      await runtime.agent(`交付硬门失败。只根据下面的反馈修复 ${reportPath}、${positionPath}，
+    await checkReview()
+  } else await reReview()
+  await updatePosition()
+  gateResult = await gate()
+  for (let attempt = 1; gateResult.code === 1 && attempt <= 2; attempt++) {
+    await runtime.agent(`交付硬门失败。只根据下面的反馈修复 ${reportPath}、${positionPath}，
 必要时修正本 run 下已有的 findings/核查/参照系文件；不重跑全套研究，不修改校验器或源数据，
 不得编造缺失证据。修复后保持最近更新为报告日。\n${output(gateResult)}`, {
-        label: `修复硬门:${attempt}`, phase: '交付', schema: { type: 'object', required: ['written_file'], properties: { written_file: { type: 'string' } } },
-      })
-      await requirePosition(positionPath, date)
-      gateResult = await gate()
-    }
-    if (gateResult.code === 1) throw new Error(`Hard gate failed after two repairs: ${output(gateResult)}`)
+      label: `修复硬门:${attempt}`, phase: '交付', schema: { type: 'object', required: ['written_file'], properties: { written_file: { type: 'string' } } },
+    })
+    await reReview()
+    await updatePosition(`更新档案:硬门${attempt}`)
+    gateResult = await gate()
   }
+  if (gateResult.code === 1) throw new Error(`Hard gate failed after two repairs: ${output(gateResult)}`)
+  await checkReview()
   if (gateResult.code === 2) warnings.push(output(gateResult))
   const pdf = { status: 'skipped', path: null }
   if (!noPdf) {
@@ -111,5 +128,6 @@ ${root}/.claude/skills/equity-thesis-cn/position_file.md。保留人工注入区
   }
   return { symbol, run_dir: run, report: reportPath, position: positionPath, reused,
     gate_exit_code: gateResult.code, warnings, pdf, ...await totals(run),
+    content_review: { written_file: contentReview.written_file, verdict: contentReview.verdict, report_sha256: contentReview.report_sha256 },
     verified_this_run: researchResult?.checked_total ?? 0 }
 }

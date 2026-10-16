@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { parseArgs } from 'node:util'
+import { parseArgs, isDeepStrictEqual } from 'node:util'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { resolve, join, dirname } from 'node:path'
 import { readFile, readdir, appendFile, access } from 'node:fs/promises'
@@ -10,6 +10,7 @@ import { createBackend, runProcess } from './codex_workflow/backend.mjs'
 import { transportSchema, decodeResult, validDate } from './codex_workflow/schema.mjs'
 import { openState, writeJson, acquireRunLock, createProcessRegistry } from './codex_workflow/state.mjs'
 import { prepareData, runThesis, lensNames } from './codex_workflow/thesis.mjs'
+import { resolveExecutionConfig, resolveStageSettings, readStageConfig, readCodexVersion } from './codex_workflow/config.mjs'
 
 const defaultRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const workflows = ['equity-thesis', 'peer-comparability', 'calibrate-equity-thesis']
@@ -18,6 +19,7 @@ export function parseArguments(argv) {
   const { values: v, positionals } = parseArgs({ args: argv, allowPositionals: true, options: {
     symbol: { type: 'string' }, date: { type: 'string' }, root: { type: 'string' },
     jobs: { type: 'string', default: '3' }, model: { type: 'string' }, effort: { type: 'string' },
+    'stage-config': { type: 'string' },
     'args-file': { type: 'string' }, 'no-pdf': { type: 'boolean' }, check: { type: 'boolean' },
     reset: { type: 'boolean' }, help: { type: 'boolean' },
   } })
@@ -25,7 +27,7 @@ export function parseArguments(argv) {
   if (positionals.length !== 1 || !workflows.includes(positionals[0])) throw new Error(`Choose workflow: ${workflows.join(', ')}`)
   const jobs = Number(v.jobs)
   if (!Number.isInteger(jobs) || jobs < 1) throw new Error('jobs must be a positive integer')
-  if (v.effort && !['low', 'medium', 'high', 'xhigh'].includes(v.effort)) throw new Error('effort must be low, medium, high or xhigh')
+  if (v.effort && !/^[a-z][a-z0-9_-]*$/i.test(v.effort)) throw new Error('effort must be a reasoning level supported by the model catalog')
   const now = new Date()
   const today = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`
   const args = {}
@@ -38,6 +40,8 @@ export function parseArguments(argv) {
   if (positionals[0] === 'equity-thesis' && !v.symbol && !v['args-file']) throw new Error('equity-thesis requires --symbol')
   const root = resolve(v.root ?? defaultRoot)
   return { name: positionals[0], root, args: { ...args, root }, jobs, model: v.model, effort: v.effort,
+    stageConfigPath: v['stage-config'] ? resolve(v['stage-config']) : undefined,
+    provided: Object.fromEntries(['jobs', 'model', 'effort', 'stage-config', 'no-pdf'].map(key => [key, argv.some(value => value === `--${key}` || value.startsWith(`--${key}=`))])),
     argsFile: v['args-file'], noPdf: !!v['no-pdf'], check: !!v.check, reset: !!v.reset }
 }
 
@@ -56,6 +60,16 @@ export async function inspectWorkflow({ root, name, args }) {
     transportSchema(options.schema)
     stages.push({ label: options.label, phase: options.phase })
     const value = sample(options.schema)
+    if (options.label?.startsWith('成稿审查:')) {
+      value.written_file = join(root, `reports/${args.symbol}_thesis_${args.date}/成稿审查.json`)
+      value.report_sha256 = '0'.repeat(64)
+      value.reviewed_sources = ['疑惑.md', ...lensNames.map(lens => `findings/${lens}.md`)]
+      value.verdict = 'pass'
+      value.blocking_issues = []
+      value.sections = Array.from({ length: 12 }, (_, i) => ({ section: i + 1, status: 'pass', evidence: 'synthetic check' }))
+      value.coverage = lensNames.map(lens => ({ lens, findings: [{ finding: 'synthetic', source: `findings/${lens}.md`,
+        source_quote: 'synthetic', disposition: 'covered', report_quote: 'synthetic', exclusion_reason: '' }] }))
+    }
     if (options.label === '盘点') for (const [key, field] of Object.entries(options.schema.properties)) {
       if (field.type === 'array') value[key] = []
     }
@@ -66,8 +80,30 @@ export async function inspectWorkflow({ root, name, args }) {
   return { workflow: name, checked: true, model_calls: 0, stages }
 }
 
+export async function resolveRunExecutionConfig(config, run, { resolveConfig = resolveExecutionConfig, readVersion = readCodexVersion } = {}) {
+  let previous
+  try { previous = JSON.parse(await readFile(join(run, '.codex-workflow/state.json'), 'utf8')).invocation }
+  catch (error) { if (error.code !== 'ENOENT') throw error }
+  const saved = !config.reset && previous?.executionConfig
+  const requested = {
+    model: config.model ?? (saved ? saved.overrides?.model : undefined),
+    effort: config.effort ?? (saved ? saved.overrides?.effort : undefined),
+    stageConfig: config.stageConfigPath ? await readStageConfig(config.stageConfigPath) : (saved ? saved.stageConfig : {}),
+  }
+  if (saved) {
+    if (saved.codexVersion !== await readVersion({ root: config.root })) throw new Error('Codex version changed; use --reset to archive prior workflow outputs and restart')
+    if (!config.provided?.jobs) config.jobs = previous.jobs ?? config.jobs
+    if (!config.provided?.['no-pdf']) config.noPdf = previous.noPdf ?? config.noPdf
+    config.stageConfigPath ??= previous.stageConfigPath
+    if (requested.model === saved.overrides?.model && requested.effort === saved.overrides?.effort &&
+        isDeepStrictEqual(requested.stageConfig, saved.stageConfig)) return saved
+  }
+  return resolveConfig({ root: config.root, ...requested })
+}
+
 export async function workflowFingerprint(root, name, args, config) {
-  const hash = createHash('sha256').update(JSON.stringify({ name, args, model: config.model, effort: config.effort }))
+  const hash = createHash('sha256').update(JSON.stringify({ name, args,
+    executionConfig: config.executionConfig ?? { model: config.model, effort: config.effort } }))
   const visited = new Set()
   async function include(path) {
     let entries
@@ -92,7 +128,10 @@ export async function workflowFingerprint(root, name, args, config) {
   await include(join(root, '.claude/skills'))
   await include(fileURLToPath(new URL('./codex_workflow/', import.meta.url)))
   await include(fileURLToPath(import.meta.url))
-  if (name === 'equity-thesis') await include(join(root, `data/${args.symbol}`))
+  if (name === 'equity-thesis') {
+    await include(join(root, `data/${args.symbol}`))
+    await include(fileURLToPath(new URL('./check_thesis_review.mjs', import.meta.url)))
+  }
   if (name === 'calibrate-equity-thesis' && !(Array.isArray(args.digests) && args.digests.length === 5)) {
     const source = await readFile(join(root, '.claude/workflows/calibrate-equity-thesis.mjs'), 'utf8')
     const directory = source.match(/const DIR = '([^']+)'/)[1]
@@ -105,13 +144,15 @@ export function workflowLocations({ root, name, args }) {
   if (name === 'equity-thesis') {
     const run = join(root, `reports/${args.symbol}_thesis_${args.date}`)
     const position = join(root, `positions/${args.symbol}.md`)
-    return { run, sharedLock: join(root, 'positions/.codex-workflow', args.symbol), roots: [run, position], resetArtifacts: ['疑惑.md', 'report.md', 'findings', '核查', '参照系'].map(p => join(run, p)),
+    return { run, sharedLock: join(root, 'positions/.codex-workflow', args.symbol), roots: [run, position], resetArtifacts: ['疑惑.md', 'report.md', 'findings', '核查', '参照系', '成稿审查.json'].map(p => join(run, p)),
       dependents: (label, labels) => labels.filter(target => {
         if (label === '立疑') return target !== label && target !== '盘点'
         if (label.startsWith('挖掘:') && target === `核查:${label.slice(3)}`) return true
-        if (label.startsWith('挖掘:') || label.startsWith('核查:') || label === '板块基准') return ['补参照系', '成稿', '更新档案'].includes(target) || target.startsWith('修复')
-        if (label === '补参照系') return ['成稿', '更新档案'].includes(target) || target.startsWith('修复')
-        if (label === '成稿') return target === '更新档案' || target.startsWith('修复')
+        const postReport = /^(成稿审查:|修订成稿:|更新档案|修复)/u.test(target)
+        if (label.startsWith('挖掘:') || label.startsWith('核查:') || label === '板块基准') return ['补参照系', '成稿'].includes(target) || postReport
+        if (label === '补参照系') return target === '成稿' || postReport
+        if (label === '成稿' || label.startsWith('修订成稿:')) return postReport && target !== label
+        if (label.startsWith('成稿审查:')) return /^(更新档案|修复)/u.test(target)
         return false
       }), artifactsFor: label => {
       if (label === '立疑') return [join(run, '疑惑.md')]
@@ -120,7 +161,9 @@ export function workflowLocations({ root, name, args }) {
       if (label === '板块基准') return [join(run, '参照系/板块基准.md')]
       if (label === '补参照系') return [{ path: join(run, '参照系/补.md'), optional: true }]
       if (label === '成稿') return [join(run, 'report.md')]
-      if (label === '更新档案') return [position]
+      if (label.startsWith('成稿审查:')) return [join(run, '成稿审查.json')]
+      if (label.startsWith('修订成稿:')) return [join(run, 'report.md')]
+      if (label.startsWith('更新档案')) return [position]
       if (label.startsWith('修复硬门')) return [position, join(run, 'report.md'), join(run, '疑惑.md'),
         ...lensNames.flatMap(n => [join(run, `findings/${n}.md`), join(run, `核查/${n}.md`)]),
         ...['板块基准', '补'].map(n => ({ path: join(run, `参照系/${n}.md`), optional: true }))]
@@ -155,7 +198,7 @@ export function workflowLocations({ root, name, args }) {
 export async function main(argv = process.argv.slice(2)) {
   const config = parseArguments(argv)
   if (config.help) {
-    console.log('Usage: node tools/run_codex_workflow.mjs <equity-thesis|peer-comparability|calibrate-equity-thesis>\n  --symbol CODE --date YYYYMMDD --args-file FILE --root DIR\n  --jobs 3 --model MODEL --effort high --check --reset --no-pdf')
+    console.log('Usage: node tools/run_codex_workflow.mjs <equity-thesis|peer-comparability|calibrate-equity-thesis>\n  --symbol CODE --date YYYYMMDD --args-file FILE --root DIR\n  --jobs 3 --model MODEL --effort LEVEL --stage-config FILE --check --reset --no-pdf')
     return
   }
   if (config.argsFile) {
@@ -170,6 +213,7 @@ export async function main(argv = process.argv.slice(2)) {
     }
   }
   if (config.check) {
+    if (config.stageConfigPath) await readStageConfig(config.stageConfigPath)
     console.log(JSON.stringify(await inspectWorkflow(config), null, 2))
     return
   }
@@ -190,23 +234,27 @@ export async function main(argv = process.argv.slice(2)) {
   const runCommand = (command, args, options) => runProcess(command, args, { ...options, onSpawn: registry.started, onClose: registry.ended })
   try {
     if (sharedLock) sharedRelease = await acquireRunLock(sharedLock, { processesFile: registry.path })
+    config.executionConfig = await resolveRunExecutionConfig(config, run)
     state = await openState({ dir: join(run, '.codex-workflow'), artifactRoots: roots, artifactsFor, resetArtifacts, dependents, processesFile: registry.path, reset: config.reset, emit,
-      invocation: { name: config.name, args: config.args, jobs: config.jobs, model: config.model ?? null, effort: config.effort ?? null, noPdf: config.noPdf },
+      invocation: { name: config.name, args: config.args, jobs: config.jobs, model: config.model ?? null, effort: config.effort ?? null, noPdf: config.noPdf,
+        stageConfigPath: config.stageConfigPath ?? null, executionConfig: config.executionConfig },
       fingerprint: async () => {
         if (config.name === 'equity-thesis') prepared = await prepareData({ root: config.root, symbol: config.args.symbol, signal: control.signal, runCommand })
         return workflowFingerprint(config.root, config.name, config.args, config)
       } })
-    const backend = createBackend({ root: config.root, logDir: join(state.directory, 'agents'), model: config.model, effort: config.effort, emit, processRegistry: registry })
+    await writeJson(join(state.directory, 'execution-config.json'), config.executionConfig)
+    const backend = createBackend({ root: config.root, logDir: join(state.directory, 'agents'), executionConfig: config.executionConfig, emit, processRegistry: registry })
     runtime = createRuntime({ jobs: config.jobs, signal: control.signal, emit, runAgent: (prompt, options, signal) => {
       if (config.name === 'equity-thesis' && ['立疑', '成稿'].includes(options.label)) {
         prompt += `\n读取 ${config.root}/positions/${config.args.symbol}.md（不存在就是首次建档）。带入上次估值锚及理由、假设记分板、未决疑问，保留人工注入信息。\n数据警告必须在成稿披露：${prepared.warnings.join('\n') || '无'}\n`
       }
-      return state.run(prompt, options, backend, signal)
+      return state.run(prompt, { ...options, execution: resolveStageSettings(config.executionConfig, options) }, backend, signal)
     } })
     const workflow = await loadWorkflow(join(config.root, `.claude/workflows/${config.name}.mjs`))
     const result = config.name === 'equity-thesis'
       ? await runThesis({ root: config.root, args: config.args, runtime, runWorkflow: workflow, prepared, noPdf: config.noPdf, signal: runtime.signal, runCommand, allowReuse: state.canReuse() })
       : await workflow(config.args, runtime)
+    result.execution_config = join(state.directory, 'execution-config.json')
     await writeJson(join(state.directory, 'result.json'), result)
     await state.complete()
     const summary = config.name === 'equity-thesis' ? result : { workflow: config.name, run_dir: run, result_file: join(state.directory, 'result.json'), counts: result.counts, ledger_file: result.ledger_file }
