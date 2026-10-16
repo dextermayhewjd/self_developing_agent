@@ -1,5 +1,5 @@
 import { mkdir, readFile, writeFile, rename, unlink, stat, realpath, open, copyFile } from 'node:fs/promises'
-import { mkdirSync, readFileSync, writeFileSync, renameSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync, renameSync, realpathSync } from 'node:fs'
 import { resolve, relative, isAbsolute, join, dirname, basename } from 'node:path'
 import { createHash, randomUUID } from 'node:crypto'
 import { hostname } from 'node:os'
@@ -77,7 +77,7 @@ export async function acquireRunLock(dir, { processesFile = join(dir, 'workers.j
   }
 }
 
-export async function openState({ dir, fingerprint, artifactRoots, artifactsFor = () => [], dependents = () => [], reset = false, resetArtifacts = [], invocation = {}, processesFile, emit = () => {} }) {
+export async function openState({ dir, fingerprint, artifactRoots, artifactsFor = () => [], dependents = () => [], reset = false, resetArtifacts = [], invocation = {}, protectedPaths = [], processesFile, emit = () => {} }) {
   dir = resolve(dir)
   const unlock = await acquireRunLock(dir, { processesFile })
   let writes = Promise.resolve()
@@ -100,12 +100,21 @@ export async function openState({ dir, fingerprint, artifactRoots, artifactsFor 
         if (!info.isFile() || info.size === 0) throw new Error(`Missing or empty artifact: ${path}`)
       }
     }
+    const storeDir = join(dir, 'review')
+    const hasStoreOwnership = invocation.reviewProtocol === 2 || await exists(storeDir)
+    const ownedPaths = [storeDir, ...protectedPaths, ...(hasStoreOwnership ? [join(dirname(dir), 'report.md'), join(dirname(dir), '成稿审查.json')] : [])]
+    const storeOwned = path => {
+      let physical
+      try { physical = realpathSync(path) } catch (error) { if (error.code !== 'ENOENT') throw error }
+      return [resolve(path), physical].filter(Boolean).some(candidate => ownedPaths.some(target => within(candidate, resolve(target)) || within(resolve(target), candidate)))
+    }
     const statePath = join(dir, 'state.json')
     let data = { version: 1, fingerprint, stages: {} }
     if (await exists(statePath)) data = JSON.parse(await readFile(statePath, 'utf8'))
     const archive = join(dir, 'quarantine', randomUUID())
-    const quarantine = async (paths, includePersistent = false) => {
+    const quarantine = async (paths, includePersistent = false, allowStore = false) => {
       for (const path of new Set(paths)) {
+        if (!allowStore && storeOwned(path)) continue
         if (!await exists(path)) continue
         await safePath(path)
         // Persistent position files are inputs to the next run and must not be removed.
@@ -119,6 +128,7 @@ export async function openState({ dir, fingerprint, artifactRoots, artifactsFor 
       if (record.restored) return
       if (record.backups) {
         for (const entry of record.backups) {
+          if (storeOwned(entry.path)) continue
           await quarantine([entry.path], true)
           if (entry.backup) {
             await mkdir(dirname(entry.path), { recursive: true })
@@ -129,11 +139,15 @@ export async function openState({ dir, fingerprint, artifactRoots, artifactsFor 
       record.restored = true
     }
     if (data.fingerprint !== fingerprint && !reset) throw new Error('Workflow or inputs changed; use --reset to archive prior workflow outputs and restart')
-    for (const record of Object.values(data.stages)) {
+    if (!reset) for (const record of Object.values(data.stages)) {
       if (['running', 'failed'].includes(record.status)) await restore(record)
     }
     if (reset) {
-      await quarantine([...resetArtifacts, ...Object.values(data.stages).flatMap(s => s.artifacts ?? [])])
+      await quarantine([...resetArtifacts, ...Object.values(data.stages).flatMap(s => s.artifacts ?? [])].filter(path => !within(resolve(path), storeDir)), false, true)
+      await mkdir(archive, { recursive: true })
+      for (const [source, target] of [[storeDir, 'review'], [join(dir, 'input-manifest.json'), 'input-manifest.json']]) {
+        if (await exists(source)) await rename(source, join(archive, target))
+      }
       if (await exists(statePath)) {
         await mkdir(archive, { recursive: true })
         await rename(statePath, join(archive, 'state.json'))
@@ -144,7 +158,7 @@ export async function openState({ dir, fingerprint, artifactRoots, artifactsFor 
     const invalid = new Set()
     for (const [label, record] of Object.entries(data.stages)) {
       if (record.status !== 'succeeded') invalid.add(label)
-      else try { await checkFiles(record.artifacts) } catch { invalid.add(label) }
+      else try { await checkFiles((record.artifacts ?? []).filter(path => !storeOwned(path))) } catch { invalid.add(label) }
     }
     for (const label of invalid) for (const child of dependents(label, Object.keys(data.stages))) invalid.add(child)
     for (const label of invalid) {
@@ -161,7 +175,9 @@ export async function openState({ dir, fingerprint, artifactRoots, artifactsFor 
     await save()
     const run = async (prompt, options, execute, signal) => {
       const label = options.label ?? 'agent'
-      const key = hash(JSON.stringify({ prompt, schema: options.schema, execution: options.execution }))
+      const readonly = ['proposal', 'review', 'evidence_extract'].includes(options.contract)
+      const key = hash(JSON.stringify({ prompt, schema: options.schema, execution: options.execution,
+        contract: options.contract, isolation: options.isolation, images: options.images, dependencyDigests: options.dependencyDigests }))
       const prior = data.stages[label]
       const cacheable = label !== '盘点' && !/^(修复|成稿审查|修订成稿|更新档案)/u.test(label)
       if (cacheable && prior?.status === 'succeeded' && prior.key === key) {
@@ -171,8 +187,8 @@ export async function openState({ dir, fingerprint, artifactRoots, artifactsFor 
           return prior.result
         } catch { /* Missing or moved output must be regenerated. */ }
       }
-      const expected = artifactsFor(label, prompt).map(p => typeof p === 'string' ? { path: p } : p)
-      const record = { key, execution: options.execution, status: 'running', started: new Date().toISOString(), artifacts: expected.map(p => p.path),
+      const expected = (readonly ? [] : artifactsFor(label, prompt)).map(p => typeof p === 'string' ? { path: p } : p).filter(entry => !storeOwned(entry.path))
+      const record = { key, contract: options.contract, execution: options.execution, status: 'running', started: new Date().toISOString(), artifacts: expected.map(p => p.path),
         outputs: expected.filter(p => !p.retainOnInvalidate).map(p => p.path), backups: [] }
       for (const entry of expected) {
         let backup = null
@@ -188,7 +204,7 @@ export async function openState({ dir, fingerprint, artifactRoots, artifactsFor 
       await save()
       try {
         const result = await execute(prompt, options, signal)
-        const paths = [...new Set([...expected.filter(p => !p.optional).map(p => p.path), ...claimedPaths(result)])]
+        const paths = [...new Set([...expected.filter(p => !p.optional).map(p => p.path), ...(readonly ? [] : claimedPaths(result).filter(path => !storeOwned(path)))])]
         await checkFiles(paths)
         record.artifacts = [...new Set([...paths, ...expected.filter(p => p.optional).map(p => p.path)])]
         // Optional absent artifacts are tracked for cleanup, not required for cache replay.
@@ -198,7 +214,7 @@ export async function openState({ dir, fingerprint, artifactRoots, artifactsFor 
           return present
         })()
         record.status = 'succeeded'
-        record.outputs = [...new Set([...record.outputs, ...claimedPaths(result).filter(p => !expected.some(e => e.path === p && e.retainOnInvalidate))])]
+        record.outputs = [...new Set([...record.outputs, ...(readonly ? [] : claimedPaths(result)).filter(p => !storeOwned(p) && !expected.some(e => e.path === p && e.retainOnInvalidate))])]
         record.result = result
         record.finished = new Date().toISOString()
         await save()

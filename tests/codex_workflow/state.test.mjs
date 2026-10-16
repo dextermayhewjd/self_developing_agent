@@ -165,3 +165,77 @@ test('content review, revision and position synchronization do not reuse stale f
   }
   assert.equal(calls, 6)
 })
+
+
+test('readonly contracts keep judgments and logs without claiming model written_file or filesystem artifacts', async t => {
+  const { config, root, output } = await setup(t)
+  const state=await openState(config)
+  t.after(()=>state.close())
+  for(const contract of ['proposal','review','evidence_extract']) {
+    const result=await state.run('readonly',{label:contract,contract,isolation:'strict-readonly'},async()=>({written_file:join(root,'absent.md'),value:contract}))
+    assert.equal(result.value,contract)
+    assert.deepEqual(state.data.stages[contract].artifacts,[])
+  }
+  await assert.rejects(readFile(output),{code:'ENOENT'})
+})
+
+test('stage cache includes contract isolation images and dependency digests',async t=>{
+  const {config,output}=await setup(t)
+  const state=await openState(config); t.after(()=>state.close())
+  let calls=0
+  const execute=async()=>{calls++;await writeFile(output,'ok');return {written_file:output}}
+  const base={label:'stage',contract:'writer',isolation:'workspace-write',images:['a'],dependencyDigests:'one'}
+  await state.run('same',base,execute)
+  await state.run('same',base,execute)
+  for(const changes of [{contract:'other'},{isolation:'different'},{images:['b']},{dependencyDigests:'two'}]) await state.run('same',{...base,...changes},execute)
+  assert.equal(calls,5)
+})
+
+test('generic recovery and invalidation never restore or quarantine Store-owned canonical paths; reset archives whole Store',async t=>{
+  const {root,config}=await setup(t)
+  const {mkdir,readdir}=await import('node:fs/promises')
+  const report=join(root,'report.md'), review=join(root,'成稿审查.json'), store=join(config.dir,'review')
+  await mkdir(store,{recursive:true});await writeFile(join(store,'HEAD.json'),'host HEAD')
+  await writeFile(report,'committed report');await writeFile(review,'committed review')
+  const backup=join(config.dir,'old-report');await writeFile(backup,'stale draft')
+  await writeFile(join(config.dir,'state.json'),JSON.stringify({version:1,fingerprint:'v1',stages:{legacy:{status:'failed',artifacts:[report,review],backups:[{path:report,backup},{path:review,backup}]}}}))
+  let state=await openState({...config,artifactsFor:()=>[report,review]})
+  assert.equal(await readFile(report,'utf8'),'committed report')
+  assert.equal(await readFile(review,'utf8'),'committed review')
+  await state.close()
+  state=await openState({...config,reset:true,resetArtifacts:[report,review]})
+  await assert.rejects(readFile(join(store,'HEAD.json')),{code:'ENOENT'})
+  const archives=await readdir(join(config.dir,'quarantine'),{recursive:true})
+  assert.ok(archives.some(p=>p.endsWith('review/HEAD.json')))
+  await state.close()
+})
+
+test('reset archives input manifest with Store and preserves persistent position inputs',async t=>{
+  const {root}=await setup(t)
+  const {mkdir,readdir}=await import('node:fs/promises')
+  const run=join(root,'run'),dir=join(run,'.codex-workflow'),position=join(root,'position.md')
+  await mkdir(join(dir,'review'),{recursive:true})
+  await writeFile(join(dir,'review/HEAD.json'),'host head')
+  await writeFile(join(dir,'input-manifest.json'),'old manifest')
+  await writeFile(position,'human maintained position')
+  await writeFile(join(dir,'state.json'),JSON.stringify({version:1,fingerprint:'v1',stages:{position:{status:'succeeded',artifacts:[position]}}}))
+  const state=await openState({dir,fingerprint:'v2',artifactRoots:[run,position],reset:true})
+  await state.close()
+  assert.equal(await readFile(position,'utf8'),'human maintained position')
+  const entries=await readdir(join(dir,'quarantine'),{recursive:true})
+  assert.ok(entries.some(p=>p.endsWith('input-manifest.json')))
+  assert.ok(entries.some(p=>p.endsWith('review/HEAD.json')))
+})
+
+test('Store ownership also protects physical report aliases from failed generic stage restoration',async t=>{
+  const {root,config}=await setup(t)
+  const {mkdir}=await import('node:fs/promises')
+  const store=join(config.dir,'review'),report=join(root,'report.md'),alias=join(root,'report-link.md')
+  await mkdir(store,{recursive:true});await writeFile(join(store,'HEAD.json'),'host head')
+  await writeFile(report,'host candidate');await symlink(report,alias)
+  const state=await openState({...config,artifactsFor:()=>[alias]})
+  await assert.rejects(state.run('unsafe generic worker',{label:'writer'},async()=>{throw new Error('interrupted')}),/interrupted/)
+  assert.equal(await readFile(report,'utf8'),'host candidate')
+  assert.deepEqual(state.data.stages.writer.artifacts,[])
+  await state.close()
+})
