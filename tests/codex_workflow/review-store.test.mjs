@@ -3,6 +3,8 @@ import assert from 'node:assert/strict'
 import { mkdtemp, readFile, writeFile, rm, unlink } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import fsPromises from 'node:fs/promises'
+import { syncBuiltinESMExports } from 'node:module'
 import { openReviewStore } from '../../tools/codex_workflow/review-store.mjs'
 import { canonicalJson, sha256 } from '../../tools/codex_workflow/review-contracts.mjs'
 import { markAwaitingReview, reconcileReview } from '../../tools/codex_workflow/review-ledger.mjs'
@@ -13,6 +15,17 @@ const report = Buffer.from('## 三、现金流\r\n初稿，尚未披露回款限
 const changed = Buffer.from('## 三、现金流\r\n修订，明确披露回款限制。\r\n')
 const payload = { version: 2, sources: [] }
 const evidence = { ...payload, sha256: hash(payload) }
+function observeSync(t, onSync) {
+  const originalOpen = fsPromises.open
+  const wrapped = t.mock.method(fsPromises, 'open', async (path, ...args) => {
+    const file = await originalOpen(path, ...args)
+    const sync = file.sync.bind(file)
+    file.sync = async () => { await onSync(path); return sync() }
+    return file
+  })
+  syncBuiltinESMExports()
+  t.after(() => { wrapped.mock.restore(); syncBuiltinESMExports() })
+}
 async function setup(t, options = {}) {
   const runDir = await mkdtemp(join(tmpdir(), 'review-store-'))
   t.after(() => rm(runDir, { recursive: true, force: true }))
@@ -360,4 +373,73 @@ test('budget-exhausted stop persists without reserving another attempt or changi
   assert.equal(cleared.ledger.terminal_reason, null)
   assert.deepEqual(cleared.ledger.budget, state.ledger.budget)
   assert.deepEqual(cleared.ledger.tasks, state.ledger.tasks)
+})
+
+test('initial publication syncs directory parents before HEAD can authorize their objects', async t => {
+  const synced = []
+  observeSync(t, path => { synced.push(path) })
+  let runDir
+  let control
+  const env = await setup(t, { failpoint: name => {
+    if (name === 'before_head') {
+      for (const path of [runDir, join(runDir, '.codex-workflow'), control, ...['reports', 'ledgers', 'evidence', 'commits'].map(folder => join(control, folder))]) {
+        assert.ok(synced.includes(path), `missing directory sync before HEAD: ${path}`)
+      }
+    }
+  } })
+  ;({ runDir, control } = env)
+  await env.store.initialize({ reportBytes: report, evidence })
+})
+
+test('retry after object-directory sync failure syncs a verified orphan file and its directory before HEAD', async t => {
+  let failReportsSync = false
+  let control
+  let synced = []
+  observeSync(t, path => {
+    if (failReportsSync && path === join(control, 'reports')) {
+      failReportsSync = false
+      throw new Error('directory sync interrupted')
+    }
+    synced.push(path)
+  })
+  const env = await setup(t, { failpoint: (name, context) => {
+    if (name === 'after_object_staged' && context.kind === 'reports') failReportsSync = true
+  } })
+  control = env.control
+  await assert.rejects(env.store.initialize({ reportBytes: report, evidence }), /directory sync interrupted/)
+  const orphanPath = join(control, `reports/RP-${sha256(report)}.md`)
+  assert.deepEqual(await readFile(orphanPath), report)
+  synced = []
+  const reopened = await openReviewStore({ runDir: env.runDir, failpoint: name => {
+    if (name === 'before_head') {
+      assert.ok(synced.includes(orphanPath), 'reused orphan inode must be synced')
+      assert.ok(synced.includes(join(control, 'reports')), 'reused orphan directory entry must be synced')
+      assert.ok(synced.includes(env.runDir), 'control-directory ancestry must be synced')
+    }
+  } })
+  assert.equal(await reopened.read(), null)
+  await reopened.initialize({ reportBytes: report, evidence })
+})
+
+test('gate registration rejects malformed or foreign evidence references before committing any task', async t => {
+  const { store } = await setup(t)
+  const state = await store.initialize({ reportBytes: report, evidence })
+  const ref = { source: 'findings/财务排雷.md', source_sha256: 'c'.repeat(64), evidence_sha256: evidence.sha256, quote: '现金流依赖回款。' }
+  const task = { ...issueFixtureV2({ issue_key: 'gate:refs', evidence_refs: [ref] }), id: 'RT-000001', status: 'open', created_review_id: 'gate:refs', last_review_id: 'gate:refs', ...state.snapshot,
+    history: [{ event: 'created', status: 'open', kind: 'blocking', blocks_delivery: true, reason: '引用硬门发现', ...state.snapshot }] }
+  const invalidRefs = [null, {}, [], { ...ref, extra: true }, { ...ref, source: '' }, { ...ref, source_sha256: 'X'.repeat(64) }, { ...ref, quote: '' }, { ...ref, evidence_sha256: 'd'.repeat(64) },
+    { ...ref, transcript_path: 'transcripts/t.json' }, { ...ref, transcript_sha256: 'c'.repeat(64) }, { ...ref, transcript_path: '', transcript_sha256: 'c'.repeat(64) }, { ...ref, transcript_path: 'transcripts/t.json', transcript_sha256: 'invalid' }]
+  for (const invalid of invalidRefs) {
+    const ledger = { ...structuredClone(state.ledger), next_task_number: 2, tasks: [{ ...task, evidence_refs: [invalid] }] }
+    await assert.rejects(store.registerTasks({ ledger, reason: '引用硬门发现' }), /evidence|reference|transcript/i)
+    assert.equal((await store.read()).commit.id, state.commit.id)
+  }
+  for (const location of [null, { section: 3, quote: 7 }, { section: 3, quote: null }, { section: 3, extra: true }]) {
+    const ledger = { ...structuredClone(state.ledger), next_task_number: 2, tasks: [{ ...task, locations: [location] }] }
+    await assert.rejects(store.registerTasks({ ledger, reason: '引用硬门发现' }), /location|contract/i)
+    assert.equal((await store.read()).commit.id, state.commit.id)
+  }
+  const valid = { ...task, locations: [{ section: 3, quote: '回款限制' }], evidence_refs: [{ ...ref, transcript_path: 'transcripts/t.json', transcript_sha256: 'e'.repeat(64) }] }
+  const registered = await store.registerTasks({ ledger: { ...state.ledger, next_task_number: 2, tasks: [valid] }, reason: '引用硬门发现' })
+  assert.deepEqual(registered.ledger.tasks[0].evidence_refs, valid.evidence_refs)
 })

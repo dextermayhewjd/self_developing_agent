@@ -19,6 +19,24 @@ function checkEvidence(value) {
 function checkSnapshot(value, expected) {
   if (!digest(value?.report_sha256) || !digest(value?.evidence_sha256) || !same(value, expected)) fail('Snapshot does not match current report/evidence')
 }
+const nonempty = value => typeof value === 'string' && value.trim().length > 0
+function fieldsOnly(value, required, optional = []) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value) && required.every(key => Object.hasOwn(value, key)) &&
+    Object.keys(value).every(key => required.includes(key) || optional.includes(key))
+}
+function checkTaskReferences(task, snapshot) {
+  for (const location of task.locations) {
+    if (!fieldsOnly(location, ['section'], ['quote']) || !Number.isInteger(location.section) || location.section < 1 || location.section > 12 ||
+        (Object.hasOwn(location, 'quote') && typeof location.quote !== 'string')) fail('invalid registered task location')
+  }
+  for (const ref of task.evidence_refs) {
+    if (!fieldsOnly(ref, ['source', 'source_sha256', 'evidence_sha256', 'quote'], ['transcript_path', 'transcript_sha256']) ||
+        !nonempty(ref.source) || !nonempty(ref.quote) || !digest(ref.source_sha256) || !digest(ref.evidence_sha256) || ref.evidence_sha256 !== snapshot.evidence_sha256) fail('invalid registered task evidence reference')
+    const hasPath = Object.hasOwn(ref, 'transcript_path')
+    const hasDigest = Object.hasOwn(ref, 'transcript_sha256')
+    if (hasPath !== hasDigest || (hasPath && (!nonempty(ref.transcript_path) || !digest(ref.transcript_sha256)))) fail('invalid registered task transcript reference')
+  }
+}
 async function optionalBytes(path) {
   try {
     const stat = await lstat(path)
@@ -30,8 +48,19 @@ async function syncDir(path) {
   const file = await open(path, 'r')
   try { await file.sync() } finally { await file.close() }
 }
+async function durableDirectory(path) {
+  const parent = dirname(path)
+  if (parent !== path) {
+    await durableDirectory(parent)
+    try { await mkdir(path) } catch (error) { if (error.code !== 'EEXIST') throw error }
+    // Sync even preexisting entries: they may have been created by an interrupted
+    // writer before its parent-directory sync completed.
+    await syncDir(parent)
+  }
+  await syncDir(path)
+}
 async function atomicWrite(path, bytes) {
-  await mkdir(dirname(path), { recursive: true })
+  await durableDirectory(dirname(path))
   const temp = join(dirname(path), `.${randomUUID()}.tmp`)
   const file = await open(temp, 'wx', 0o600)
   try {
@@ -74,7 +103,7 @@ class ReviewStore {
   }
   async immutable(path, bytes, kind) {
     const full = join(this.dir, path)
-    await mkdir(dirname(full), { recursive: true })
+    await durableDirectory(dirname(full))
     const existing = await optionalBytes(full)
     if (existing !== null && !existing.equals(bytes)) fail(`immutable collision: ${path}`)
     if (existing === null) {
@@ -92,8 +121,12 @@ class ReviewStore {
           if (!old || !old.equals(bytes)) fail(`immutable collision: ${path}`)
         }
       } finally { await unlink(temp).catch(error => { if (error.code !== 'ENOENT') throw error }) }
-      await syncDir(dirname(full))
+    } else {
+      // A verified orphan may have survived without its inode/entry syncs.
+      const file = await open(full, 'r')
+      try { await file.sync() } finally { await file.close() }
     }
+    await syncDir(dirname(full))
     const ref = { path, sha256: sha256(bytes) }
     await this.object(ref, false)
     await this.point('after_object', { kind, reference: ref })
@@ -271,8 +304,9 @@ class ReviewStore {
       if (task.id !== id || task.status !== 'open' || typeof task.issue_key !== 'string' || !task.issue_key.trim() || keys.has(task.issue_key)) fail('registered tasks need new monotonic IDs and unique open issue keys')
       keys.add(task.issue_key)
       if (!['blocking', 'disclosure', 'watch'].includes(task.kind) || typeof task.blocks_delivery !== 'boolean' || (task.kind === 'blocking' && !task.blocks_delivery) || (task.kind === 'watch' && task.blocks_delivery)) fail('invalid registered task kind')
-      if (typeof task.description !== 'string' || !task.description.trim() || !Array.isArray(task.acceptance_criteria) || !task.acceptance_criteria.length || task.acceptance_criteria.some(value => typeof value !== 'string' || !value.trim()) || !Array.isArray(task.locations) || !task.locations.length || task.locations.some(location => !Number.isInteger(location.section) || location.section < 1 || location.section > 12) || !Array.isArray(task.evidence_refs) || !['local_patch', 'full_revision', 'needs_evidence'].includes(task.route) || !Array.isArray(task.history) || !task.history.length || typeof task.created_review_id !== 'string' || typeof task.last_review_id !== 'string') fail('invalid registered task contract')
+      if (typeof task.description !== 'string' || !task.description.trim() || !Array.isArray(task.acceptance_criteria) || !task.acceptance_criteria.length || task.acceptance_criteria.some(value => typeof value !== 'string' || !value.trim()) || !Array.isArray(task.locations) || !task.locations.length || !Array.isArray(task.evidence_refs) || !['local_patch', 'full_revision', 'needs_evidence'].includes(task.route) || !Array.isArray(task.history) || !task.history.length || typeof task.created_review_id !== 'string' || typeof task.last_review_id !== 'string') fail('invalid registered task contract')
       checkSnapshot({ report_sha256: task.report_sha256, evidence_sha256: task.evidence_sha256 }, current.commit.snapshot)
+      checkTaskReferences(task, current.commit.snapshot)
     }
     if (ledger.next_task_number !== old.next_task_number + added.length) fail('registered task next_task_number mismatch')
     return this.publish({ previous: current, reportBytes: current.values.report, ledger: clone(ledger), evidence: current.values.evidence, attempt: current.values.attempt, registrationReason: reason })
