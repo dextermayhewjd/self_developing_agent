@@ -7,8 +7,10 @@
 退出码：0=成功，1=fetch 失败，2=校验失败
 """
 import json
+import math
+import re
 import sys
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 
 import akshare as ak
@@ -18,6 +20,125 @@ import requests
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
 from lib import Collector, DATA_DIR, REPORTS_DIR, detect_market, board_name, normalize_symbol, symbol_dir  # noqa: E402
+
+ANNOUNCEMENTS_CAP = 300
+PREV_QUARTER_END = {"0630": "0331", "0930": "0630", "1231": "0930"}
+QUARTER_ENDS = ["0331", "0630", "0930", "1231"]
+
+
+# ---------- 报告期与日期窗口：一律从数据或今天推出来，不写死年份 ----------
+# 2026-09 跑 301557 时三处写死的窗口同时过期：季度只取 [当年-2, 当年-1]、
+# 十大股东只试 2025 年四个季末、公告只抓当年 1 月起，校验却全部 exit 0。
+
+def _period_columns(columns):
+    return sorted(c for c in map(str, columns)
+                  if re.fullmatch(r"\d{8}", c) and c[4:] in QUARTER_ENDS)
+
+
+def pick_quarter_columns(columns, n=8):
+    """以财务摘要里实际最新的报告期为终点，往前连续取 n 个季末（升序）。"""
+    periods = _period_columns(columns)
+    if not periods:
+        return []
+    year, i = int(periods[-1][:4]), QUARTER_ENDS.index(periods[-1][4:])
+    out = []
+    for _ in range(n):
+        out.append(f"{year}{QUARTER_ENDS[i]}")
+        i -= 1
+        if i < 0:
+            i, year = 3, year - 1
+    return sorted(out)
+
+
+def pick_year_end_columns(columns, n=5):
+    """财务摘要里实际已披露的最近 n 个年报期（升序）。"""
+    return [c for c in _period_columns(columns) if c.endswith("1231")][-n:]
+
+
+def single_quarter(cum, q_cols):
+    """累计值 → 单季值。cum 可含窗口外的更早报告期，供窗口首季做差分。"""
+    if not cum:
+        return None
+    out = {}
+    for q in q_cols:
+        v = cum.get(q)
+        if v is None:
+            out[q] = None
+        elif q.endswith("0331"):
+            out[q] = v
+        else:
+            prev_v = cum.get(q[:4] + PREV_QUARTER_END[q[4:]])
+            out[q] = (v - prev_v) if prev_v is not None else None
+    return out
+
+
+def recent_quarter_ends(today, n=6):
+    """today 当天及之前最近的 n 个季末（倒序），供十大股东逐期回退。"""
+    out, year = [], today.year
+    while len(out) < n:
+        for mmdd in reversed(QUARTER_ENDS):
+            if len(out) < n and date(year, int(mmdd[:2]), int(mmdd[2:])) <= today:
+                out.append(f"{year}{mmdd}")
+        year -= 1
+    return out
+
+
+def announcement_window_start(today):
+    """公告窗口从上一年 1 月 1 日起：报告要回看的股价区间与事件常跨年。"""
+    return f"{today.year - 1}0101"
+
+
+# ---------- 交易流 / 基准 ----------
+
+def benchmark_index_for(symbol):
+    """按板块选宽基指数（新浪指数日线可用；东财 index_zh_a_hist 走 push2his，本机不通）。"""
+    if symbol.startswith("30"):
+        return ("sz399006", "创业板指")
+    if symbol.startswith("68"):
+        return ("sh000688", "科创50")
+    if detect_market(symbol) == "bj":
+        return ("bj899050", "北证50")
+    return ("sh000300", "沪深300")
+
+
+def benchmark_closes(rows, n=500):
+    return {str(r["date"])[:10]: float(r["close"]) for r in rows[-n:]}
+
+
+MARGIN_FIELDS = [("融资余额", "RZYE"), ("融资买入额", "RZMRE"), ("融资偿还额", "RZCHE"),
+                 ("融券余量", "RQYL"), ("融资融券余额", "RZRQYE"),
+                 ("融资余额占流通市值比", "RZYEZB")]
+
+
+def margin_records(payload):
+    """东财 datacenter 两融个股明细 → 中文字段。result 为空 = 非两融标的，返回 []。"""
+    rows = ((payload or {}).get("result") or {}).get("data") or []
+    return [{"日期": str(r.get("DATE", ""))[:10], **{k: r.get(src) for k, src in MARGIN_FIELDS}}
+            for r in rows]
+
+
+def _fetch_margin(symbol, days=60):
+    """沪深通用、一次取历史；比 szse.cn / sse 按日拉全市场表稳（szse.cn 实测偶发 SSLError）。"""
+    r = requests.get("https://datacenter-web.eastmoney.com/api/data/v1/get", params={
+        "reportName": "RPTA_WEB_RZRQ_GGMX", "columns": "ALL", "source": "WEB",
+        "sortColumns": "DATE", "sortTypes": "-1", "pageNumber": "1", "pageSize": str(days),
+        "filter": f'(SCODE="{symbol}")'}, timeout=20)
+    r.raise_for_status()
+    return list(reversed(margin_records(r.json())))
+
+
+def rows_for_symbol(rows, symbol, key="代码"):
+    return [r for r in rows if str(r.get(key)) == symbol]
+
+
+def has_eps_forecast(rows):
+    """研报里是否至少有一个非空的 EPS 预测。有覆盖 ≠ 有共识（新股覆盖研报通常不给预测）。"""
+    for r in rows or []:
+        for k, v in r.items():
+            if (re.fullmatch(r"\d{4}-盈利预测-收益", str(k)) and isinstance(v, (int, float))
+                    and not math.isnan(v)):
+                return True
+    return False
 
 
 def _fetch_hist_qfq_sina(symbol: str, market: str) -> pd.DataFrame:
@@ -66,6 +187,15 @@ def fetch_basic(symbol: str) -> Collector:
     c.safe("value_em", lambda: ak.stock_value_em(symbol=symbol).tail(1500))
     c.safe("fund_flow",
            lambda: ak.stock_individual_fund_flow(stock=symbol, market=market).tail(20))
+    c.safe("margin_detail", lambda: _fetch_margin(symbol))
+    c.safe("lhb_detail", lambda: rows_for_symbol(ak.stock_lhb_detail_em(
+        start_date=announcement_window_start(date.today()),
+        end_date=date.today().strftime("%Y%m%d")).to_dict(orient="records"), symbol))
+    bench_code, bench_name = benchmark_index_for(symbol)
+    c.safe("benchmark_index", lambda: {
+        "code": bench_code, "name": bench_name,
+        "closes": benchmark_closes(ak.stock_zh_index_daily(symbol=bench_code).to_dict(orient="records")),
+    })
     c.dump(symbol)
     return c
 
@@ -117,8 +247,8 @@ def fetch_governance(symbol: str) -> Collector:
     c = Collector("governance")
     print(f"\n[governance] {symbol}", file=sys.stderr)
     market = detect_market(symbol)
-    # 找最近一个季报披露日：直接用近 4 个季末
-    quarter_ends = ["20251231", "20250930", "20250630", "20250331"]
+    # 从今天往前逐个季末回退，取到第一期有数据的
+    quarter_ends = recent_quarter_ends(date.today(), n=6)
     success = False
     for q in quarter_ends:
         try:
@@ -132,7 +262,7 @@ def fetch_governance(symbol: str) -> Collector:
         except Exception as e:
             print(f"  miss top10 @ {q}: {e}", file=sys.stderr)
     if not success:
-        c.ERR["top10_em"] = "all 4 quarter-ends returned empty"
+        c.ERR["top10_em"] = f"all {len(quarter_ends)} quarter-ends returned empty"
 
     for q in quarter_ends:
         try:
@@ -154,6 +284,9 @@ def fetch_governance(symbol: str) -> Collector:
     else:
         c.OUT["research_report_coverage"] = "none"
     print(f"  --- research coverage: {c.OUT['research_report_coverage']}", file=sys.stderr)
+    # 与 coverage 分开记：covered 但一个 EPS 预测都没有时，共识区间同样算不出来
+    c.OUT["consensus_eps_available"] = has_eps_forecast(c.OUT.get("research_report"))
+    c.safe("restricted_release", lambda: ak.stock_restricted_release_queue_em(symbol=symbol))
     c.dump(symbol)
     return c
 
@@ -162,7 +295,7 @@ def fetch_news(symbol: str) -> Collector:
     c = Collector("news")
     print(f"\n[news] {symbol}", file=sys.stderr)
     today = datetime.now().strftime("%Y%m%d")
-    start = (datetime.now().replace(month=1, day=1)).strftime("%Y%m%d")
+    start = announcement_window_start(date.today())
     c.safe("notice_individual",
            lambda: ak.stock_individual_notice_report(
                security=symbol, symbol="全部", begin_date=start, end_date=today))
@@ -280,9 +413,9 @@ def aggregate(symbol: str) -> Path:
     fa_rows = raw["basic"].get("financial_abstract") or []
     if fa_rows:
         fa = pd.DataFrame(fa_rows)
-        cy = datetime.now().year
-        year_cols = [f"{y}1231" for y in range(cy - 5, cy)]
-        q_cols = [f"{y}{m}" for y in [cy - 2, cy - 1] for m in ["0331","0630","0930","1231"]]
+        year_cols = pick_year_end_columns(fa.columns, n=5)
+        q_cols = pick_quarter_columns(fa.columns, n=8)
+        all_periods = _period_columns(fa.columns)
         def get_metric(label, cols):
             sel = fa[fa["指标"] == label]
             if len(sel) == 0: return None
@@ -296,22 +429,6 @@ def aggregate(symbol: str) -> Path:
                         out[col] = None
                 else:
                     out[col] = None
-            return out
-
-        def single_quarter(cum):
-            if not cum: return None
-            out = {}
-            for q in q_cols:
-                v = cum.get(q)
-                if v is None:
-                    out[q] = None; continue
-                year, mmdd = q[:4], q[4:]
-                if mmdd == "0331":
-                    out[q] = v
-                else:
-                    prev_mmdd = {"0630":"0331","0930":"0630","1231":"0930"}[mmdd]
-                    prev_v = cum.get(f"{year}{prev_mmdd}")
-                    out[q] = (v - prev_v) if (prev_v is not None) else None
             return out
 
         agg["financials_annual"] = {
@@ -331,11 +448,12 @@ def aggregate(symbol: str) -> Path:
             "opex_ratio_pct": get_metric("期间费用率", year_cols),
             "debt_ratio_pct": get_metric("资产负债率", year_cols),
         }
-        cum_rev = get_metric("营业总收入", q_cols)
-        cum_np = get_metric("归母净利润", q_cols)
+        # 累计值取全部报告期：窗口首季（如 Q3）要用窗口外的上一季累计值做差分
+        cum_rev = get_metric("营业总收入", all_periods)
+        cum_np = get_metric("归母净利润", all_periods)
         agg["financials_quarterly"] = {
-            "revenue_single": single_quarter(cum_rev),
-            "net_profit_single": single_quarter(cum_np),
+            "revenue_single": single_quarter(cum_rev, q_cols),
+            "net_profit_single": single_quarter(cum_np, q_cols),
             "gross_margin_pct_cum": get_metric("毛利率", q_cols),
         }
     else:
@@ -349,13 +467,18 @@ def aggregate(symbol: str) -> Path:
     agg["top10_free_as_of"] = raw["governance"].get("top10_free_em_as_of")
     agg["research_reports"] = raw["governance"].get("research_report")
     agg["research_coverage"] = raw["governance"].get("research_report_coverage") or "unknown"
+    agg["consensus_eps_available"] = raw["governance"].get("consensus_eps_available")
+    agg["restricted_release"] = raw["governance"].get("restricted_release")
 
     # 公告、新闻、业绩快报
-    agg["announcements_recent"] = (raw["news"].get("notice_individual") or [])[:100]
+    agg["announcements_recent"] = (raw["news"].get("notice_individual") or [])[:ANNOUNCEMENTS_CAP]
     agg["news_recent"] = raw["news"].get("news_em")
     agg["earnings_flash"] = raw["news"].get("yjbb")
     agg["earnings_preannouncement"] = raw["news"].get("yjyg")
     agg["fund_flow_recent"] = raw["basic"].get("fund_flow")
+    agg["margin_recent"] = raw["basic"].get("margin_detail")
+    agg["lhb_recent"] = raw["basic"].get("lhb_detail")
+    agg["benchmark_index"] = raw["basic"].get("benchmark_index")
 
     path = sym_dir / "aggregate.json"
     path.write_text(json.dumps(agg, ensure_ascii=False, default=str, indent=2))

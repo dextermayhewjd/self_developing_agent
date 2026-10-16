@@ -6,8 +6,11 @@
   2 = 非核心字段缺失或数据警告 → 照常出报告，但每条警告都要在报告里明示
 """
 import json
+import re
 import sys
 from pathlib import Path
+
+DATA_ROOT = Path(__file__).resolve().parent.parent / "data"
 
 # 与 SKILL.md「强制约束 7」一一对应，这是核心字段的唯一口径：
 #   最新季报 / 5 年财务 / 价格历史 / 十大股东
@@ -35,6 +38,8 @@ WARN_PATHS = [
     ("business",),
 ]
 
+RAW_FILES = ["basic", "governance", "news"]
+
 
 def get_path(obj, path):
     cur = obj
@@ -47,12 +52,66 @@ def get_path(obj, path):
     return cur
 
 
+def freshness_issues(obj, raw_period_columns):
+    """数据"有"但"旧"——核心字段齐备照样会过关，必须单独查。
+
+    301557（2026-09）的教训：原始层 financial_abstract 已有 20260630，汇总层季度序列
+    却止于 20251231，十大股东也停在 20251231，校验照样 exit 0，报告整段用旧数据。
+    raw_period_columns 为空（港股管线没有 financial_abstract）时跳过原始层比对。
+    """
+    issues = []
+    rs = get_path(obj, ("financials_quarterly", "revenue_single")) or {}
+    agg_latest = max((k for k, v in rs.items() if v is not None), default=None)
+    raw_latest = max((c for c in raw_period_columns if re.fullmatch(r"\d{8}", str(c))), default=None)
+    if agg_latest and raw_latest and raw_latest > agg_latest:
+        issues.append(f"最新季报过期：aggregate.json 季度序列止于 {agg_latest}，"
+                      f"原始层财务摘要已有 {raw_latest}（流水线汇总遗漏）")
+    latest_q = max(filter(None, [agg_latest, raw_latest]), default=None)
+    # 港股 CCASS 日期是 '2026/09/14'，只留数字再比，否则 '/' < '0' 会误判过期
+    top_as_of = re.sub(r"\D", "", str(obj.get("top10_free_as_of") or ""))[:8]
+    if top_as_of and latest_q and top_as_of < latest_q:
+        issues.append(f"十大流通股东截至 {top_as_of}，早于最新财报期 {latest_q}（新一期名单未取得）")
+    # 两个行情源更新节奏不同（新浪日线 vs 东财估值），盘后跑数时常差一天
+    q_date = str(get_path(obj, ("quote_latest", "date_close")) or "")[:10]
+    v_date = str(get_path(obj, ("valuation", "as_of")) or "")[:10]
+    if q_date and v_date and q_date != v_date:
+        issues.append(f"行情日期不一致：日线序列止于 {q_date}，估值数据截至 {v_date}（现价与估值倍数须取同一日）")
+    return issues
+
+
+def collector_error_issues(raw_by_name):
+    """原始层 errors 里记下的取数失败，逐条回传给报告层——否则只表现为"某字段为空"。"""
+    issues = []
+    for name, raw in raw_by_name.items():
+        for key, err in ((raw or {}).get("errors") or {}).items():
+            issues.append(f"{name}.{key} 取数失败：{err}")
+    return issues
+
+
+def load_raw(sym_dir):
+    out = {}
+    for name in RAW_FILES:
+        p = sym_dir / f"{name}.json"
+        if p.exists():
+            try:
+                out[name] = json.load(open(p))
+            except json.JSONDecodeError:
+                out[name] = {"errors": {"_file": f"{p.name} 无法解析"}}
+    return out
+
+
+def raw_financial_columns(raw_by_name):
+    rows = get_path(raw_by_name, ("basic", "data", "financial_abstract")) or []
+    return list(rows[0].keys()) if rows else []
+
+
 def main():
     if len(sys.argv) < 2:
         print("usage: validate.py <symbol>")
         sys.exit(2)
     symbol = sys.argv[1].strip().lstrip("sh").lstrip("sz")
-    path = Path(__file__).resolve().parent.parent / "data" / symbol / "aggregate.json"
+    sym_dir = DATA_ROOT / symbol
+    path = sym_dir / "aggregate.json"
     if not path.exists():
         print(f"FATAL: {path} 不存在")
         sys.exit(1)
@@ -78,6 +137,12 @@ def main():
                               "（东财 reportapi 返回 0 条），无 EPS 预测/评级/目标价")
             else:
                 issues.append(f"{name} 未取得")
+    if obj.get("research_coverage") == "covered" and obj.get("consensus_eps_available") is False:
+        issues.append("research_reports 有覆盖但无任何 EPS 预测：共识 EPS 区间不可计算")
+
+    raw = load_raw(sym_dir)
+    issues += freshness_issues(obj, raw_financial_columns(raw))
+    issues += collector_error_issues(raw)
 
     # 数字合理性
     fa = obj["financials_annual"]

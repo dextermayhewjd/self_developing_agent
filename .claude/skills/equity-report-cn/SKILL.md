@@ -53,25 +53,28 @@ claude-deepseek --print "/equity-report-cn <代码>"
 ```
 data/{SYMBOL}/
 ├── aggregate.json       # 汇总（核心阶段产物，下游读取入口）
-├── basic.json           # 行情/估值/财务/资金流原始
-├── governance.json      # 十大股东 / 研报原始
+├── basic.json           # 行情/估值/财务/资金流/两融/龙虎榜/基准指数原始
+├── governance.json      # 十大股东 / 研报 / 限售解禁原始
 ├── news.json            # 公告 / 新闻 / 业绩快报原始
-├── annual.json          # 年报正文 + 关键段落（扩展）
+├── annual.json          # 年报关键段落 + 最新半年报分产品表（扩展）
 ├── peers.json           # 同业对照（扩展）
-├── earnings_call.json   # 业绩说明会 / IR / 月度经营 / 回购（扩展）
-└── annual_pdf/{art_code}.pdf  # 年报 PDF 全文（常态缓存，annual.json 的 annual_meta.pdf_local 指向它）
+├── earnings_call.json   # 业绩说明会 / IR / 关键事项公告正文 / 互动易问答（扩展）
+└── annual_pdf/{art_code}.pdf  # 年报与半年报 PDF 全文（常态缓存，annual.json 的 pdf_local 指向它）
 ```
 
 **核心阶段**
 - 行情、估值、5 年三表、季度数据、十大股东、研报（含 EPS 共识）、公告、新闻、业绩快报、资金流
+- 两融余额（`margin_recent`）、龙虎榜（`lhb_recent`）、限售解禁队列（`restricted_release`）、
+  同板块宽基指数（`benchmark_index`）、共识 EPS 是否存在（`consensus_eps_available`）
+- 季度窗口、十大股东季末、公告窗口一律由数据与当天日期推出（公告从上一年 1 月 1 日起），不写死年份
 - 其中**只有约束 7 的四项（最新季报 / 5 年财务 / 价格历史 / 十大股东）是"必须成功"**；
   研报、公告、新闻、业绩快报、资金流缺失只产生警告，由步骤 2 的退出码裁定，不要自行加码
 - 三个分类原始文件落到 `data/{SYMBOL}/{basic,governance,news}.json`，再汇总到 `data/{SYMBOL}/aggregate.json`
 
 **扩展阶段**（独立运行，失败不阻断核心）
-- `fetch_annual_pdf.py` → `data/{SYMBOL}/annual.json`：年报关键段落（业务分部 / 客户集中度 / Capex / 风险 / 战略）。**PDF 原文常态缓存**到 `data/{SYMBOL}/annual_pdf/{art_code}.pdf`，`annual.json` 不再保留全文，仅以 `annual_meta.pdf_local` 指向 PDF 路径，下游需全文请直接读 PDF。
-- `fetch_peers.py` → `data/{SYMBOL}/peers.json`：同业对照（行业池 from `competitor_pool.json`）
-- `fetch_earnings_call.py` → `data/{SYMBOL}/earnings_call.json`：业绩说明会 / 投资者关系活动 / 月度经营 / 回购进展 全文
+- `fetch_annual_pdf.py` → `data/{SYMBOL}/annual.json`：年报关键段落（业务分部 / 客户集中度 / Capex / 风险 / 战略 / 董监高报酬）；最新半年报比最新年报新时，另抽其分产品表到 `semiannual`。**PDF 原文常态缓存**到 `data/{SYMBOL}/annual_pdf/{art_code}.pdf`，`annual.json` 不保留全文，仅以 `pdf_local` 指向 PDF 路径，下游需全文请直接读 PDF。
+- `fetch_peers.py` → `data/{SYMBOL}/peers.json`：同业对照。行业池（`competitor_pool.json`）命中用池内名单；未命中回退到东财行业排名近邻，`peer_source` 标明来源
+- `fetch_earnings_call.py` → `data/{SYMBOL}/earnings_call.json`：业绩说明会 / 投资者关系活动 / 月度经营 / 回购进展 / 重大合同 / 会计政策变更 / 对外投资 / 限售股上市流通的公告正文，外加深市互动易已回复问答（`irm_qa`）
 
 ### 步骤 2：数据校验
 
@@ -91,9 +94,17 @@ data/{SYMBOL}/
 这条路，一律照常出报告 —— 判断依据只有退出码，不要自己重新评估"这个字段是不是
 其实挺重要"。
 
+`exit 2` 的警告还包括两类，处理同上：
+- **新鲜度**：「最新季报过期」「十大流通股东早于最新财报期」「行情日期不一致」—— 数据有但旧或不同步。
+  照常出报告，1.1、1.5、3.3、6.3 节首行写明各项数据分别截至哪一天；不得从外部来源补数。
+- **取数失败**：「basic.fund_flow 取数失败：…」这类原始层 errors，对应正文标"未取得，原因：接口取数失败"。
+
+> 2026-09-15 的 301557 就是反例：季度窗口、十大股东季末、公告起点三处写死的日期同时过期，
+> 26Q1/26Q2、半年报股东名单、2025 年公告全部缺失，校验却 exit 0，报告整段用旧数据写成。
+
 ### 步骤 3：读取数据并生成报告
 
-读 `data/{SYMBOL}/aggregate.json`（必要时辅以 `annual.json`/`peers.json`/`earnings_call.json`），按 `template.md` 的 8 节骨架填充，遵循 `reasoning_protocol.md` 的推理协议与 `style_guide.md` 的语言规范。
+读 `data/{SYMBOL}/aggregate.json`；`annual.json` 的 `semiannual`（最新半年报分产品表）与 `earnings_call.json` 的关键事项公告正文**存在时必读**，`peers.json` 读前先看 `peer_source`（字段用法见 `data_contract.md`）。按 `template.md` 的 8 节骨架填充，遵循 `reasoning_protocol.md` 的推理协议与 `style_guide.md` 的语言规范。
 
 输出到：`reports/{SYMBOL}_{YYYYMMDD}.md`
 
@@ -123,7 +134,7 @@ data/{SYMBOL}/
 
 ## 强制约束（7 条，违反任何一条即失败）
 
-1. **零编造**：所有数字必须来自 `data/{SYMBOL}/aggregate.json`；JSON 为 null 的字段必须明示"未取得"，不得编造、推算、或从训练数据中取。
+1. **零编造**：所有数字必须来自 `data/{SYMBOL}/` 下的流水线产物：`aggregate.json` 为主，`annual.json` / `peers.json` / `earnings_call.json` 为辅；aggregate 未汇总的三表科目（最新一期资产负债表、现金流量表、营业成本等）可读原始层 `basic.json` 的 `report_*` 表，须写明报告期（映射见 `data_contract.md`）。JSON 为 null 的字段必须明示"未取得"，不得编造、推算、或从训练数据中取。
 2. **置信度强制标记**：所有判断性句子以 `[H/M/L]` 结尾。`H` = 数据直接支撑；`M` = 推理合理但需验证；`L` = 弱证据，需人工 review。
 3. **时间戳**：每节首行可 trace 到"基于 YYYY-MM-DD 收盘数据"。报告日 = `data.report_date`。
 4. **CY 口径**：A 股使用日历年（CY）口径，不混用 FY。季度营收用单季差分（已在数据层处理），不直接用累计数。
@@ -131,8 +142,10 @@ data/{SYMBOL}/
 6. **共识预期给区间**：研报 EPS 预测给区间（如 `0.71–0.86`）+ 中位（`0.77`），不给单点估计。
    **豁免**：看 `aggregate.json` 的 `research_coverage` —— 为 `"none"`（已核实无任何券商
    研报覆盖）时，"共识预期"一节写「无券商覆盖，无 EPS 预测 / 评级 / 目标价」，本条不适用；
-   为 `"unknown"`（研报接口取数失败）时写「未取得，原因：研报接口取数失败」。
-   两者措辞不可互换：前者是已核实的事实，后者是我们没拿到。
+   为 `"unknown"`（研报接口取数失败）时写「未取得，原因：研报接口取数失败」；
+   为 `"covered"` 但 `consensus_eps_available` 为 false（有研报、无任何 EPS 预测，常见于新股覆盖研报）时
+   写「未取得，原因：覆盖研报未给出盈利预测」并列出机构 / 标题 / 日期。
+   三种措辞不可互换：已核实无覆盖 / 我们没拿到 / 有人覆盖但没给数。
 7. **拒绝降级生成**：核心数据（最新季报 / 5 年财务 / 价格历史 / 十大股东）任一缺失，**不出报告**，返回缺失清单。
    这四项的机器口径就是 `tools/validate.py` 的 `REQUIRED_PATHS`，**两者必须一致，改一边就要改另一边**。
    **反向同样成立**：不在这四项里的字段（研报共识、近期公告、主营描述、资金流、北向持股……）
@@ -157,8 +170,19 @@ data/{SYMBOL}/
 - **无券商研报覆盖**：小盘股常见（如 300877 金春股份），东财 reportapi 返回 `hits=0`。
   `run_pipeline.py` 会把它记成 `research_coverage="none"` 并落空数组 —— **这是客观事实，
   不是取数故障**，照常出报告，"共识预期"节按约束 6 的豁免写。
-- **CEO 公开访谈**：可用 WebSearch 但需人工挑选
-- 其他缺失项见各 fetcher 的执行结果
+- **上市不足三年**：`price_history_points` 的 3 年 / 2 年前为 null，以上市首日收盘作起点，写明"上市不足三年"。
+- **沪市 / 北交所互动问答**：`stock_irm_cninfo` 只覆盖深交所互动易；上证e互动（`stock_sns_sseinfo`）实测返回空。
+  沪市与北交所的 `irm_qa` 恒为空，属结构性限制。
+- **同业是"行业近邻"而非"同品种"**：`peer_source="eastmoney_industry_neighbors"` 时，名单来自东财同行比较的
+  排名近邻窗口（如 301557 拿到的是塔筒 / 轴承 / 主机厂，不是罩体厂），估值对比须注明口径，结论置信度最高 M。
+- **分部 / 报酬表抽取依赖年报模板措辞**：关键词未命中时 `business_segments` / `management_pay` 为空，
+  写"未取得，原因：报告正文未抽取到"，并在附表建议人工读 `pdf_local` 指向的 PDF。
+- **客户名称**：年报通常只披露"第一名…第五名"，无法补齐。
+- **董监高逐笔增减持**：未接入（全市场表 17 万行、约 70 秒；深交所接口在 akshare 1.18.60 损坏），
+  以公告列表中有无增减持公告替代，写明口径。
+- **资金流**：`stock_individual_fund_flow` 走 push2his，本机偶发不通，失败时按取数失败警告处理。
+- **CEO 公开访谈 / 业绩说明会全文 / 行业装机量与价格**：无可用接口，可用 WebSearch 但需人工挑选。
+- 其他缺失项见 `validate.py` 的警告与各 fetcher 的执行结果
 
 ## 免责声明
 

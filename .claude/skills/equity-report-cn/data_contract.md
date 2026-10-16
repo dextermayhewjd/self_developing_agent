@@ -19,6 +19,9 @@
 | `{{PB}}` | `valuation.pb` | 2 位小数 |
 | `{{PS}}` | `valuation.ps` | 2 位小数 |
 
+`quote_latest.date_close` 早于 `valuation.as_of` 时（日线源还没更新到最新交易日，`validate.py` 报「行情日期不一致」），
+现价、市值、估值倍数统一取 `valuation.close` / `valuation.as_of`，并注明日线序列止于哪天——否则现价与 PE 对不上。
+
 ## 历史价格
 
 | 占位符 | JSON 路径 |
@@ -56,6 +59,9 @@ JSON 路径 `financials_annual.<metric>` 是 `{"20211231": value, ...}` 的字�
 | `{{Q1_REV}}..{{Q8_REV}}` | 同上 value ÷ 1e8 |
 | `{{Q1_QOQ}}..{{Q8_QOQ}}` | 单季环比 |
 
+key 是财务摘要里**实际最新**的 8 个季末（以最新报告期为终点，含当年）。`validate.py` 若报
+「最新季报过期」，照常出报告，但 1.1 与 3.3 节首行写明季度数据止于哪一期，并进附表。
+
 ## 业绩快报（CY{{LAST_YEAR}}）
 
 | 占位符 | JSON 路径 |
@@ -89,17 +95,22 @@ JSON 路径 `financials_annual.<metric>` 是 `{"20211231": value, ...}` 的字�
 
 | `research_coverage` | 含义 | 写法 |
 |---|---|---|
-| `"covered"` | 有券商覆盖 | 按上表填区间 + 中位 |
+| `"covered"` 且 `consensus_eps_available` 为 true | 有券商覆盖且有 EPS 预测 | 按上表填区间 + 中位 |
+| `"covered"` 且 `consensus_eps_available` 为 false | 有研报，但一个 EPS 预测都没有（常见于新股覆盖研报） | 所有 EPS 占位符写「未取得，原因：覆盖研报未给出盈利预测」，并列出机构 / 标题 / 日期；不得写成"无券商覆盖" |
 | `"none"` | 已核实无任何券商研报（东财 `hits=0`） | 所有 EPS 占位符写「无券商覆盖」，注明"无 EPS 预测 / 评级 / 目标价" |
 | `"unknown"` | 研报接口取数失败 | 所有 EPS 占位符写「未取得，原因：研报接口取数失败」 |
 
-`"none"` 与 `"unknown"` 措辞不可互换：前者是已核实的客观事实，后者是我们没拿到。
+三种措辞不可互换：`"none"` 是已核实无覆盖，`"unknown"` 是我们没拿到，`covered` + 无预测是
+"有人覆盖但没给数"。
 
 ## 股东（截至 `top10_free_as_of`）
 
 JSON 数组 `top10_free`，每项含 `名次 / 股东名称 / 股份类型 / 占总流通股本持股比例 / 变动比率`。
 
-直接映射到 6.3 表格。
+直接映射到 6.3 表格。`top10_free_as_of` 与季度数据最新期不一致时 `validate.py` 会报警告，表头如实写截至日。
+
+`restricted_release`（限售解禁队列，含已解禁与未解禁批次）→ 1.4 催化剂与 6.4：写明未来最近一批的
+解禁时间、数量（亿股）、占总股本比例、解禁股东数；空数组 = 无限售股。
 
 ## 公告 / 重组事件
 
@@ -114,16 +125,39 @@ JSON 数组 `fund_flow_recent`，含每日 `主力净流入-净额` 等。
 - 取最后 5 日累计
 - T-1 单日数据进 1.8 节
 
+## 两融 / 龙虎榜 / 基准指数
+
+| JSON 路径 | 用于 | 写法 |
+|---|---|---|
+| `margin_recent`（近 60 个交易日，升序） | 1.8 融资融券 | 最新融资余额（亿元）、融资余额占流通市值比、较 20 个交易日前变化；空数组 = 非两融标的，写"非融资融券标的" |
+| `lhb_recent`（上一年 1 月 1 日至今，本股上榜记录） | 1.8 龙虎榜 | 列上榜日、上榜原因、龙虎榜净买额；空数组写"上一年 1 月 1 日至今未上榜" |
+| `benchmark_index`（`code` / `name` / `closes` 近 500 个交易日） | 5.2 | 每个事件区间算同期指数涨跌，与个股涨跌对照拆 Alpha / Beta；只有宽基（创业板指 / 科创50 / 北证50 / 沪深300），行业指数未接 |
+
+## 扩展数据（annual / peers / earnings_call）
+
+| JSON 路径 | 用于 | 写法 |
+|---|---|---|
+| `annual.json` `sections.business_segments` | 2.2 | 最新年报分产品 / 分行业表 |
+| `annual.json` `semiannual.sections.business_segments` | 2.2、1.1、1.7 | 仅当半年报比最新年报新时存在；补 H1 分产品收入、同比、毛利率。增长来源与年报叙事不一致时以半年报为准 |
+| `annual.json` `sections.management_pay` → `{{MANAGEMENT_PAY_OR_GAP}}` | 6.1 | 主要董事、高管税前报酬；无命中写"未取得，原因：年报报酬表未抽取到" |
+| `annual.json` `sections.customer_concentration` / `supplier_concentration` | 7.2 | 前五大客户 / 供应商占比；年报多不披露客户名称，写"年报未披露名称" |
+| `peers.json` `peer_source` | 7.3、1.5 | `competitor_pool` = 手工同业池；`eastmoney_industry_neighbors` = 东财行业排名近邻，**不是同品种确认**，表头或脚注必须写明，据此得出的估值对比结论置信度最高 M；`none` = 只有本公司，写"未取得" |
+| `earnings_call.json` `categories.material_contract` | 1.4、2.1、8.2 | 重大合同正文：合同对手、金额、期限，折算占上年营收比例 |
+| `categories.accounting_change` | 4.3 | 会计政策变更的内容与对报表的影响 |
+| `categories.investment` | 6.2 | 对外投资 / 产业基金的出资额、投向、进展 |
+| `categories.lockup_release` | 1.4、6.4 | 与 `restricted_release` 交叉核对 |
+| `categories.pledge` | 6.3、1.7 | 控股股东 / 一致行动人质押的股数、占其持股比例、质押用途 |
+| `earnings_call.json` `irm_qa` | 3.4 | 互动易已回复问答；仅深市有，沪市 / 北交所为空时写"未取得，原因：上证e互动无可用接口" |
+
 ## 缺失字段（必须显式标"未取得"）
 
-| 字段 | 影响占位符 |
-|---|---|
-| 公司中文名 | `{{COMPANY_CN}}` —— 暂时从 top10_free / 业绩快报中反查"股票简称" |
-| 业务分部明细 | `{{BUSINESS_SEGMENTS_PARAGRAPH_OR_GAP_NOTICE}}` |
-| 客户集中度 | `{{DOWNSTREAM_DETAIL}}` |
-| 业绩说明会纪要 | `{{EARNINGS_CALL_STATUS_OR_GAP}}` |
-| 同业对照 | `{{A_SHARE_PEERS}}` / `{{INDUSTRY_RESEARCH_OR_GAP}}` |
-| 北向最新持股 | `{{HSGT_SUMMARY_OR_GAP_NOTICE}}` |
+| 字段 | 影响占位符 | 性质 |
+|---|---|---|
+| 北向最新持股 | `{{HSGT_SUMMARY_OR_GAP_NOTICE}}` | 结构性：监管 2024-08 起停止公开 |
+| 上市不足三年的价格点（`price_history_points` 为 null） | 1.1、5.1 | 结构性：以上市首日收盘替代，写明"上市不足三年" |
+| 业绩说明会全文 / CEO 访谈 | `{{EARNINGS_CALL_STATUS_OR_GAP}}` / `{{CEO_INTERVIEW_STATUS_OR_GAP}}` | 无接口，只有投资者关系活动记录表 |
+| 董监高逐笔增减持 | 6.4 | 未接入：以公告列表中有无增减持公告替代，写明口径 |
+| 行业装机量 / 价格 / 市场份额 | 2.1、7.1 | 无可靠免费源 |
 
 ## 公司名兜底
 

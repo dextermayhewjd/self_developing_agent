@@ -116,6 +116,29 @@ def pick_annual_reports(announcements, n: int = DEFAULT_YEARS):
     return out
 
 
+def pick_latest_semiannual(announcements):
+    """挑出最新一期半年度报告全文（排除摘要等），返回 (date, title, atype, url, year) 或 None。
+
+    年报只在每年 4 月更新一次；到 9 月出报告时，分部收入等口径还停在上一年，
+    而半年报已经给出了新的分产品表（301557：26H1 增长来自芯材而非罩体，与年报叙事相反）。
+    """
+    strict, loose = [], []
+    for a in announcements or []:
+        title = (a.get("公告标题") or "").strip()
+        atype = (a.get("公告类型") or "")
+        url = a.get("网址", "")
+        if not url or any(x in title for x in EXCLUDE):
+            continue
+        m = re.search(r"(\d{4})\s*年半年度报告", title)
+        rec = (str(a.get("公告日期", ""))[:10], title, atype, url, m.group(1) if m else "")
+        if atype == "半年度报告全文":
+            strict.append(rec)
+        elif re.search(r"\d{4}年半年度报告$", title):
+            loose.append(rec)
+    ranked = sorted(strict, reverse=True) or sorted(loose, reverse=True)
+    return ranked[0] if ranked else None
+
+
 def extract_art_code(url: str) -> str:
     m = re.search(r"(AN\d+)", url)
     return m.group(1) if m else ""
@@ -179,6 +202,22 @@ def cache_pdf(symbol: str, art_code: str, url: str):
         return None
 
 
+def fetch_report_text(symbol: str, art_code: str):
+    """抓一期定期报告的全文：API 文本优先，太短则用缓存的 PDF 兜底解析。
+    返回 (text, pdf_url, pdf_path)。半年报 PDF 也缓存在 annual_pdf/ 下，按 art_code 区分。"""
+    data = fetch_announcement_content(art_code)
+    text = data.get("notice_content", "") or ""
+    pdf_url = data.get("attach_url", "")
+    pdf_path = cache_pdf(symbol, art_code, pdf_url)
+    # 当 API 没抽到文本（page_size=0），用磁盘 PDF 作兜底解析
+    if len(text) < 5000 and pdf_path:
+        text = parse_pdf_text(pdf_path)
+        print(f"  pdfplumber text: {len(text)} chars", file=sys.stderr)
+    if len(text) < 1000:
+        print("  WARN: text too short", file=sys.stderr)
+    return text, pdf_url, pdf_path
+
+
 def parse_pdf_text(pdf_path, max_pages: int = 500) -> str:
     """pdfplumber 抽全文：仅当 API 没抽到文本时调用作兜底。"""
     try:
@@ -202,6 +241,8 @@ KEYWORDS = {
     "business_segments": [
         "主营业务分行业", "主营业务分产品", "营业收入构成",
         "分行业经营情况", "分产品经营情况", "分产品情况", "主要业务分行业",
+        "分产品或服务",   # 半年报的分产品表标题
+        "按产品档次",     # 上交所酒类行业模板（600519 半年报）
     ],
     "customer_concentration": [
         "前五名客户", "前 5 名客户", "前五大客户", "客户集中度",
@@ -220,6 +261,10 @@ KEYWORDS = {
     "outlook": ["发展战略", "经营计划", "经营目标", "下年度经营计划", "公司发展战略"],
     "dividend": ["利润分配预案", "现金分红", "现金股利", "每 10 股派"],
     "segment_split": ["按经营分部", "经营分部信息", "分部报告"],
+    # 表头「从公司获得的税前报酬总额」常被 PDF 分页/页眉拆开，只剩表后说明文字能命中；
+    # 同一张表的另一列「是否在公司关联方获取报酬」不跨行，沪深两所模板都有，作主锚点
+    "management_pay": ["是否在公司关联方获取报酬", "从公司获得的税前报酬总额",
+                       "董事、监事和高级管理人员报酬情况", "董事、高级管理人员报酬情况"],
 }
 
 
@@ -293,26 +338,15 @@ def main():
         print(f"  [{year}] {date} | {title[:60]} | {art_code}", file=sys.stderr)
 
         is_latest = (idx == 0)
-        # 往期年报只要 PDF，不抽全文：省掉每期数十万字的 API 分页
         if is_latest:
-            data = fetch_announcement_content(art_code)
-            text = data.get("notice_content", "") or ""
-            pdf_url = data.get("attach_url", "")
+            text, pdf_url, pdf_path = fetch_report_text(symbol, art_code)
+            latest_text = text
         else:
+            # 往期年报只要 PDF，不抽全文：省掉每期数十万字的 API 分页
             data = fetch_announcement_content(art_code, max_pages=1)
             text = ""
             pdf_url = data.get("attach_url", "")
-
-        pdf_path = cache_pdf(symbol, art_code, pdf_url)
-
-        if is_latest:
-            # 当 API 没抽到文本（page_size=0），用磁盘 PDF 作兜底解析
-            if len(text) < 5000 and pdf_path:
-                text = parse_pdf_text(pdf_path)
-                print(f"  pdfplumber text: {len(text)} chars", file=sys.stderr)
-            if len(text) < 1000:
-                print("  WARN: text too short", file=sys.stderr)
-            latest_text = text
+            pdf_path = cache_pdf(symbol, art_code, pdf_url)
 
         reports.append({
             "year": year, "date": date, "title": title, "type": atype,
@@ -324,12 +358,30 @@ def main():
 
     sections = locate_sections(latest_text)
 
+    # 半年报：只在它比最新年报更新时抓，且只抽分产品表（年报之后的分部口径只有它有）
+    semiannual = None
+    semi = pick_latest_semiannual(announcements)
+    if semi and reports and semi[0] > reports[0]["date"]:
+        s_date, s_title, s_type, s_landing, s_year = semi
+        s_art = extract_art_code(s_landing)
+        if s_art:
+            print(f"  [半年报 {s_year}] {s_date} | {s_title[:60]} | {s_art}", file=sys.stderr)
+            s_text, s_url, s_pdf = fetch_report_text(symbol, s_art)
+            semiannual = {
+                "meta": {"year": s_year, "date": s_date, "title": s_title, "art_code": s_art,
+                         "pdf_url": s_url,
+                         "pdf_local": str(s_pdf.relative_to(ROOT)) if s_pdf else None,
+                         "text_length": len(s_text)},
+                "sections": {"business_segments": locate_sections(s_text)["business_segments"]},
+            }
+
     out = {
         "symbol": symbol,
         # annual_meta = 最新一期，保留旧字段名以兼容既有 skill / lens 引用
         "annual_meta": reports[0] if reports else {},
         "annual_reports": reports,
         "sections": sections,
+        "semiannual": semiannual,
     }
     out_path = sym_dir / "annual.json"
     out_path.write_text(json.dumps(out, ensure_ascii=False, default=str, indent=2))

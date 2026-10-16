@@ -55,6 +55,8 @@
 - {{CATALYST_MID_2}}
 - {{CATALYST_MID_3}}
 
+<!-- 催化剂必查：restricted_release 里未来 18 个月内的解禁批次；earnings_call.json 的 material_contract / investment 正文。 -->
+
 ### 1.5 估值（Valuation）
 
 **现价与基础数据（截至 {{QUOTE_DATE}} 收盘）**
@@ -75,7 +77,9 @@
      不要留空占位符、不要写 "¥–"：
 > **共识 EPS**：该股无券商研报覆盖（东财 reportapi 返回 0 条），无 EPS 预测 / 评级 / 目标价。
 > 下表情景 EPS 由本报告依据历史财务自行推演，缺少卖方共识作为交叉验证，置信度相应下调。
-     research_coverage == "unknown" 时改写为「未取得，原因：研报接口取数失败」。 -->
+     research_coverage == "unknown" 时改写为「未取得，原因：研报接口取数失败」。
+     research_coverage == "covered" 但 consensus_eps_available == false（有研报、无任何 EPS 预测）时改写为
+     「未取得，原因：覆盖研报未给出盈利预测」并列出机构 / 标题 / 日期，不得写成"无券商覆盖"。 -->
 
 | 情景 | 核心假设 | 估值方法 | 估值区间（前瞻 PE） | EPS（{{NEXT2_YEAR}}E） | 目标价区间 | 较现价隐含回报 |
 |---|---|---|---|---|---|---|
@@ -112,9 +116,11 @@
 
 **北向持股**：{{HSGT_SUMMARY_OR_GAP_NOTICE}} [L if 数据陈旧]
 
-**融资融券**：{{MARGIN_SUMMARY_OR_GAP}} [M]
+**融资融券**：{{MARGIN_SUMMARY_OR_GAP}} [H]
+<!-- 读 margin_recent：最新融资余额、融资余额占流通市值比、较 20 个交易日前变化；空数组写"非融资融券标的"。 -->
 
 **龙虎榜**：{{LHB_SUMMARY_OR_NONE}} [H]
+<!-- 读 lhb_recent：上榜日 / 上榜原因 / 净买额；空数组写"上一年 1 月 1 日至今未上榜"。 -->
 
 ### 1.9 结论（Conclusion）
 
@@ -144,6 +150,8 @@
 ### 2.2 业务组成（CY{{LAST_YEAR}}）
 
 {{BUSINESS_SEGMENTS_PARAGRAPH_OR_GAP_NOTICE}} [L if 年报正文未抓]
+<!-- 年报分产品表之外，annual.json 有 semiannual 时补一张最新半年报分产品表（收入 / 同比 / 毛利率）；
+     半年报显示的增长来源与年报不同时以半年报为准，并回写 1.1 与 1.7。 -->
 
 ### 2.3 壁垒（Moat）
 
@@ -257,6 +265,8 @@
 | {{QUOTE_DATE}} | ¥{{PRICE_LATEST}} | {{P_LATEST_YOY}} |
 
 **三年累计涨幅 {{PRICE_3YR_CHG_PCT}}，三年 CAGR {{PRICE_3YR_CAGR}}。**[H]
+<!-- price_history_points 的 3 年 / 2 年前为 null（上市不足三年）时：该行写"未取得，原因：上市前"，
+     另加一行上市首日收盘作起点，三年涨幅改为"上市以来涨幅 + 年化"。 -->
 
 ### 5.2 事件映射（Alpha vs Beta）
 
@@ -264,6 +274,8 @@
 - {{EVENT_MAP_2}}
 - {{EVENT_MAP_3}}
 - {{EVENT_MAP_4}} [M]
+
+<!-- 每个事件区间用 benchmark_index.closes 算同期指数涨跌，写成"个股 +x% / 创业板指 +y%"，差值即 Alpha 近似。 -->
 
 ---
 
@@ -275,7 +287,9 @@
 - {{EXEC_2}}
 - {{EXEC_3}}
 
-> 管理层薪酬与变动详细列表需要人工补抓 {{LAST_YEAR}} 年报"董事监事高级管理人员"章节。[L]
+- **薪酬**：{{MANAGEMENT_PAY_OR_GAP}} [H]
+<!-- 读 annual.json sections.management_pay：主要董事、高管的税前报酬（保留年报原表单位万元并注明）；
+     无命中时写"未取得，原因：年报报酬表未抽取到"，置信度改 L。 -->
 
 ### 6.2 股东回报
 
@@ -318,6 +332,8 @@
 
 - **全球同业**：{{GLOBAL_PEERS}}
 - **A 股可比**：{{A_SHARE_PEERS}}
+<!-- 先看 peers.json 的 peer_source：eastmoney_industry_neighbors 时必须写明"东财行业排名近邻，非同品种确认"，
+     估值对比结论置信度最高 M；none 时写"未取得"。 -->
 - **行业研究**：{{INDUSTRY_RESEARCH_OR_GAP}} [L]
 
 ---
@@ -341,15 +357,13 @@
 
 ## 附：自动化流程缺失项
 
+<!-- 按本次实际缺口逐条列，不照抄固定清单：
+     ① validate.py 输出的每一条 DATA WARNING；② 正文里每一处"未取得"；
+     ③ 本次涉及的结构性限制（北向持股、上市不足三年的价格点、沪市互动问答、业绩说明会全文等），注明"结构性"。
+     本次已取得的项不要列。 -->
 | 缺失项 | 影响章节 | 建议来源 |
 |---|---|---|
-| 业务分部明细 | 2.2 | {{LAST_YEAR}} 年报正文 PDF |
-| 客户集中度 | 7.2 | 年报正文 |
-| Capex 明细与折旧 | 4.2 / 4.3 | 现金流表 + 附注 |
-| 北向持股最新数据 | 1.8 | 港交所 CCASS / 同花顺 / Wind |
-| 业绩说明会纪要 | 3.4 | 上证 e 互动 / 投关 webcast |
-| 董监高薪酬 | 6.1 | 年报"董监高"章节 |
-| 同业对照 | 7.3 | 各公司年报 + 行业研究 |
+| {{GAP_ITEM}} | {{GAP_SECTIONS}} | {{GAP_SOURCE}} |
 
 ---
 
