@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, writeFile, rm, unlink } from 'node:fs/promises'
+import { mkdtemp, readFile, writeFile, rm, unlink, rename, symlink, mkdir, readdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import fsPromises from 'node:fs/promises'
@@ -442,4 +442,85 @@ test('gate registration rejects malformed or foreign evidence references before 
   const valid = { ...task, locations: [{ section: 3, quote: '回款限制' }], evidence_refs: [{ ...ref, transcript_path: 'transcripts/t.json', transcript_sha256: 'e'.repeat(64) }] }
   const registered = await store.registerTasks({ ledger: { ...state.ledger, next_task_number: 2, tasks: [valid] }, reason: '引用硬门发现' })
   assert.deepEqual(registered.ledger.tasks[0].evidence_refs, valid.evidence_refs)
+})
+
+for (const folder of ['reviews', 'receipts', 'reports', 'ledgers', 'evidence', 'commits']) {
+  test(`Store rejects internal ${folder} directory symlinks on direct read and recovery`, async t => {
+    const { store, runDir, control } = await setup(t)
+    let state = await store.initialize({ reportBytes: report, evidence })
+    state = await accept(store, reviewFixtureV2({ snapshot: state.snapshot, ledgerSha256: hash(state.ledger) }))
+    const outside = await mkdtemp(join(tmpdir(), 'store-symlink-target-'))
+    t.after(() => rm(outside, { recursive: true, force: true }))
+    await rename(join(control, folder), join(outside, folder))
+    await symlink(join(outside, folder), join(control, folder))
+    const before = await readdir(join(outside, folder))
+    await assert.rejects(store.read(), /symlink|unsafe path/i)
+    await assert.rejects(openReviewStore({ runDir }), /symlink|unsafe path/i)
+    await assert.rejects(store.assertDeliverable({ snapshot: state.snapshot }), /symlink|unsafe path/i)
+    assert.deepEqual(await readdir(join(outside, folder)), before)
+    assert.deepEqual(await readFile(join(runDir, 'report.md')), report)
+  })
+}
+
+test('Store initialization never publishes through an existing control or object-directory symlink', async t => {
+  for (const folder of ['.codex-workflow', '.codex-workflow/review', '.codex-workflow/review/reports']) {
+    const { store, runDir } = await setup(t)
+    const outside = await mkdtemp(join(tmpdir(), 'store-init-target-'))
+    t.after(() => rm(outside, { recursive: true, force: true }))
+    await mkdir(join(runDir, folder, '..'), { recursive: true })
+    await symlink(outside, join(runDir, folder))
+    await assert.rejects(store.initialize({ reportBytes: report, evidence }), /symlink|unsafe path/i)
+    await assert.rejects(openReviewStore({ runDir }), /symlink|unsafe path/i)
+    assert.deepEqual(await readdir(outside), [])
+  }
+})
+
+test('Store publication and recovery never write through new unreferenced directory symlinks', async t => {
+  const { store, runDir, control } = await setup(t)
+  const state = await store.initialize({ reportBytes: report, evidence })
+  const outside = await mkdtemp(join(tmpdir(), 'store-publish-target-'))
+  t.after(() => rm(outside, { recursive: true, force: true }))
+  await symlink(outside, join(control, 'reviews'))
+  const review = reviewFixtureV2({ snapshot: state.snapshot, ledgerSha256: hash(state.ledger) })
+  const checked = reconcileReview({ ledger: state.ledger, review, snapshot: state.snapshot })
+  await assert.rejects(store.commitReview({ review, ...checked, evidence }), /symlink|unsafe path/i)
+  assert.deepEqual(await readdir(outside), [])
+  assert.deepEqual(await readFile(join(runDir, 'report.md')), report)
+})
+
+test('Store rechecks the publication directory after a staging boundary symlink replacement', async t => {
+  const outside = await mkdtemp(join(tmpdir(), 'store-boundary-target-'))
+  t.after(() => rm(outside, { recursive: true, force: true }))
+  let control
+  let armed = true
+  const env = await setup(t, { failpoint: async (name, context) => {
+    if (armed && name === 'after_object_staged' && context.kind === 'reports') {
+      armed = false
+      await rename(join(control, 'reports'), join(outside, 'staged'))
+      await symlink(outside, join(control, 'reports'))
+    }
+  } })
+  control = env.control
+  await assert.rejects(env.store.initialize({ reportBytes: report, evidence }), /symlink|unsafe path/i)
+  assert.deepEqual((await readdir(outside)).sort(), ['staged'])
+  await assert.rejects(openReviewStore({ runDir: env.runDir }), /symlink|unsafe path/i)
+})
+
+test('recovery rechecks display directory components after its materialization boundary', async t => {
+  let armed = false
+  let control
+  const outside = await mkdtemp(join(tmpdir(), 'store-display-target-'))
+  t.after(() => rm(outside, { recursive: true, force: true }))
+  const env = await prepared(t, { failpoint: async name => {
+    if (armed && name === 'before_materialize') {
+      armed = false
+      await rename(join(control, 'attempts'), join(outside, 'old-attempts'))
+      await symlink(outside, join(control, 'attempts'))
+    }
+  } })
+  control = env.control
+  await unlink(join(control, `attempts/${env.begun.attempt.id}.json`))
+  armed = true
+  await assert.rejects(env.store.read(), /symlink|unsafe path/i)
+  assert.deepEqual(await readdir(outside), ['old-attempts'])
 })

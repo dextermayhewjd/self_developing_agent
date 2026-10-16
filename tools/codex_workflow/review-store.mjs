@@ -37,7 +37,45 @@ function checkTaskReferences(task, snapshot) {
     if (hasPath !== hasDigest || (hasPath && (!nonempty(ref.transcript_path) || !digest(ref.transcript_sha256)))) fail('invalid registered task transcript reference')
   }
 }
+/** Check every existing component before any I/O, including missing-target parents.
+ * The outer run lock is still required; this is not an OS-wide filesystem CAS. */
+async function confinedPath(path) {
+  const absolute = resolve(path)
+  let current = absolute.startsWith('/') ? '/' : dirname(absolute)
+  for (const part of absolute.split('/').filter(Boolean)) {
+    current = join(current, part)
+    let info
+    try { info = await lstat(current) } catch (error) {
+      if (error.code === 'ENOENT') return absolute
+      throw error
+    }
+    if (info.isSymbolicLink()) fail(`unsafe path contains symlink: ${current}`)
+    if (current !== absolute && !info.isDirectory()) fail(`unsafe path component is not a directory: ${current}`)
+  }
+  return absolute
+}
+async function confinedTree(path) {
+  await confinedPath(path)
+  let info
+  try { info = await lstat(path) } catch (error) { if (error.code === 'ENOENT') return; throw error }
+  if (info.isSymbolicLink()) fail(`unsafe path contains symlink: ${path}`)
+  if (!info.isDirectory()) fail(`unsafe control directory: ${path}`)
+  for (const entry of await readdir(path, { withFileTypes: true })) {
+    const child = join(path, entry.name)
+    if (entry.isSymbolicLink()) fail(`unsafe path contains symlink: ${child}`)
+    if (entry.isDirectory()) await confinedTree(child)
+    else {
+      await confinedPath(child)
+      if (!(await lstat(child)).isFile()) fail(`unsafe control file: ${child}`)
+    }
+  }
+}
+async function confinedUnlink(path) {
+  await confinedPath(path)
+  await unlink(path).catch(error => { if (error.code !== 'ENOENT') throw error })
+}
 async function optionalBytes(path) {
+  await confinedPath(path)
   try {
     const stat = await lstat(path)
     if (!stat.isFile() || stat.isSymbolicLink()) fail(`unsafe file: ${path}`)
@@ -45,10 +83,12 @@ async function optionalBytes(path) {
   } catch (error) { if (error.code === 'ENOENT') return null; throw error }
 }
 async function syncDir(path) {
+  await confinedPath(path)
   const file = await open(path, 'r')
   try { await file.sync() } finally { await file.close() }
 }
 async function durableDirectory(path) {
+  await confinedPath(path)
   const parent = dirname(path)
   if (parent !== path) {
     await durableDirectory(parent)
@@ -60,6 +100,7 @@ async function durableDirectory(path) {
   await syncDir(path)
 }
 async function atomicWrite(path, bytes) {
+  await confinedPath(path)
   await durableDirectory(dirname(path))
   const temp = join(dirname(path), `.${randomUUID()}.tmp`)
   const file = await open(temp, 'wx', 0o600)
@@ -68,9 +109,11 @@ async function atomicWrite(path, bytes) {
     await file.sync()
   } finally { await file.close() }
   try {
+    await confinedPath(temp)
+    await confinedPath(path)
     await rename(temp, path)
     await syncDir(dirname(path))
-  } finally { await unlink(temp).catch(error => { if (error.code !== 'ENOENT') throw error }) }
+  } finally { await confinedUnlink(temp) }
 }
 
 /** Caller holds the existing outer run lock; this module never starts workers. */
@@ -102,7 +145,8 @@ class ReviewStore {
     return json ? JSON.parse(bytes.toString('utf8')) : bytes
   }
   async immutable(path, bytes, kind) {
-    const full = join(this.dir, path)
+    const full = this.path({ path, sha256: sha256(bytes) })
+    await confinedPath(full)
     await durableDirectory(dirname(full))
     const existing = await optionalBytes(full)
     if (existing !== null && !existing.equals(bytes)) fail(`immutable collision: ${path}`)
@@ -114,15 +158,18 @@ class ReviewStore {
       try { await file.writeFile(bytes); await file.sync() } finally { await file.close() }
       try {
         await this.point('after_object_staged', { kind, path })
+        await confinedPath(temp)
+        await confinedPath(full)
         try { await link(temp, full) }
         catch (error) {
           if (error.code !== 'EEXIST') throw error
           const old = await optionalBytes(full)
           if (!old || !old.equals(bytes)) fail(`immutable collision: ${path}`)
         }
-      } finally { await unlink(temp).catch(error => { if (error.code !== 'ENOENT') throw error }) }
+      } finally { await confinedUnlink(temp) }
     } else {
       // A verified orphan may have survived without its inode/entry syncs.
+      await confinedPath(full)
       const file = await open(full, 'r')
       try { await file.sync() } finally { await file.close() }
     }
@@ -137,6 +184,7 @@ class ReviewStore {
     return this.immutable(`${folder}/${name ?? `${prefix}-${sha256(bytes)}`}.json`, bytes, folder)
   }
   async head() {
+    await confinedTree(this.dir)
     const bytes = await optionalBytes(join(this.dir, 'HEAD.json'))
     return bytes === null ? null : JSON.parse(bytes.toString('utf8'))
   }
@@ -223,6 +271,7 @@ class ReviewStore {
     return this.load(await this.head())
   }
   async nextCommitId() {
+    await confinedPath(join(this.dir, 'commits'))
     let entries
     try { entries = await readdir(join(this.dir, 'commits')) } catch (error) { if (error.code !== 'ENOENT') throw error; entries = [] }
     const numbers = entries.map(name => /^CP-(\d{6,})\.json$/.exec(name)).filter(Boolean).map(match => Number(match[1]))

@@ -162,17 +162,17 @@ test('raw valid v2 review is not delivery authority; only current physical snaps
   await assert.rejects(validateThesisReview(f.runDir),/evidence|digest|sha256|Snapshot/i)
 })
 
-test('frozen 300209 PNG replay distinguishes missing visual verification from absent transcript quote',async t=>{
+test('representative PNG replay distinguishes missing visual verification from absent transcript quote',async t=>{
   const f=await fixture(t);await mkdir(join(f.runDir,'核查'),{recursive:true})
-  const source='核查/竞争_H1_p13.png'
-  await copyFile('debug/300209_native_retest_20261016/new-run/'+source,join(f.runDir,source))
-  const tr=await transcript(f,source,'行云科技股份有限公司2026年半年度报告全文\n服务器业务 67,157,134.15 1,330,088.49 98.02%\n四、非主营业务分析\n公允价值变动损益 -9,193,678.56 对应的外币借款确认了汇兑收益840万元。 是否具有可持续性：否\n营业外收入 8,942,514.78 主要系无需支付的款项。 是否具有可持续性：否\n印刷页码：13')
+  const source='核查/table.png'
+  await copyFile(new URL('./fixtures/evidence-page.png',import.meta.url),join(f.runDir,source))
+  const tr=await transcript(f,source,'REVENUE 100')
   const manifest=await evidence.snapshotEvidence({...f,transcripts:[tr]});const {review}=await reviewFor(f,manifest)
-  review.coverage[0].findings.push({finding:'原图核查',source,source_quote:'主要系无需支付的款项。',disposition:'excluded',report_quote:'',exclusion_reason:'测试'})
+  review.coverage[0].findings.push({finding:'synthetic image amount',source,source_quote:'REVENUE 100',disposition:'excluded',report_quote:'',exclusion_reason:'synthetic binding test'})
   await assert.rejects(evidence.validateEvidenceQuotes({...f,manifest,review}),e=>e.code==='EVIDENCE_PENDING'&&/visual/i.test(e.message))
   review.visual_attestations=[attestation(manifest.sources.find(s=>s.path===source))]
   await evidence.validateEvidenceQuotes({...f,manifest,review})
-  review.coverage[0].findings.at(-1).source_quote='不存在于逐字稿的值'
+  review.coverage[0].findings.at(-1).source_quote='REVENUE 999'
   await assert.rejects(evidence.validateEvidenceQuotes({...f,manifest,review}),e=>e.code!=='EVIDENCE_PENDING'&&/source_quote.*transcript/i.test(e.message))
 })
 
@@ -237,4 +237,36 @@ test('v2 delivery checks control-directory symlinks before Store recovery',async
 test('model extraction cannot label its own candidate as a manual or OCR transcript',async t=>{
   const f=await fixture(t);await f.put('核查/table.png',binary)
   await assert.rejects(evidence.prepareEvidence({...f,runtime:{agent:async()=>({version:2,source:'核查/table.png',source_sha256:sha256(binary),text:'收入 100',method:'manual'})}}),/method|model/i)
+})
+
+test('delivery rejects a symlinked immutable reviews directory even when every object digest matches',async t=>{
+  const f=await fixture(t);const manifest=await evidence.snapshotEvidence(f);const {review,ledger}=await reviewFor(f,manifest)
+  const store=await openReviewStore(f);await store.initialize({reportBytes:await readFile(join(f.runDir,'report.md')),evidence:manifest})
+  await store.commitReview({review,...reconcileReview({ledger,review,snapshot:{report_sha256:review.report_sha256,evidence_sha256:manifest.sha256}}),evidence:manifest})
+  const outside=await mkdtemp(join(tmpdir(),'immutable-review-target-'));t.after(()=>rm(outside,{recursive:true,force:true}))
+  const {rename}=await import('node:fs/promises')
+  const reviews=join(f.runDir,'.codex-workflow/review/reviews')
+  await rename(reviews,join(outside,'reviews'));await symlink(join(outside,'reviews'),reviews)
+  await assert.rejects(validateThesisReview(f.runDir),/symlink|unsafe path/i)
+})
+
+test('evidence preparation rejects existing transcript, prepared and PDF-view directory symlinks before writing outside',async t=>{
+  for(const folder of ['transcripts','prepared','views']) {
+    const f=await fixture(t);const outside=await mkdtemp(join(tmpdir(),'prepare-evidence-target-'));t.after(()=>rm(outside,{recursive:true,force:true}))
+    await mkdir(join(f.runDir,'.codex-workflow/review'),{recursive:true})
+    await symlink(outside,join(f.runDir,'.codex-workflow/review',folder))
+    const isPdf=folder==='views', source=isPdf?'核查/source.pdf':'核查/table.png', bytes=isPdf?Buffer.from(simplePdf()):binary
+    await f.put(source,bytes)
+    await assert.rejects(evidence.prepareEvidence({...f,runtime:{agent:async()=>({version:2,source,source_sha256:sha256(bytes),text:'Revenue 100',method:'model'})}}),/symlink|unsafe.*directory/i)
+    const {readdir}=await import('node:fs/promises');assert.deepEqual(await readdir(outside),[])
+    assert.deepEqual(await readFile(join(f.runDir,source)),bytes)
+  }
+})
+
+test('default image test runs from an unrelated working directory without historical artifacts',async t=>{
+  const f=await fixture(t)
+  const env={...process.env};delete env.NODE_TEST_CONTEXT
+  const result=spawnSync(process.execPath,['--test','--test-name-pattern=PNG replay distinguishes',new URL(import.meta.url).pathname],{cwd:f.runDir,encoding:'utf8',env})
+  assert.equal(result.status,0,result.stderr+result.stdout)
+  assert.match(result.stdout,/# tests 1(?:\r?\n|$)/) // prove the child actually selected the fixture test
 })
