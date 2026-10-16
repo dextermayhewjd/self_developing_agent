@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync, appendFileSync } from 'node:fs'
 const input = readFileSync(0, 'utf8')
 const config = JSON.parse(input.split('TEST:').at(-1).split('\n')[0])
 const args = process.argv.slice(2)
-if (config.capture) writeFileSync(config.capture, JSON.stringify({ args, input }))
+if (config.capture) writeFileSync(config.capture, JSON.stringify({ args, input, cwd: process.cwd() }))
 if (config.counter) appendFileSync(config.counter, 'attempt\n')
 if (config.exit) { process.stderr.write('fixture worker rejected'); process.exit(config.exit) }
 if (config.wait) await new Promise(resolve => setTimeout(resolve, config.wait))
