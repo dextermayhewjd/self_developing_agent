@@ -164,7 +164,7 @@ export async function diagnoseLegacyReviewState({ runDir, inputManifest }) {
         completeInventory = false
         continue
       }
-      if (!/^(成稿审查|修订成稿)[_:]/u.test(entry.stage)) continue
+      if (!/^(成稿审查|修订成稿)/u.test(entry.stage)) continue
       const match = /^(成稿审查|修订成稿)_(0|[1-9]\d*)-.+$/u.exec(entry.stage)
       if (!match) {
         reasons.push('Unexplained noncanonical completed archived round: ' + entry.stage)

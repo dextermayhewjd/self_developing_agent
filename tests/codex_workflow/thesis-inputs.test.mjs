@@ -156,7 +156,7 @@ test('eligible frozen legacy proof reconstructs two rounds and three rejected re
   assert.deepEqual(await readFile(statePath),original)
 })
 
-for (const scenario of ['extra completed revision and review', 'duplicate completed call', 'noncanonical duplicate completed call']) {
+for (const scenario of ['extra completed revision and review', 'duplicate completed call', 'noncanonical duplicate completed call', 'bare completed review family', 'bare completed revision family', 'malformed completed family']) {
   test('legacy diagnosis refuses '+scenario+' outside a one-to-one complete state history',async t=>{
     const {root,runDir,put,proof,statePath,inputManifest,index}=await legacyProofFixture(t)
     const {sha256}=await import('../../tools/codex_workflow/review-contracts.mjs')
@@ -168,7 +168,13 @@ for (const scenario of ['extra completed revision and review', 'duplicate comple
     }
     if(scenario==='extra completed revision and review') {
       await add('修订成稿_3-extra');await add('成稿审查_3-extra')
-    } else await add(scenario==='duplicate completed call'?'成稿审查_0-duplicate':'成稿审查_00-duplicate')
+    } else await add({
+      'duplicate completed call':'成稿审查_0-duplicate',
+      'noncanonical duplicate completed call':'成稿审查_00-duplicate',
+      'bare completed review family':'成稿审查',
+      'bare completed revision family':'修订成稿',
+      'malformed completed family':'修订成稿-3-malformed',
+    }[scenario])
     await put(join(proof,'native-rollouts/index.json'),JSON.stringify(index))
     const diagnosis=await diagnoseLegacyReviewState({runDir,inputManifest})
     assert.equal(diagnosis.migratable,false)
