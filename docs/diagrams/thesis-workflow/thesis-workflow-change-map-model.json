@@ -1,0 +1,1539 @@
+{
+  "description": "本批审查任务已实施；业务识别、同业与写作规划为后续建议。蓝保留/橙修改/绿新增。",
+  "charts": [
+    {
+      "id": "change-map",
+      "title": "深度 thesis workflow：保留 / 修改 / 新增",
+      "subtitle": "本批审查任务已实施 · 业务 / 同业 / 写作规划仍为后续建议 · 从上到下阅读",
+      "w": 1440,
+      "h": 3170,
+      "nodes": [
+        {
+          "id": "start",
+          "x": 500,
+          "y": 166,
+          "w": 440,
+          "h": 72,
+          "title": "保留｜股票代码、报告日与入口",
+          "lines": [
+            "沿用现有技能和 Node 编排器"
+          ],
+          "color": "blue",
+          "shape": "pill"
+        },
+        {
+          "id": "freeze",
+          "x": 500,
+          "y": 388,
+          "w": 440,
+          "h": 100,
+          "title": "已实施｜输入分类与候选恢复",
+          "lines": [
+            "原始输入 / 派生材料分别登记",
+            "已有初稿直接恢复审查，不重跑研究"
+          ],
+          "color": "orange",
+          "shape": "round"
+        },
+        {
+          "id": "business",
+          "x": 500,
+          "y": 530,
+          "w": 440,
+          "h": 100,
+          "title": "后续建议｜本次研究业务识别",
+          "lines": [
+            "识别价值依赖、转型业务与重大风险"
+          ],
+          "color": "green",
+          "shape": "round",
+          "titleSize": 19
+        },
+        {
+          "id": "anchor",
+          "x": 500,
+          "y": 670,
+          "w": 440,
+          "h": 100,
+          "title": "后续建议｜立疑与业务依据交接",
+          "lines": [
+            "保留财务全景和研究问题",
+            "增加统一业务锚，交给全部后续阶段"
+          ],
+          "color": "orange",
+          "shape": "round",
+          "titleSize": 19
+        },
+        {
+          "id": "research_0",
+          "x": 48,
+          "y": 860,
+          "w": 180,
+          "h": 82,
+          "title": "财务排雷",
+          "lines": [
+            "利润、现金、负债"
+          ],
+          "color": "blue",
+          "shape": "round",
+          "titleSize": 19,
+          "bodySize": 16
+        },
+        {
+          "id": "check_0",
+          "x": 48,
+          "y": 990,
+          "w": 180,
+          "h": 88,
+          "title": "保留｜本路核查",
+          "lines": [
+            "回原件，修正底稿"
+          ],
+          "color": "blue",
+          "shape": "round",
+          "titleSize": 19,
+          "bodySize": 15
+        },
+        {
+          "id": "research_1",
+          "x": 254,
+          "y": 860,
+          "w": 180,
+          "h": 82,
+          "title": "尽调",
+          "lines": [
+            "股权、治理、关联"
+          ],
+          "color": "blue",
+          "shape": "round",
+          "titleSize": 19,
+          "bodySize": 16
+        },
+        {
+          "id": "check_1",
+          "x": 254,
+          "y": 990,
+          "w": 180,
+          "h": 88,
+          "title": "保留｜本路核查",
+          "lines": [
+            "回原件，修正底稿"
+          ],
+          "color": "blue",
+          "shape": "round",
+          "titleSize": 19,
+          "bodySize": 15
+        },
+        {
+          "id": "research_2",
+          "x": 460,
+          "y": 860,
+          "w": 180,
+          "h": 82,
+          "title": "产业",
+          "lines": [
+            "产品、需求、模式"
+          ],
+          "color": "blue",
+          "shape": "round",
+          "titleSize": 19,
+          "bodySize": 16
+        },
+        {
+          "id": "check_2",
+          "x": 460,
+          "y": 990,
+          "w": 180,
+          "h": 88,
+          "title": "保留｜本路核查",
+          "lines": [
+            "回原件，修正底稿"
+          ],
+          "color": "blue",
+          "shape": "round",
+          "titleSize": 19,
+          "bodySize": 15
+        },
+        {
+          "id": "research_3",
+          "x": 666,
+          "y": 860,
+          "w": 180,
+          "h": 82,
+          "title": "竞争",
+          "lines": [
+            "优势、价格、同行"
+          ],
+          "color": "blue",
+          "shape": "round",
+          "titleSize": 19,
+          "bodySize": 16
+        },
+        {
+          "id": "check_3",
+          "x": 666,
+          "y": 990,
+          "w": 180,
+          "h": 88,
+          "title": "保留｜本路核查",
+          "lines": [
+            "回原件，修正底稿"
+          ],
+          "color": "blue",
+          "shape": "round",
+          "titleSize": 19,
+          "bodySize": 15
+        },
+        {
+          "id": "research_4",
+          "x": 872,
+          "y": 860,
+          "w": 180,
+          "h": 82,
+          "title": "战略驱动",
+          "lines": [
+            "投资、研发、增长"
+          ],
+          "color": "blue",
+          "shape": "round",
+          "titleSize": 19,
+          "bodySize": 16
+        },
+        {
+          "id": "check_4",
+          "x": 872,
+          "y": 990,
+          "w": 180,
+          "h": 88,
+          "title": "保留｜本路核查",
+          "lines": [
+            "回原件，修正底稿"
+          ],
+          "color": "blue",
+          "shape": "round",
+          "titleSize": 19,
+          "bodySize": 15
+        },
+        {
+          "id": "benchmark",
+          "x": 1100,
+          "y": 860,
+          "w": 290,
+          "h": 218,
+          "title": "后续建议｜板块与同业参照",
+          "lines": [
+            "按业务分部及具体指标选择",
+            "分开判断来源可靠与经济可比"
+          ],
+          "color": "orange",
+          "shape": "round",
+          "titleSize": 19,
+          "bodySize": 17
+        },
+        {
+          "id": "ledger",
+          "x": 500,
+          "y": 1305,
+          "w": 440,
+          "h": 125,
+          "title": "后续建议｜证据与关键发现整理",
+          "lines": [
+            "原件、图片、核对转录建立关联",
+            "重要发现有固定编号、限制和来源"
+          ],
+          "color": "green",
+          "shape": "round",
+          "titleSize": 19
+        },
+        {
+          "id": "outline",
+          "x": 500,
+          "y": 1470,
+          "w": 440,
+          "h": 92,
+          "title": "后续建议｜写作覆盖规划",
+          "lines": [
+            "重要发现分别写入哪一节",
+            "合并表达或排除都说明依据"
+          ],
+          "color": "green",
+          "shape": "round",
+          "titleSize": 19
+        },
+        {
+          "id": "write",
+          "x": 500,
+          "y": 1602,
+          "w": 440,
+          "h": 92,
+          "title": "后续建议｜统一成稿（十二节）",
+          "lines": [
+            "保留统一写作方式",
+            "增加关键发现清单与写作规划作为输入"
+          ],
+          "color": "orange",
+          "shape": "round",
+          "titleSize": 19
+        },
+        {
+          "id": "review",
+          "x": 500,
+          "y": 1735,
+          "w": 440,
+          "h": 100,
+          "title": "已实施｜完整独立审查",
+          "lines": [
+            "十二节、五路底稿与全部附件",
+            "报告 / 证据 / 输入 ledger 精确绑定"
+          ],
+          "color": "orange",
+          "shape": "round"
+        },
+        {
+          "id": "review_ok",
+          "x": 580,
+          "y": 2055,
+          "w": 280,
+          "h": 110,
+          "title": "审查通过？",
+          "lines": [
+            "无未解决的阻断问题"
+          ],
+          "color": "blue",
+          "shape": "diamond",
+          "titleSize": 19,
+          "bodySize": 15
+        },
+        {
+          "id": "revision",
+          "x": 55,
+          "y": 2055,
+          "w": 310,
+          "h": 110,
+          "title": "已实施｜有界提案与 host 应用",
+          "lines": [
+            "局部 ≤32 KiB / 两节，强度继承",
+            "默认累计两轮，可显式扩额到 10"
+          ],
+          "color": "orange",
+          "shape": "round",
+          "titleSize": 17,
+          "bodySize": 14
+        },
+        {
+          "id": "recheck",
+          "x": 55,
+          "y": 1913,
+          "w": 310,
+          "h": 96,
+          "title": "已实施｜另一次全文独立审查",
+          "lines": [
+            "不接收修订者自评；唯一关闭权"
+          ],
+          "color": "green",
+          "shape": "round",
+          "titleSize": 16,
+          "bodySize": 14
+        },
+        {
+          "id": "stop",
+          "x": 1080,
+          "y": 2055,
+          "w": 310,
+          "h": 110,
+          "title": "已实施｜保存检查点并停止",
+          "lines": [
+            "budget_exhausted / needs_evidence",
+            "no_safe_edit；不伪造通过"
+          ],
+          "color": "orange",
+          "shape": "round",
+          "titleSize": 19,
+          "bodySize": 15
+        },
+        {
+          "id": "bind",
+          "x": 500,
+          "y": 2210,
+          "w": 440,
+          "h": 110,
+          "title": "已实施｜Store / receipt 证明",
+          "lines": [
+            "绑定 report、evidence、输入/输出 ledger",
+            "原图 / PDF 页 / 转录与目视证明"
+          ],
+          "color": "orange",
+          "shape": "round"
+        },
+        {
+          "id": "candidate",
+          "x": 500,
+          "y": 2360,
+          "w": 440,
+          "h": 105,
+          "title": "已实施｜暂存档案与交付检查",
+          "lines": [
+            "仅写 host 选定路径；逐次核对 receipt",
+            "人工冲突保留，阻断不安全发布"
+          ],
+          "color": "orange",
+          "shape": "round"
+        },
+        {
+          "id": "gate",
+          "x": 580,
+          "y": 2505,
+          "w": 280,
+          "h": 110,
+          "title": "交付检查通过？",
+          "lines": [
+            "沿用结构、参照等硬门"
+          ],
+          "color": "blue",
+          "shape": "diamond",
+          "titleSize": 18,
+          "bodySize": 13
+        },
+        {
+          "id": "gate_repair",
+          "x": 1080,
+          "y": 2475,
+          "w": 310,
+          "h": 140,
+          "title": "已实施｜硬门任务修复",
+          "lines": [
+            "报告修复进入同一轮次预算",
+            "纯档案 / PDF 重试不消耗语义轮数"
+          ],
+          "color": "orange",
+          "shape": "round",
+          "titleSize": 18,
+          "bodySize": 15
+        },
+        {
+          "id": "gate_stop",
+          "x": 55,
+          "y": 2505,
+          "w": 310,
+          "h": 110,
+          "title": "已实施｜交付失败恢复",
+          "lines": [
+            "保留候选版本、失败原因和待办",
+            "旧正式交付保持可用"
+          ],
+          "color": "orange",
+          "shape": "round",
+          "titleSize": 19,
+          "bodySize": 15
+        },
+        {
+          "id": "publish",
+          "x": 500,
+          "y": 2655,
+          "w": 440,
+          "h": 100,
+          "title": "已实施｜host 提交档案 / PDF",
+          "lines": [
+            "同一快照与 receipt 授权",
+            "保留恢复日志与既有人工内容"
+          ],
+          "color": "orange",
+          "shape": "round"
+        },
+        {
+          "id": "done",
+          "x": 500,
+          "y": 2920,
+          "w": 440,
+          "h": 70,
+          "title": "交付报告、档案和运行记录",
+          "lines": [],
+          "color": "blue",
+          "shape": "pill"
+        },
+        {
+          "id": "artifacts",
+          "x": 55,
+          "y": 1305,
+          "w": 310,
+          "h": 220,
+          "title": "后续建议｜研究交接清单",
+          "lines": [
+            "统一研究业务锚",
+            "固定编号关键发现",
+            "成稿前覆盖规划",
+            "本批仅实施审查与证据账本"
+          ],
+          "color": "green",
+          "shape": "round",
+          "titleSize": 20,
+          "bodySize": 17
+        },
+        {
+          "id": "resume_rules",
+          "x": 1080,
+          "y": 1305,
+          "w": 310,
+          "h": 220,
+          "title": "已实施｜恢复与纯只读审计",
+          "lines": [
+            "固定 attempt / cursor，补丁不重复",
+            "旧 v1 仅诊断，不自动导入",
+            "audit 不恢复缺失显示文件",
+            "保留任务、实际配置与 receipt"
+          ],
+          "color": "orange",
+          "shape": "round",
+          "titleSize": 20,
+          "bodySize": 17
+        },
+        {
+          "id": "fill_refs",
+          "x": 500,
+          "y": 1180,
+          "w": 440,
+          "h": 88,
+          "title": "后续建议｜补充外部参照",
+          "lines": [
+            "按尚未解决的比较需求补充",
+            "经营案例不能替代估值锚"
+          ],
+          "color": "orange",
+          "shape": "round",
+          "titleSize": 19
+        },
+        {
+          "id": "data_preparation",
+          "x": 500,
+          "y": 268,
+          "w": 440,
+          "h": 88,
+          "title": "保留｜准备并验证原始数据",
+          "lines": [
+            "首次研究缺数才抓取；续跑用冻结清单"
+          ],
+          "color": "blue",
+          "shape": "round"
+        },
+        {
+          "id": "issue_tasks",
+          "x": 500,
+          "y": 1880,
+          "w": 440,
+          "h": 140,
+          "title": "已实施｜审查任务账本",
+          "lines": [
+            "稳定 RT ID、依据、位置与验收条件",
+            "阻断 / 披露限制 / 观察",
+            "host 应用 → 待复核 → 独立裁定"
+          ],
+          "color": "green",
+          "shape": "round",
+          "titleSize": 21,
+          "bodySize": 16
+        },
+        {
+          "id": "pdf_conversion",
+          "x": 500,
+          "y": 2795,
+          "w": 440,
+          "h": 85,
+          "title": "保留｜核对正式 PDF",
+          "lines": [
+            "转换在暂存阶段完成；核对正式路径"
+          ],
+          "color": "blue",
+          "shape": "round"
+        },
+        {
+          "id": "legend_keep",
+          "x": 350,
+          "y": 122,
+          "w": 190,
+          "h": 32,
+          "title": "蓝色：保留",
+          "lines": [],
+          "color": "blue",
+          "shape": "round",
+          "titleSize": 16
+        },
+        {
+          "id": "legend_change",
+          "x": 565,
+          "y": 122,
+          "w": 190,
+          "h": 32,
+          "title": "橙色：修改",
+          "lines": [],
+          "color": "orange",
+          "shape": "round",
+          "titleSize": 16
+        },
+        {
+          "id": "legend_add",
+          "x": 780,
+          "y": 122,
+          "w": 190,
+          "h": 32,
+          "title": "绿色：新增",
+          "lines": [],
+          "color": "green",
+          "shape": "round",
+          "titleSize": 16
+        },
+        {
+          "id": "task_boundary",
+          "x": 1080,
+          "y": 1855,
+          "w": 310,
+          "h": 145,
+          "title": "本批已实施审查任务区",
+          "lines": [
+            "worker 只读，host 唯一应用",
+            "另一调用完整复核，不能自关",
+            "业务 / 同业 / 写作规划待后续"
+          ],
+          "color": "green",
+          "shape": "round",
+          "titleSize": 18,
+          "bodySize": 15
+        }
+      ],
+      "edges": [
+        {
+          "id": "p12",
+          "source": "freeze",
+          "target": "business",
+          "points": [
+            [
+              720,
+              488
+            ],
+            [
+              720,
+              530
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "p23",
+          "source": "business",
+          "target": "anchor",
+          "points": [
+            [
+              720,
+              630
+            ],
+            [
+              720,
+              670
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "research_check_0",
+          "source": "research_0",
+          "target": "check_0",
+          "points": [
+            [
+              138,
+              942
+            ],
+            [
+              138,
+              990
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "research_check_1",
+          "source": "research_1",
+          "target": "check_1",
+          "points": [
+            [
+              344,
+              942
+            ],
+            [
+              344,
+              990
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "research_check_2",
+          "source": "research_2",
+          "target": "check_2",
+          "points": [
+            [
+              550,
+              942
+            ],
+            [
+              550,
+              990
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "research_check_3",
+          "source": "research_3",
+          "target": "check_3",
+          "points": [
+            [
+              756,
+              942
+            ],
+            [
+              756,
+              990
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "research_check_4",
+          "source": "research_4",
+          "target": "check_4",
+          "points": [
+            [
+              962,
+              942
+            ],
+            [
+              962,
+              990
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "parallel_bar",
+          "source": null,
+          "target": null,
+          "points": [
+            [
+              138,
+              818
+            ],
+            [
+              1245,
+              818
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "parallel_in_0",
+          "source": null,
+          "target": "research_0",
+          "points": [
+            [
+              138,
+              818
+            ],
+            [
+              138,
+              860
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "parallel_in_1",
+          "source": null,
+          "target": "research_1",
+          "points": [
+            [
+              344,
+              818
+            ],
+            [
+              344,
+              860
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "parallel_in_2",
+          "source": null,
+          "target": "research_2",
+          "points": [
+            [
+              550,
+              818
+            ],
+            [
+              550,
+              860
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "parallel_in_3",
+          "source": null,
+          "target": "research_3",
+          "points": [
+            [
+              756,
+              818
+            ],
+            [
+              756,
+              860
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "parallel_in_4",
+          "source": null,
+          "target": "research_4",
+          "points": [
+            [
+              962,
+              818
+            ],
+            [
+              962,
+              860
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "parallel_in_bench",
+          "source": null,
+          "target": "benchmark",
+          "points": [
+            [
+              1245,
+              818
+            ],
+            [
+              1245,
+              860
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "parallel_join",
+          "source": null,
+          "target": null,
+          "points": [
+            [
+              138,
+              1135
+            ],
+            [
+              1245,
+              1135
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "check_join_0",
+          "source": "check_0",
+          "target": null,
+          "points": [
+            [
+              138,
+              1078
+            ],
+            [
+              138,
+              1135
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "check_join_1",
+          "source": "check_1",
+          "target": null,
+          "points": [
+            [
+              344,
+              1078
+            ],
+            [
+              344,
+              1135
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "check_join_2",
+          "source": "check_2",
+          "target": null,
+          "points": [
+            [
+              550,
+              1078
+            ],
+            [
+              550,
+              1135
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "check_join_3",
+          "source": "check_3",
+          "target": null,
+          "points": [
+            [
+              756,
+              1078
+            ],
+            [
+              756,
+              1135
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "check_join_4",
+          "source": "check_4",
+          "target": null,
+          "points": [
+            [
+              962,
+              1078
+            ],
+            [
+              962,
+              1135
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "benchmark_join",
+          "source": "benchmark",
+          "target": null,
+          "points": [
+            [
+              1245,
+              1078
+            ],
+            [
+              1245,
+              1135
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "anchor_parallel",
+          "source": "anchor",
+          "target": null,
+          "points": [
+            [
+              720,
+              770
+            ],
+            [
+              720,
+              818
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "p45",
+          "source": "ledger",
+          "target": "outline",
+          "points": [
+            [
+              720,
+              1430
+            ],
+            [
+              720,
+              1470
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "p56",
+          "source": "outline",
+          "target": "write",
+          "points": [
+            [
+              720,
+              1562
+            ],
+            [
+              720,
+              1602
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "p67",
+          "source": "write",
+          "target": "review",
+          "points": [
+            [
+              720,
+              1694
+            ],
+            [
+              720,
+              1735
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "review_revision",
+          "source": "review_ok",
+          "target": "revision",
+          "points": [
+            [
+              580,
+              2110
+            ],
+            [
+              365,
+              2110
+            ]
+          ],
+          "color": "#B3873B",
+          "dashed": false
+        },
+        {
+          "id": "review_stop",
+          "source": "review_ok",
+          "target": "stop",
+          "points": [
+            [
+              860,
+              2110
+            ],
+            [
+              1080,
+              2110
+            ]
+          ],
+          "color": "#B3873B",
+          "dashed": false
+        },
+        {
+          "id": "review_bind",
+          "source": "review_ok",
+          "target": "bind",
+          "points": [
+            [
+              720,
+              2165
+            ],
+            [
+              720,
+              2210
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "bind_stop",
+          "source": "bind",
+          "target": "stop",
+          "points": [
+            [
+              940,
+              2265
+            ],
+            [
+              1235,
+              2265
+            ],
+            [
+              1235,
+              2165
+            ]
+          ],
+          "color": "#B3873B",
+          "dashed": false
+        },
+        {
+          "id": "p89",
+          "source": "bind",
+          "target": "candidate",
+          "points": [
+            [
+              720,
+              2320
+            ],
+            [
+              720,
+              2360
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "p9g",
+          "source": "candidate",
+          "target": "gate",
+          "points": [
+            [
+              720,
+              2465
+            ],
+            [
+              720,
+              2505
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "gate_repair",
+          "source": "gate",
+          "target": "gate_repair",
+          "points": [
+            [
+              860,
+              2560
+            ],
+            [
+              990,
+              2560
+            ],
+            [
+              990,
+              2545
+            ],
+            [
+              1080,
+              2545
+            ]
+          ],
+          "color": "#B3873B",
+          "dashed": false
+        },
+        {
+          "id": "gate_repair_review",
+          "source": "gate_repair",
+          "target": "review",
+          "points": [
+            [
+              1390,
+              2545
+            ],
+            [
+              1410,
+              2545
+            ],
+            [
+              1410,
+              1785
+            ],
+            [
+              940,
+              1785
+            ]
+          ],
+          "color": "#B3873B",
+          "dashed": false
+        },
+        {
+          "id": "gate_stop_edge",
+          "source": "gate",
+          "target": "gate_stop",
+          "points": [
+            [
+              580,
+              2560
+            ],
+            [
+              365,
+              2560
+            ]
+          ],
+          "color": "#B3873B",
+          "dashed": false
+        },
+        {
+          "id": "gate_publish",
+          "source": "gate",
+          "target": "publish",
+          "points": [
+            [
+              720,
+              2615
+            ],
+            [
+              720,
+              2655
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "merge_fill",
+          "source": null,
+          "target": "fill_refs",
+          "points": [
+            [
+              720,
+              1135
+            ],
+            [
+              720,
+              1180
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "fill_ledger",
+          "source": "fill_refs",
+          "target": "ledger",
+          "points": [
+            [
+              720,
+              1268
+            ],
+            [
+              720,
+              1305
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "start_data",
+          "source": "start",
+          "target": "data_preparation",
+          "points": [
+            [
+              720,
+              238
+            ],
+            [
+              720,
+              268
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "data_resume",
+          "source": "data_preparation",
+          "target": "freeze",
+          "points": [
+            [
+              720,
+              356
+            ],
+            [
+              720,
+              388
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "review_tasks",
+          "source": "review",
+          "target": "issue_tasks",
+          "points": [
+            [
+              720,
+              1835
+            ],
+            [
+              720,
+              1880
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "tasks_decision",
+          "source": "issue_tasks",
+          "target": "review_ok",
+          "points": [
+            [
+              720,
+              2020
+            ],
+            [
+              720,
+              2055
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "revision_recheck",
+          "source": "revision",
+          "target": "recheck",
+          "points": [
+            [
+              210,
+              2055
+            ],
+            [
+              210,
+              2009
+            ]
+          ],
+          "color": "#31875A",
+          "dashed": false
+        },
+        {
+          "id": "recheck_tasks",
+          "source": "recheck",
+          "target": "issue_tasks",
+          "points": [
+            [
+              365,
+              1961
+            ],
+            [
+              440,
+              1961
+            ],
+            [
+              440,
+              1950
+            ],
+            [
+              500,
+              1950
+            ]
+          ],
+          "color": "#31875A",
+          "dashed": false
+        },
+        {
+          "id": "publish_pdf",
+          "source": "publish",
+          "target": "pdf_conversion",
+          "points": [
+            [
+              720,
+              2755
+            ],
+            [
+              720,
+              2795
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "pdf_done",
+          "source": "pdf_conversion",
+          "target": "done",
+          "points": [
+            [
+              720,
+              2880
+            ],
+            [
+              720,
+              2920
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "candidate_resume_review",
+          "source": "freeze",
+          "target": "review",
+          "points": [
+            [
+              940,
+              438
+            ],
+            [
+              1420,
+              438
+            ],
+            [
+              1420,
+              1785
+            ],
+            [
+              940,
+              1785
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": true
+        }
+      ],
+      "labels": [
+        {
+          "x": 48,
+          "y": 794,
+          "w": 610,
+          "lines": [
+            "五路专题研究 → 各路完成后核查（受并发上限约束）"
+          ],
+          "color": "#56677F",
+          "fs": 16
+        },
+        {
+          "x": 1100,
+          "y": 790,
+          "w": 290,
+          "lines": [
+            "同业参照使用相同业务锚"
+          ],
+          "color": "#34734F",
+          "fs": 16
+        },
+        {
+          "x": 372,
+          "y": 2065,
+          "w": 200,
+          "lines": [
+            "未通过，仍可修订",
+            "常规最多 2 轮"
+          ],
+          "color": "#8C682D",
+          "fs": 15
+        },
+        {
+          "x": 866,
+          "y": 2072,
+          "w": 207,
+          "lines": [
+            "阻断问题未解决，次数用尽"
+          ],
+          "color": "#8C682D",
+          "fs": 15
+        },
+        {
+          "x": 724,
+          "y": 2187,
+          "w": 90,
+          "lines": [
+            "通过"
+          ],
+          "color": "#52725F",
+          "fs": 15
+        },
+        {
+          "x": 999,
+          "y": 2231,
+          "w": 200,
+          "lines": [
+            "验证失败"
+          ],
+          "color": "#8C682D",
+          "fs": 15
+        },
+        {
+          "x": 866,
+          "y": 2512,
+          "w": 205,
+          "lines": [
+            "失败，尚可修复"
+          ],
+          "color": "#8C682D",
+          "fs": 15
+        },
+        {
+          "x": 373,
+          "y": 2527,
+          "w": 200,
+          "lines": [
+            "修复次数用尽"
+          ],
+          "color": "#8C682D",
+          "fs": 15
+        },
+        {
+          "x": 725,
+          "y": 2635,
+          "w": 150,
+          "lines": [
+            "全部通过"
+          ],
+          "color": "#52725F",
+          "fs": 15
+        },
+        {
+          "x": 48,
+          "y": 3060,
+          "w": 1344,
+          "lines": [
+            "蓝色保留、橙色修改、绿色新增；“已实施”节点属于本批，“后续建议”节点尚未实施。",
+            "本批验证合成接口与恢复证明；未启动新股票研究，不以阶段数或页数证明研究质量。"
+          ],
+          "color": "#56677F",
+          "fs": 16
+        },
+        {
+          "x": 1075,
+          "y": 412,
+          "w": 315,
+          "lines": [
+            "已有候选 → 独立审查",
+            "后续建议节点当前跳过"
+          ],
+          "color": "#173766",
+          "fs": 15
+        }
+      ]
+    }
+  ]
+}

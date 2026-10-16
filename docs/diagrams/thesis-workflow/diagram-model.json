@@ -1,0 +1,2586 @@
+{
+  "description": "当前代码流程与尚未实施的建议流程。生成图不修改workflow。",
+  "charts": [
+    {
+      "id": "current",
+      "title": "01  当前 workflow 的实际运行顺序",
+      "subtitle": "按当前代码绘制 · 首次完整研究主路径 · Codex worker 默认并发上限 3",
+      "w": 1440,
+      "h": 2460,
+      "nodes": [
+        {
+          "id": "start",
+          "x": 500,
+          "y": 166,
+          "w": 440,
+          "h": 72,
+          "title": "输入股票代码、报告日",
+          "lines": [
+            "$thesis-wf → Node 编排器"
+          ],
+          "color": "dark",
+          "shape": "pill"
+        },
+        {
+          "id": "data",
+          "x": 500,
+          "y": 268,
+          "w": 440,
+          "h": 88,
+          "title": "① 数据准备与验证",
+          "lines": [
+            "缺数据则抓取；保留数据警告"
+          ],
+          "color": "gray",
+          "shape": "round"
+        },
+        {
+          "id": "inventory",
+          "x": 500,
+          "y": 386,
+          "w": 440,
+          "h": 90,
+          "title": "② 盘点已有成果",
+          "lines": [
+            "存在且大于 200 字节，计为完成"
+          ],
+          "color": "blue",
+          "shape": "round"
+        },
+        {
+          "id": "doubt",
+          "x": 500,
+          "y": 506,
+          "w": 440,
+          "h": 92,
+          "title": "③ 立疑",
+          "lines": [
+            "判断估值原型，提出 2–4 个决策问题"
+          ],
+          "color": "blue",
+          "shape": "round"
+        },
+        {
+          "id": "research_0",
+          "x": 48,
+          "y": 690,
+          "w": 180,
+          "h": 82,
+          "title": "财务排雷",
+          "lines": [
+            "利润、现金、负债"
+          ],
+          "color": "blue",
+          "shape": "round",
+          "titleSize": 19,
+          "bodySize": 16
+        },
+        {
+          "id": "check_0",
+          "x": 48,
+          "y": 818,
+          "w": 180,
+          "h": 88,
+          "title": "本路核查",
+          "lines": [
+            "回原件，修正底稿"
+          ],
+          "color": "blue",
+          "shape": "round",
+          "titleSize": 19,
+          "bodySize": 15
+        },
+        {
+          "id": "research_1",
+          "x": 254,
+          "y": 690,
+          "w": 180,
+          "h": 82,
+          "title": "尽调",
+          "lines": [
+            "股权、治理、关联"
+          ],
+          "color": "blue",
+          "shape": "round",
+          "titleSize": 19,
+          "bodySize": 16
+        },
+        {
+          "id": "check_1",
+          "x": 254,
+          "y": 818,
+          "w": 180,
+          "h": 88,
+          "title": "本路核查",
+          "lines": [
+            "回原件，修正底稿"
+          ],
+          "color": "blue",
+          "shape": "round",
+          "titleSize": 19,
+          "bodySize": 15
+        },
+        {
+          "id": "research_2",
+          "x": 460,
+          "y": 690,
+          "w": 180,
+          "h": 82,
+          "title": "产业",
+          "lines": [
+            "产品、需求、模式"
+          ],
+          "color": "blue",
+          "shape": "round",
+          "titleSize": 19,
+          "bodySize": 16
+        },
+        {
+          "id": "check_2",
+          "x": 460,
+          "y": 818,
+          "w": 180,
+          "h": 88,
+          "title": "本路核查",
+          "lines": [
+            "回原件，修正底稿"
+          ],
+          "color": "blue",
+          "shape": "round",
+          "titleSize": 19,
+          "bodySize": 15
+        },
+        {
+          "id": "research_3",
+          "x": 666,
+          "y": 690,
+          "w": 180,
+          "h": 82,
+          "title": "竞争",
+          "lines": [
+            "优势、价格、同行"
+          ],
+          "color": "blue",
+          "shape": "round",
+          "titleSize": 19,
+          "bodySize": 16
+        },
+        {
+          "id": "check_3",
+          "x": 666,
+          "y": 818,
+          "w": 180,
+          "h": 88,
+          "title": "本路核查",
+          "lines": [
+            "回原件，修正底稿"
+          ],
+          "color": "blue",
+          "shape": "round",
+          "titleSize": 19,
+          "bodySize": 15
+        },
+        {
+          "id": "research_4",
+          "x": 872,
+          "y": 690,
+          "w": 180,
+          "h": 82,
+          "title": "战略驱动",
+          "lines": [
+            "投资、研发、增长"
+          ],
+          "color": "blue",
+          "shape": "round",
+          "titleSize": 19,
+          "bodySize": 16
+        },
+        {
+          "id": "check_4",
+          "x": 872,
+          "y": 818,
+          "w": 180,
+          "h": 88,
+          "title": "本路核查",
+          "lines": [
+            "回原件，修正底稿"
+          ],
+          "color": "blue",
+          "shape": "round",
+          "titleSize": 19,
+          "bodySize": 15
+        },
+        {
+          "id": "benchmark",
+          "x": 1100,
+          "y": 690,
+          "w": 290,
+          "h": 216,
+          "title": "板块基准",
+          "lines": [
+            "读原型与主营描述",
+            "选同行，取得比较指标"
+          ],
+          "color": "blue",
+          "shape": "round",
+          "titleSize": 21,
+          "bodySize": 17
+        },
+        {
+          "id": "fill",
+          "x": 500,
+          "y": 1000,
+          "w": 440,
+          "h": 100,
+          "title": "⑤ 补充外部参照",
+          "lines": [
+            "等待板块基准与五路核查全部结束",
+            "读取全量核查，补仍悬空的比较依据"
+          ],
+          "color": "blue",
+          "shape": "round"
+        },
+        {
+          "id": "write",
+          "x": 500,
+          "y": 1134,
+          "w": 440,
+          "h": 100,
+          "title": "⑥ 统一成稿（十二节）",
+          "lines": [
+            "读全量底稿、核查、参照，形成报告"
+          ],
+          "color": "blue",
+          "shape": "round"
+        },
+        {
+          "id": "review",
+          "x": 500,
+          "y": 1268,
+          "w": 440,
+          "h": 92,
+          "title": "⑦ 独立内容审查",
+          "lines": [
+            "全文核对底稿、判断、反证和限制"
+          ],
+          "color": "blue",
+          "shape": "round"
+        },
+        {
+          "id": "review_ok",
+          "x": 580,
+          "y": 1395,
+          "w": 280,
+          "h": 110,
+          "title": "审查通过？",
+          "lines": [],
+          "color": "gray",
+          "shape": "diamond"
+        },
+        {
+          "id": "revision",
+          "x": 55,
+          "y": 1395,
+          "w": 300,
+          "h": 110,
+          "title": "修订报告",
+          "lines": [
+            "只用现有证据，最多 2 轮",
+            "修订后再次独立审查"
+          ],
+          "color": "blue",
+          "shape": "round"
+        },
+        {
+          "id": "stop",
+          "x": 1080,
+          "y": 1395,
+          "w": 310,
+          "h": 110,
+          "title": "停止交付",
+          "lines": [
+            "修订用尽，或程序验证失败",
+            "本次 300209 停在此处"
+          ],
+          "color": "red",
+          "shape": "round"
+        },
+        {
+          "id": "validate_review",
+          "x": 500,
+          "y": 1550,
+          "w": 440,
+          "h": 100,
+          "title": "⑧ 程序验证审查结果",
+          "lines": [
+            "校验原文引文、十二节与报告 SHA"
+          ],
+          "color": "gray",
+          "shape": "round"
+        },
+        {
+          "id": "position",
+          "x": 500,
+          "y": 1690,
+          "w": 440,
+          "h": 88,
+          "title": "⑨ 更新个股档案",
+          "lines": [
+            "保留人工内容，记录本期判断"
+          ],
+          "color": "blue",
+          "shape": "round"
+        },
+        {
+          "id": "gate",
+          "x": 580,
+          "y": 1810,
+          "w": 280,
+          "h": 115,
+          "title": "程序检查通过？",
+          "lines": [
+            "⑩ 结构、参照、档案等"
+          ],
+          "color": "gray",
+          "shape": "diamond",
+          "bodySize": 15
+        },
+        {
+          "id": "gate_repair",
+          "x": 1080,
+          "y": 1785,
+          "w": 310,
+          "h": 136,
+          "title": "修复硬门（最多 2 次）",
+          "lines": [
+            "修复后回到独立内容审查",
+            "再验证、更新档案、重跑检查"
+          ],
+          "color": "blue",
+          "shape": "round"
+        },
+        {
+          "id": "gate_stop",
+          "x": 55,
+          "y": 1810,
+          "w": 300,
+          "h": 115,
+          "title": "停止交付",
+          "lines": [
+            "程序检查持续失败",
+            "保留候选稿与运行记录"
+          ],
+          "color": "red",
+          "shape": "round"
+        },
+        {
+          "id": "prepdf",
+          "x": 500,
+          "y": 1970,
+          "w": 440,
+          "h": 80,
+          "title": "PDF 前再次验证审查绑定",
+          "lines": [],
+          "color": "gray",
+          "shape": "round"
+        },
+        {
+          "id": "pdf",
+          "x": 500,
+          "y": 2090,
+          "w": 440,
+          "h": 90,
+          "title": "⑪ 生成并检查 PDF",
+          "lines": [
+            "成功且非空后交付；可选不生成 PDF"
+          ],
+          "color": "gray",
+          "shape": "round"
+        },
+        {
+          "id": "done",
+          "x": 500,
+          "y": 2215,
+          "w": 440,
+          "h": 65,
+          "title": "交付报告、档案和运行记录",
+          "lines": [],
+          "color": "dark",
+          "shape": "pill"
+        },
+        {
+          "id": "current_notes",
+          "x": 48,
+          "y": 1000,
+          "w": 325,
+          "h": 202,
+          "title": "现有交接缺口",
+          "lines": [
+            "业务重心可能未传到同业选择",
+            "重要事实由成稿者自行筛选",
+            "图片证据不兼容纯文本校验"
+          ],
+          "color": "orange",
+          "shape": "round",
+          "titleSize": 20,
+          "bodySize": 16
+        },
+        {
+          "id": "current_runtime",
+          "x": 1080,
+          "y": 1000,
+          "w": 310,
+          "h": 202,
+          "title": "运行注意",
+          "lines": [
+            "核查就绪后可能需要排队",
+            "派生文件会影响续跑指纹",
+            "内容审查最多共三次"
+          ],
+          "color": "orange",
+          "shape": "round",
+          "titleSize": 20,
+          "bodySize": 16
+        }
+      ],
+      "edges": [
+        {
+          "id": "a01",
+          "source": "start",
+          "target": "data",
+          "points": [
+            [
+              720,
+              238
+            ],
+            [
+              720,
+              268
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "a12",
+          "source": "data",
+          "target": "inventory",
+          "points": [
+            [
+              720,
+              356
+            ],
+            [
+              720,
+              386
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "a23",
+          "source": "inventory",
+          "target": "doubt",
+          "points": [
+            [
+              720,
+              476
+            ],
+            [
+              720,
+              506
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "research_check_0",
+          "source": "research_0",
+          "target": "check_0",
+          "points": [
+            [
+              138,
+              772
+            ],
+            [
+              138,
+              818
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "research_check_1",
+          "source": "research_1",
+          "target": "check_1",
+          "points": [
+            [
+              344,
+              772
+            ],
+            [
+              344,
+              818
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "research_check_2",
+          "source": "research_2",
+          "target": "check_2",
+          "points": [
+            [
+              550,
+              772
+            ],
+            [
+              550,
+              818
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "research_check_3",
+          "source": "research_3",
+          "target": "check_3",
+          "points": [
+            [
+              756,
+              772
+            ],
+            [
+              756,
+              818
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "research_check_4",
+          "source": "research_4",
+          "target": "check_4",
+          "points": [
+            [
+              962,
+              772
+            ],
+            [
+              962,
+              818
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "parallel_bar",
+          "source": null,
+          "target": null,
+          "points": [
+            [
+              138,
+              648
+            ],
+            [
+              1245,
+              648
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "parallel_in_0",
+          "source": null,
+          "target": "research_0",
+          "points": [
+            [
+              138,
+              648
+            ],
+            [
+              138,
+              690
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "parallel_in_1",
+          "source": null,
+          "target": "research_1",
+          "points": [
+            [
+              344,
+              648
+            ],
+            [
+              344,
+              690
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "parallel_in_2",
+          "source": null,
+          "target": "research_2",
+          "points": [
+            [
+              550,
+              648
+            ],
+            [
+              550,
+              690
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "parallel_in_3",
+          "source": null,
+          "target": "research_3",
+          "points": [
+            [
+              756,
+              648
+            ],
+            [
+              756,
+              690
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "parallel_in_4",
+          "source": null,
+          "target": "research_4",
+          "points": [
+            [
+              962,
+              648
+            ],
+            [
+              962,
+              690
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "parallel_in_bench",
+          "source": null,
+          "target": "benchmark",
+          "points": [
+            [
+              1245,
+              648
+            ],
+            [
+              1245,
+              690
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "parallel_join",
+          "source": null,
+          "target": null,
+          "points": [
+            [
+              138,
+              950
+            ],
+            [
+              1245,
+              950
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "check_join_0",
+          "source": "check_0",
+          "target": null,
+          "points": [
+            [
+              138,
+              906
+            ],
+            [
+              138,
+              950
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "check_join_1",
+          "source": "check_1",
+          "target": null,
+          "points": [
+            [
+              344,
+              906
+            ],
+            [
+              344,
+              950
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "check_join_2",
+          "source": "check_2",
+          "target": null,
+          "points": [
+            [
+              550,
+              906
+            ],
+            [
+              550,
+              950
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "check_join_3",
+          "source": "check_3",
+          "target": null,
+          "points": [
+            [
+              756,
+              906
+            ],
+            [
+              756,
+              950
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "check_join_4",
+          "source": "check_4",
+          "target": null,
+          "points": [
+            [
+              962,
+              906
+            ],
+            [
+              962,
+              950
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "benchmark_join",
+          "source": "benchmark",
+          "target": null,
+          "points": [
+            [
+              1245,
+              906
+            ],
+            [
+              1245,
+              950
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "doubt_parallel",
+          "source": "doubt",
+          "target": null,
+          "points": [
+            [
+              720,
+              598
+            ],
+            [
+              720,
+              648
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "merge_fill",
+          "source": null,
+          "target": "fill",
+          "points": [
+            [
+              720,
+              950
+            ],
+            [
+              720,
+              1000
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "a45",
+          "source": "fill",
+          "target": "write",
+          "points": [
+            [
+              720,
+              1100
+            ],
+            [
+              720,
+              1134
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "a56",
+          "source": "write",
+          "target": "review",
+          "points": [
+            [
+              720,
+              1234
+            ],
+            [
+              720,
+              1268
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "a6d",
+          "source": "review",
+          "target": "review_ok",
+          "points": [
+            [
+              720,
+              1360
+            ],
+            [
+              720,
+              1395
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "review_revision",
+          "source": "review_ok",
+          "target": "revision",
+          "points": [
+            [
+              580,
+              1450
+            ],
+            [
+              355,
+              1450
+            ]
+          ],
+          "color": "#B3873B",
+          "dashed": false
+        },
+        {
+          "id": "revision_review",
+          "source": "revision",
+          "target": "review",
+          "points": [
+            [
+              205,
+              1395
+            ],
+            [
+              205,
+              1314
+            ],
+            [
+              500,
+              1314
+            ]
+          ],
+          "color": "#B3873B",
+          "dashed": false
+        },
+        {
+          "id": "review_stop",
+          "source": "review_ok",
+          "target": "stop",
+          "points": [
+            [
+              860,
+              1450
+            ],
+            [
+              1080,
+              1450
+            ]
+          ],
+          "color": "#C96565",
+          "dashed": false
+        },
+        {
+          "id": "review_valid",
+          "source": "review_ok",
+          "target": "validate_review",
+          "points": [
+            [
+              720,
+              1505
+            ],
+            [
+              720,
+              1550
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "invalid_stop",
+          "source": "validate_review",
+          "target": "stop",
+          "points": [
+            [
+              940,
+              1600
+            ],
+            [
+              1235,
+              1600
+            ],
+            [
+              1235,
+              1505
+            ]
+          ],
+          "color": "#C96565",
+          "dashed": false
+        },
+        {
+          "id": "a78",
+          "source": "validate_review",
+          "target": "position",
+          "points": [
+            [
+              720,
+              1650
+            ],
+            [
+              720,
+              1690
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "a8g",
+          "source": "position",
+          "target": "gate",
+          "points": [
+            [
+              720,
+              1778
+            ],
+            [
+              720,
+              1810
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "gate_repair",
+          "source": "gate",
+          "target": "gate_repair",
+          "points": [
+            [
+              860,
+              1867.5
+            ],
+            [
+              990,
+              1867.5
+            ],
+            [
+              990,
+              1853
+            ],
+            [
+              1080,
+              1853
+            ]
+          ],
+          "color": "#B3873B",
+          "dashed": false
+        },
+        {
+          "id": "gate_repair_review",
+          "source": "gate_repair",
+          "target": "review",
+          "points": [
+            [
+              1390,
+              1853
+            ],
+            [
+              1410,
+              1853
+            ],
+            [
+              1410,
+              1314
+            ],
+            [
+              940,
+              1314
+            ]
+          ],
+          "color": "#B3873B",
+          "dashed": false
+        },
+        {
+          "id": "gate_fail_stop",
+          "source": "gate",
+          "target": "gate_stop",
+          "points": [
+            [
+              580,
+              1867.5
+            ],
+            [
+              355,
+              1867.5
+            ]
+          ],
+          "color": "#C96565",
+          "dashed": false
+        },
+        {
+          "id": "gate_pre",
+          "source": "gate",
+          "target": "prepdf",
+          "points": [
+            [
+              720,
+              1925
+            ],
+            [
+              720,
+              1970
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "pre_pdf",
+          "source": "prepdf",
+          "target": "pdf",
+          "points": [
+            [
+              720,
+              2050
+            ],
+            [
+              720,
+              2090
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "pdf_done",
+          "source": "pdf",
+          "target": "done",
+          "points": [
+            [
+              720,
+              2180
+            ],
+            [
+              720,
+              2215
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        }
+      ],
+      "labels": [
+        {
+          "x": 48,
+          "y": 624,
+          "w": 610,
+          "lines": [
+            "五路专题研究 → 各路完成后核查（受并发上限约束）"
+          ],
+          "color": "#56677F",
+          "fs": 16
+        },
+        {
+          "x": 1090,
+          "y": 620,
+          "w": 310,
+          "lines": [
+            "④ 与五路研究并行安排"
+          ],
+          "color": "#56677F",
+          "fs": 16
+        },
+        {
+          "x": 363,
+          "y": 1418,
+          "w": 210,
+          "lines": [
+            "未通过，尚可修订"
+          ],
+          "color": "#8C682D",
+          "fs": 15
+        },
+        {
+          "x": 865,
+          "y": 1418,
+          "w": 210,
+          "lines": [
+            "未通过，修订次数用尽"
+          ],
+          "color": "#A84F4F",
+          "fs": 15
+        },
+        {
+          "x": 724,
+          "y": 1530,
+          "w": 90,
+          "lines": [
+            "通过"
+          ],
+          "color": "#52725F",
+          "fs": 15
+        },
+        {
+          "x": 1000,
+          "y": 1567,
+          "w": 200,
+          "lines": [
+            "验证失败"
+          ],
+          "color": "#A84F4F",
+          "fs": 15
+        },
+        {
+          "x": 865,
+          "y": 1818,
+          "w": 210,
+          "lines": [
+            "失败，尚可修复"
+          ],
+          "color": "#8C682D",
+          "fs": 15
+        },
+        {
+          "x": 365,
+          "y": 1835,
+          "w": 210,
+          "lines": [
+            "修复次数用尽"
+          ],
+          "color": "#A84F4F",
+          "fs": 15
+        },
+        {
+          "x": 724,
+          "y": 1950,
+          "w": 155,
+          "lines": [
+            "通过或仅有警告"
+          ],
+          "color": "#52725F",
+          "fs": 15
+        },
+        {
+          "x": 48,
+          "y": 2340,
+          "w": 1344,
+          "lines": [
+            "阅读方式：从上到下看主链；横向展开的是并行任务，回箭头表示修订与重审。",
+            "范围：显示首次完整研究；已有完整成果可以跳过研究，但仍需重新独立审查。"
+          ],
+          "color": "#56677F",
+          "fs": 17
+        }
+      ]
+    },
+    {
+      "id": "proposed",
+      "title": "02  建议修改后的运行顺序",
+      "subtitle": "方案图 · 尚未实施 · 绿色节点为新增或重做的交接，蓝色保留主要研究职责",
+      "w": 1440,
+      "h": 2745,
+      "nodes": [
+        {
+          "id": "start",
+          "x": 500,
+          "y": 166,
+          "w": 440,
+          "h": 72,
+          "title": "输入股票代码、报告日",
+          "lines": [
+            "沿用现有技能入口与 Node 编排器"
+          ],
+          "color": "dark",
+          "shape": "pill"
+        },
+        {
+          "id": "freeze",
+          "x": 500,
+          "y": 268,
+          "w": 440,
+          "h": 100,
+          "title": "① 冻结输入、检查恢复状态",
+          "lines": [
+            "原始数据、派生证据、阶段产物分开",
+            "根据版本只重做受影响的阶段"
+          ],
+          "color": "green",
+          "shape": "round"
+        },
+        {
+          "id": "business",
+          "x": 500,
+          "y": 410,
+          "w": 440,
+          "h": 100,
+          "title": "② 先识别本次研究的业务",
+          "lines": [
+            "分清旧业务、转型业务与价值依赖"
+          ],
+          "color": "green",
+          "shape": "round"
+        },
+        {
+          "id": "anchor",
+          "x": 500,
+          "y": 550,
+          "w": 440,
+          "h": 100,
+          "title": "③ 立疑并保存统一业务锚",
+          "lines": [
+            "明确研究范围、证据时期和待验证假设",
+            "后续阶段读取同一版本"
+          ],
+          "color": "green",
+          "shape": "round"
+        },
+        {
+          "id": "research_0",
+          "x": 48,
+          "y": 740,
+          "w": 180,
+          "h": 82,
+          "title": "财务排雷",
+          "lines": [
+            "利润、现金、负债"
+          ],
+          "color": "blue",
+          "shape": "round",
+          "titleSize": 19,
+          "bodySize": 16
+        },
+        {
+          "id": "check_0",
+          "x": 48,
+          "y": 870,
+          "w": 180,
+          "h": 88,
+          "title": "本路核查",
+          "lines": [
+            "数字、条款、反证"
+          ],
+          "color": "green",
+          "shape": "round",
+          "titleSize": 19,
+          "bodySize": 15
+        },
+        {
+          "id": "research_1",
+          "x": 254,
+          "y": 740,
+          "w": 180,
+          "h": 82,
+          "title": "尽调",
+          "lines": [
+            "股权、治理、关联"
+          ],
+          "color": "blue",
+          "shape": "round",
+          "titleSize": 19,
+          "bodySize": 16
+        },
+        {
+          "id": "check_1",
+          "x": 254,
+          "y": 870,
+          "w": 180,
+          "h": 88,
+          "title": "本路核查",
+          "lines": [
+            "数字、条款、反证"
+          ],
+          "color": "green",
+          "shape": "round",
+          "titleSize": 19,
+          "bodySize": 15
+        },
+        {
+          "id": "research_2",
+          "x": 460,
+          "y": 740,
+          "w": 180,
+          "h": 82,
+          "title": "产业",
+          "lines": [
+            "产品、需求、模式"
+          ],
+          "color": "blue",
+          "shape": "round",
+          "titleSize": 19,
+          "bodySize": 16
+        },
+        {
+          "id": "check_2",
+          "x": 460,
+          "y": 870,
+          "w": 180,
+          "h": 88,
+          "title": "本路核查",
+          "lines": [
+            "数字、条款、反证"
+          ],
+          "color": "green",
+          "shape": "round",
+          "titleSize": 19,
+          "bodySize": 15
+        },
+        {
+          "id": "research_3",
+          "x": 666,
+          "y": 740,
+          "w": 180,
+          "h": 82,
+          "title": "竞争",
+          "lines": [
+            "优势、价格、同行"
+          ],
+          "color": "blue",
+          "shape": "round",
+          "titleSize": 19,
+          "bodySize": 16
+        },
+        {
+          "id": "check_3",
+          "x": 666,
+          "y": 870,
+          "w": 180,
+          "h": 88,
+          "title": "本路核查",
+          "lines": [
+            "数字、条款、反证"
+          ],
+          "color": "green",
+          "shape": "round",
+          "titleSize": 19,
+          "bodySize": 15
+        },
+        {
+          "id": "research_4",
+          "x": 872,
+          "y": 740,
+          "w": 180,
+          "h": 82,
+          "title": "战略驱动",
+          "lines": [
+            "投资、研发、增长"
+          ],
+          "color": "blue",
+          "shape": "round",
+          "titleSize": 19,
+          "bodySize": 16
+        },
+        {
+          "id": "check_4",
+          "x": 872,
+          "y": 870,
+          "w": 180,
+          "h": 88,
+          "title": "本路核查",
+          "lines": [
+            "数字、条款、反证"
+          ],
+          "color": "green",
+          "shape": "round",
+          "titleSize": 19,
+          "bodySize": 15
+        },
+        {
+          "id": "benchmark",
+          "x": 1100,
+          "y": 740,
+          "w": 290,
+          "h": 218,
+          "title": "按业务、分部找参照",
+          "lines": [
+            "来源可回溯 ≠ 经济可比",
+            "经营案例与估值用途分开"
+          ],
+          "color": "green",
+          "shape": "round",
+          "titleSize": 21,
+          "bodySize": 17
+        },
+        {
+          "id": "ledger",
+          "x": 500,
+          "y": 1185,
+          "w": 440,
+          "h": 125,
+          "title": "⑤ 整理证据和关键发现",
+          "lines": [
+            "原件、图片、核对转录建立关联",
+            "每项重要发现有固定编号与适用限制"
+          ],
+          "color": "green",
+          "shape": "round"
+        },
+        {
+          "id": "outline",
+          "x": 500,
+          "y": 1350,
+          "w": 440,
+          "h": 92,
+          "title": "⑥ 写作规划",
+          "lines": [
+            "安排重要发现进入哪一节，说明取舍"
+          ],
+          "color": "green",
+          "shape": "round"
+        },
+        {
+          "id": "write",
+          "x": 500,
+          "y": 1482,
+          "w": 440,
+          "h": 92,
+          "title": "⑦ 统一成稿（十二节）",
+          "lines": [
+            "完整底稿与关键清单形成同一套判断"
+          ],
+          "color": "blue",
+          "shape": "round"
+        },
+        {
+          "id": "review",
+          "x": 500,
+          "y": 1615,
+          "w": 440,
+          "h": 100,
+          "title": "⑧ 首次完整审查",
+          "lines": [
+            "读全证据，补齐并确定问题清单"
+          ],
+          "color": "green",
+          "shape": "round"
+        },
+        {
+          "id": "review_ok",
+          "x": 580,
+          "y": 1755,
+          "w": 280,
+          "h": 110,
+          "title": "审查通过？",
+          "lines": [],
+          "color": "gray",
+          "shape": "diamond"
+        },
+        {
+          "id": "revision",
+          "x": 55,
+          "y": 1755,
+          "w": 310,
+          "h": 110,
+          "title": "按固定编号修订",
+          "lines": [
+            "保留证据限制与已正确内容",
+            "修订轮数和未决问题持续记录"
+          ],
+          "color": "blue",
+          "shape": "round"
+        },
+        {
+          "id": "recheck",
+          "x": 55,
+          "y": 1613,
+          "w": 310,
+          "h": 96,
+          "title": "定向复核 + 全文回归",
+          "lines": [
+            "检查旧问题；新增问题须记入清单"
+          ],
+          "color": "green",
+          "shape": "round",
+          "titleSize": 20,
+          "bodySize": 15
+        },
+        {
+          "id": "stop",
+          "x": 1080,
+          "y": 1755,
+          "w": 310,
+          "h": 110,
+          "title": "保持交付阻断",
+          "lines": [
+            "修订预算用尽或验证失败",
+            "保存问题与检查点，支持定向续修"
+          ],
+          "color": "red",
+          "shape": "round",
+          "titleSize": 20,
+          "bodySize": 15
+        },
+        {
+          "id": "bind",
+          "x": 500,
+          "y": 1910,
+          "w": 440,
+          "h": 110,
+          "title": "⑨ 绑定并验证三个版本",
+          "lines": [
+            "报告 + 证据集 + 关键发现清单",
+            "图片引用通过已核对的文字转录校验"
+          ],
+          "color": "green",
+          "shape": "round"
+        },
+        {
+          "id": "candidate",
+          "x": 500,
+          "y": 2060,
+          "w": 440,
+          "h": 105,
+          "title": "⑩ 候选档案 + 交付程序检查",
+          "lines": [
+            "先写候选，保护人工内容与旧正式交付"
+          ],
+          "color": "green",
+          "shape": "round"
+        },
+        {
+          "id": "gate",
+          "x": 580,
+          "y": 2205,
+          "w": 280,
+          "h": 110,
+          "title": "交付检查通过？",
+          "lines": [],
+          "color": "gray",
+          "shape": "diamond"
+        },
+        {
+          "id": "gate_repair",
+          "x": 1080,
+          "y": 2175,
+          "w": 310,
+          "h": 140,
+          "title": "修复交付问题",
+          "lines": [
+            "重审受影响内容并重新绑定",
+            "保留重试次数与失败状态"
+          ],
+          "color": "blue",
+          "shape": "round"
+        },
+        {
+          "id": "gate_stop",
+          "x": 55,
+          "y": 2205,
+          "w": 310,
+          "h": 110,
+          "title": "保存失败检查点",
+          "lines": [
+            "持续失败，保留候选与待办",
+            "旧正式报告和档案不被覆盖"
+          ],
+          "color": "red",
+          "shape": "round"
+        },
+        {
+          "id": "publish",
+          "x": 500,
+          "y": 2355,
+          "w": 440,
+          "h": 100,
+          "title": "⑪ 提交档案并生成 PDF",
+          "lines": [
+            "正式交付对应同一套已通过的版本"
+          ],
+          "color": "green",
+          "shape": "round"
+        },
+        {
+          "id": "done",
+          "x": 500,
+          "y": 2495,
+          "w": 440,
+          "h": 70,
+          "title": "交付报告、档案和完整版本记录",
+          "lines": [],
+          "color": "dark",
+          "shape": "pill"
+        },
+        {
+          "id": "artifacts",
+          "x": 55,
+          "y": 1185,
+          "w": 310,
+          "h": 220,
+          "title": "新增交接产物",
+          "lines": [
+            "统一的研究业务锚",
+            "带原件关联的证据清单",
+            "固定编号的关键发现清单",
+            "逐项处理结果与未解决问题"
+          ],
+          "color": "green",
+          "shape": "round",
+          "titleSize": 20,
+          "bodySize": 17
+        },
+        {
+          "id": "resume_rules",
+          "x": 1080,
+          "y": 1185,
+          "w": 310,
+          "h": 220,
+          "title": "恢复与版本规则",
+          "lines": [
+            "记录每阶段输入和输出版本",
+            "只重做受影响的下游",
+            "保留每轮草稿与审查",
+            "从失败阶段继续处理"
+          ],
+          "color": "green",
+          "shape": "round",
+          "titleSize": 20,
+          "bodySize": 17
+        },
+        {
+          "id": "fill_refs",
+          "x": 500,
+          "y": 1060,
+          "w": 440,
+          "h": 88,
+          "title": "④ 按待解决需求补参照",
+          "lines": [
+            "区分经营比较、估值用途；缺失则明确保留"
+          ],
+          "color": "green",
+          "shape": "round"
+        }
+      ],
+      "edges": [
+        {
+          "id": "p01",
+          "source": "start",
+          "target": "freeze",
+          "points": [
+            [
+              720,
+              238
+            ],
+            [
+              720,
+              268
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "p12",
+          "source": "freeze",
+          "target": "business",
+          "points": [
+            [
+              720,
+              368
+            ],
+            [
+              720,
+              410
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "p23",
+          "source": "business",
+          "target": "anchor",
+          "points": [
+            [
+              720,
+              510
+            ],
+            [
+              720,
+              550
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "research_check_0",
+          "source": "research_0",
+          "target": "check_0",
+          "points": [
+            [
+              138,
+              822
+            ],
+            [
+              138,
+              870
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "research_check_1",
+          "source": "research_1",
+          "target": "check_1",
+          "points": [
+            [
+              344,
+              822
+            ],
+            [
+              344,
+              870
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "research_check_2",
+          "source": "research_2",
+          "target": "check_2",
+          "points": [
+            [
+              550,
+              822
+            ],
+            [
+              550,
+              870
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "research_check_3",
+          "source": "research_3",
+          "target": "check_3",
+          "points": [
+            [
+              756,
+              822
+            ],
+            [
+              756,
+              870
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "research_check_4",
+          "source": "research_4",
+          "target": "check_4",
+          "points": [
+            [
+              962,
+              822
+            ],
+            [
+              962,
+              870
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "parallel_bar",
+          "source": null,
+          "target": null,
+          "points": [
+            [
+              138,
+              698
+            ],
+            [
+              1245,
+              698
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "parallel_in_0",
+          "source": null,
+          "target": "research_0",
+          "points": [
+            [
+              138,
+              698
+            ],
+            [
+              138,
+              740
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "parallel_in_1",
+          "source": null,
+          "target": "research_1",
+          "points": [
+            [
+              344,
+              698
+            ],
+            [
+              344,
+              740
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "parallel_in_2",
+          "source": null,
+          "target": "research_2",
+          "points": [
+            [
+              550,
+              698
+            ],
+            [
+              550,
+              740
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "parallel_in_3",
+          "source": null,
+          "target": "research_3",
+          "points": [
+            [
+              756,
+              698
+            ],
+            [
+              756,
+              740
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "parallel_in_4",
+          "source": null,
+          "target": "research_4",
+          "points": [
+            [
+              962,
+              698
+            ],
+            [
+              962,
+              740
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "parallel_in_bench",
+          "source": null,
+          "target": "benchmark",
+          "points": [
+            [
+              1245,
+              698
+            ],
+            [
+              1245,
+              740
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "parallel_join",
+          "source": null,
+          "target": null,
+          "points": [
+            [
+              138,
+              1015
+            ],
+            [
+              1245,
+              1015
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "check_join_0",
+          "source": "check_0",
+          "target": null,
+          "points": [
+            [
+              138,
+              958
+            ],
+            [
+              138,
+              1015
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "check_join_1",
+          "source": "check_1",
+          "target": null,
+          "points": [
+            [
+              344,
+              958
+            ],
+            [
+              344,
+              1015
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "check_join_2",
+          "source": "check_2",
+          "target": null,
+          "points": [
+            [
+              550,
+              958
+            ],
+            [
+              550,
+              1015
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "check_join_3",
+          "source": "check_3",
+          "target": null,
+          "points": [
+            [
+              756,
+              958
+            ],
+            [
+              756,
+              1015
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "check_join_4",
+          "source": "check_4",
+          "target": null,
+          "points": [
+            [
+              962,
+              958
+            ],
+            [
+              962,
+              1015
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "benchmark_join",
+          "source": "benchmark",
+          "target": null,
+          "points": [
+            [
+              1245,
+              958
+            ],
+            [
+              1245,
+              1015
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "anchor_parallel",
+          "source": "anchor",
+          "target": null,
+          "points": [
+            [
+              720,
+              650
+            ],
+            [
+              720,
+              698
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "p45",
+          "source": "ledger",
+          "target": "outline",
+          "points": [
+            [
+              720,
+              1310
+            ],
+            [
+              720,
+              1350
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "p56",
+          "source": "outline",
+          "target": "write",
+          "points": [
+            [
+              720,
+              1442
+            ],
+            [
+              720,
+              1482
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "p67",
+          "source": "write",
+          "target": "review",
+          "points": [
+            [
+              720,
+              1574
+            ],
+            [
+              720,
+              1615
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "p7d",
+          "source": "review",
+          "target": "review_ok",
+          "points": [
+            [
+              720,
+              1715
+            ],
+            [
+              720,
+              1755
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "review_revision",
+          "source": "review_ok",
+          "target": "revision",
+          "points": [
+            [
+              580,
+              1810
+            ],
+            [
+              365,
+              1810
+            ]
+          ],
+          "color": "#B3873B",
+          "dashed": false
+        },
+        {
+          "id": "revision_recheck",
+          "source": "revision",
+          "target": "recheck",
+          "points": [
+            [
+              210,
+              1755
+            ],
+            [
+              210,
+              1709
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "recheck_decision",
+          "source": "recheck",
+          "target": "review_ok",
+          "points": [
+            [
+              365,
+              1661
+            ],
+            [
+              440,
+              1661
+            ],
+            [
+              440,
+              1735
+            ],
+            [
+              720,
+              1735
+            ],
+            [
+              720,
+              1755
+            ]
+          ],
+          "color": "#31875A",
+          "dashed": false
+        },
+        {
+          "id": "review_stop",
+          "source": "review_ok",
+          "target": "stop",
+          "points": [
+            [
+              860,
+              1810
+            ],
+            [
+              1080,
+              1810
+            ]
+          ],
+          "color": "#C96565",
+          "dashed": false
+        },
+        {
+          "id": "review_bind",
+          "source": "review_ok",
+          "target": "bind",
+          "points": [
+            [
+              720,
+              1865
+            ],
+            [
+              720,
+              1910
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "bind_stop",
+          "source": "bind",
+          "target": "stop",
+          "points": [
+            [
+              940,
+              1965
+            ],
+            [
+              1235,
+              1965
+            ],
+            [
+              1235,
+              1865
+            ]
+          ],
+          "color": "#C96565",
+          "dashed": false
+        },
+        {
+          "id": "p89",
+          "source": "bind",
+          "target": "candidate",
+          "points": [
+            [
+              720,
+              2020
+            ],
+            [
+              720,
+              2060
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "p9g",
+          "source": "candidate",
+          "target": "gate",
+          "points": [
+            [
+              720,
+              2165
+            ],
+            [
+              720,
+              2205
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "gate_repair",
+          "source": "gate",
+          "target": "gate_repair",
+          "points": [
+            [
+              860,
+              2260
+            ],
+            [
+              990,
+              2260
+            ],
+            [
+              990,
+              2245
+            ],
+            [
+              1080,
+              2245
+            ]
+          ],
+          "color": "#B3873B",
+          "dashed": false
+        },
+        {
+          "id": "gate_repair_review",
+          "source": "gate_repair",
+          "target": "review",
+          "points": [
+            [
+              1390,
+              2245
+            ],
+            [
+              1410,
+              2245
+            ],
+            [
+              1410,
+              1665
+            ],
+            [
+              940,
+              1665
+            ]
+          ],
+          "color": "#B3873B",
+          "dashed": false
+        },
+        {
+          "id": "gate_stop_edge",
+          "source": "gate",
+          "target": "gate_stop",
+          "points": [
+            [
+              580,
+              2260
+            ],
+            [
+              365,
+              2260
+            ]
+          ],
+          "color": "#C96565",
+          "dashed": false
+        },
+        {
+          "id": "gate_publish",
+          "source": "gate",
+          "target": "publish",
+          "points": [
+            [
+              720,
+              2315
+            ],
+            [
+              720,
+              2355
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "publish_done",
+          "source": "publish",
+          "target": "done",
+          "points": [
+            [
+              720,
+              2455
+            ],
+            [
+              720,
+              2495
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "merge_fill",
+          "source": null,
+          "target": "fill_refs",
+          "points": [
+            [
+              720,
+              1015
+            ],
+            [
+              720,
+              1060
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        },
+        {
+          "id": "fill_ledger",
+          "source": "fill_refs",
+          "target": "ledger",
+          "points": [
+            [
+              720,
+              1148
+            ],
+            [
+              720,
+              1185
+            ]
+          ],
+          "color": "#6E819A",
+          "dashed": false
+        }
+      ],
+      "labels": [
+        {
+          "x": 48,
+          "y": 674,
+          "w": 610,
+          "lines": [
+            "五路专题研究 → 各路完成后核查（受并发上限约束）"
+          ],
+          "color": "#56677F",
+          "fs": 16
+        },
+        {
+          "x": 1100,
+          "y": 670,
+          "w": 290,
+          "lines": [
+            "同业参照使用相同业务锚"
+          ],
+          "color": "#34734F",
+          "fs": 16
+        },
+        {
+          "x": 372,
+          "y": 1765,
+          "w": 200,
+          "lines": [
+            "未通过，仍可修订",
+            "常规最多 2 轮"
+          ],
+          "color": "#8C682D",
+          "fs": 15
+        },
+        {
+          "x": 866,
+          "y": 1772,
+          "w": 207,
+          "lines": [
+            "仍有重大问题，次数用尽"
+          ],
+          "color": "#A84F4F",
+          "fs": 15
+        },
+        {
+          "x": 724,
+          "y": 1887,
+          "w": 90,
+          "lines": [
+            "通过"
+          ],
+          "color": "#52725F",
+          "fs": 15
+        },
+        {
+          "x": 999,
+          "y": 1931,
+          "w": 200,
+          "lines": [
+            "验证失败"
+          ],
+          "color": "#A84F4F",
+          "fs": 15
+        },
+        {
+          "x": 866,
+          "y": 2212,
+          "w": 205,
+          "lines": [
+            "失败，尚可修复"
+          ],
+          "color": "#8C682D",
+          "fs": 15
+        },
+        {
+          "x": 373,
+          "y": 2227,
+          "w": 200,
+          "lines": [
+            "修复次数用尽"
+          ],
+          "color": "#A84F4F",
+          "fs": 15
+        },
+        {
+          "x": 725,
+          "y": 2335,
+          "w": 150,
+          "lines": [
+            "全部通过"
+          ],
+          "color": "#52725F",
+          "fs": 15
+        },
+        {
+          "x": 48,
+          "y": 2635,
+          "w": 1344,
+          "lines": [
+            "绿色：新增或重做的交接；蓝色：保留的研究职责；红色：失败阻断。",
+            "这是建议方案，尚未实施；拆分步骤不等于每一步都必须增加一个新 agent。"
+          ],
+          "color": "#56677F",
+          "fs": 17
+        }
+      ]
+    }
+  ]
+}

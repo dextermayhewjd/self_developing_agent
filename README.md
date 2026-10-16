@@ -1,8 +1,12 @@
 # 自开发代理 - 股票研究报告生成系统
 
-使用 Claude Code 和自定义 skills 生成结构化的 A 股研究报告。
+使用 Codex 或 Claude Code 和自定义 skills 生成中文股票研究报告。
 
-也可在 Codex CLI 中运行判断型研究 workflow：使用 `$thesis-wf`，或运行 `node tools/run_codex_workflow.mjs equity-thesis --symbol <代码>`。安装、检查与恢复方式见 [Codex workflow 操作说明](docs/codex-workflow.md)。
+Codex 原生技能、方法与工作流位于 `.codex/`，通过 `.agents/skills` 发现，运行时不依赖 `.claude`。在 Codex CLI 使用 `$thesis-wf` / `$equity-thesis-cn`，或运行 `node tools/run_codex_workflow.mjs equity-thesis --symbol <代码>`。另提供结构化报告、独立财务排雷、方法校准和运行审计。安装、检查与恢复方式见 [Codex workflow 操作说明](docs/codex-workflow.md)。
+
+判断稿现由 host 管理稳定编号的审查任务、精确补丁、独立复审和 receipt；默认累计两轮修订，授权扩至三轮使用原代码/日期追加 `--review-max-rounds 3`。已有候选稿恢复审查，不因缺档案重跑研究。纯审计不会补写运行文件。局部提案保留 32 KiB / 两节上下文限制，强度沿用冻结配置；[强度对齐审计](docs/superpowers/reports/2026-10-16-thesis-effort-parity.md) 记录辅助阶段 low 与显式覆盖规则。实现范围、真实合成探针结果与边界见 [实施记录](docs/superpowers/reports/2026-10-16-thesis-review-task-system-implementation.md) 和 [改动图](docs/diagrams/thesis-workflow/thesis-workflow-change-map.svg)。
+
+提交改动时可使用 `$smart-commit`；[原生技能](.codex/skills/smart-commit/SKILL.md) 按功能依赖拆批、核对精确文件清单与测试，并沿用本轮已确认的提交及推送授权。
 
 ## 快速开始
 
