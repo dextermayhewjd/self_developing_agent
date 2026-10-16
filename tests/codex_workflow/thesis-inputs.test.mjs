@@ -345,3 +345,57 @@ test('supplement producer can rerun its own interrupted scope while aggregate co
  const before=await reopened.beforeStage('补参照系');await f.put(join(f.data,'check_sources/补参照系/source.txt'),'rerun');await reopened.afterStage('补参照系',before)
  await reopened.dependencies('成稿')
 })
+
+for (const rewrite of [false, true]) for (const operation of ['admission', 'dependencies']) {
+ test(`settlement cannot overtake paused ${operation} inventory for ${rewrite ? 'rewritten' : 'new'} output`, async t => {
+  const {default:fs}=await import('node:fs')
+  const {syncBuiltinESMExports}=await import('node:module')
+  const f=await setup(t),tracker=await createThesisInputTracker(f)
+  const output=join(f.data,'peers_curated.json')
+  if(rewrite) {
+   const initial=await tracker.beforeStage('板块基准')
+   await f.put(output,'old settled');await tracker.afterStage('板块基准',initial)
+  }
+  const before=await tracker.beforeStage('板块基准')
+  await f.put(output,'new settled')
+  const originalRead=fs.promises.readFile,originalLstat=fs.promises.lstat
+  let captured,release,pause=true,settlementQueued=false,settlementReadStarted=false,settled=false
+  const ready=new Promise(resolve=>{captured=resolve}),resume=new Promise(resolve=>{release=resolve})
+  let checking,settlement
+  try {
+   fs.promises.readFile=async function(path,...args) {
+    const bytes=await originalRead(path,...args)
+    if(pause&&String(path)===output){pause=false;captured();await resume}
+    return bytes // Real bytes are returned unchanged; only I/O completion is paused.
+   }
+   fs.promises.lstat=function(path,...args) {
+    if(settlementQueued&&String(path)===f.data)settlementReadStarted=true
+    return originalLstat(path,...args)
+   }
+   syncBuiltinESMExports()
+   checking=(operation==='admission'?tracker.assertCurrent({admission:true}):tracker.dependencies('核查:财务排雷'))
+    .then(value=>({value}),error=>({error}))
+   await ready
+   settlementQueued=true
+   settlement=tracker.afterStage('板块基准',before).then(()=>{settled=true})
+   // Let the already-resolved serialization queue's callback enter. The old
+   // implementation starts its lstat now; the fixed queue is held by the reader.
+   await Promise.resolve();await Promise.resolve()
+   const overtook=settlementReadStarted
+   if(overtook)await settlement // Reproduce the exact old read/settle/validate race.
+   const settledWhilePaused=settled
+   release() // Always release the queued reader before awaiting fixed settlement.
+   const result=await checking
+   await settlement
+   assert.ifError(result.error)
+   assert.equal(overtook,false,'settlement inventory must wait for the admitted read')
+   assert.equal(settledWhilePaused,false,'settlement must still wait while read is paused')
+   await tracker.assertCurrent()
+   assert.equal(await readFile(output,'utf8'),'new settled')
+  } finally {
+   release()
+   await Promise.allSettled([checking,settlement].filter(Boolean))
+   fs.promises.readFile=originalRead;fs.promises.lstat=originalLstat;syncBuiltinESMExports()
+  }
+ })
+}

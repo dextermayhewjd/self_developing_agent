@@ -181,15 +181,21 @@ export async function createThesisInputTracker({ root, symbol, runDir, previousM
       lifecycle.pending = lifecycle.pending.filter(s => s !== stage)
       await saveLife()
     }) },
-    async dependencies(stage) {
+    // Keep registry selection, inventory I/O and lifecycle validation in one
+    // queue turn. Only internal unqueued helpers are called while holding it.
+    dependencies(stage) { return serial(async () => {
       const current = await resolveCurrent()
       const independent = /^(盘点$|立疑$|板块基准$|挖掘:|核查:)/u.test(stage)
       validate(current, independent, stage)
       // Independent research branches consume originals, not concurrent producer
       // outputs. Aggregate consumers require all producers settled and verified.
       return { stage, sha256:digest(independent ? [] : current.derived.filter(e=>e.stage!==stage).map(e=>({path:e.path,stage:e.stage,sha256:e.sha256}))), producer_generation:(lifecycle.history ?? []).filter(record => record.stage === stage).length }
-    },
-    async assertCurrent({ admission = false } = {}) { const current=await resolveCurrent(); validate(current, admission); return current },
+    }) },
+    assertCurrent({ admission = false } = {}) { return serial(async () => {
+      const current = await resolveCurrent()
+      validate(current, admission)
+      return current
+    }) },
   }
 }
 
