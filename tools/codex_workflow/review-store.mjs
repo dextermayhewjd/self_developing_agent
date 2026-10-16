@@ -353,6 +353,15 @@ class ReviewStore {
     await this.emit({ type: 'review_budget_changed', from: previous, to: value, used_rounds: ledger.budget.used_rounds })
     return state
   }
+  /** Persist a host stop without reserving a round or rewriting task history. */
+  async recordStop({ reason }) {
+    if (reason !== null && (typeof reason !== 'string' || !reason.trim())) fail('stop reason must be nonempty text or explicit null')
+    const current = await this.current()
+    if (current.values.ledger.terminal_reason === reason) return this.state(current)
+    const ledger = clone(current.values.ledger)
+    ledger.terminal_reason = reason
+    return this.publish({ previous: current, reportBytes: current.values.report, ledger, evidence: current.values.evidence, attempt: current.values.attempt })
+  }
   /** snapshot MUST be recomputed by the caller from the current physical evidence inventory. */
   async assertDeliverable({ snapshot }) {
     const current = await this.current()
