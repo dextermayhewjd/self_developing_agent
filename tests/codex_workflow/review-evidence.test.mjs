@@ -270,3 +270,14 @@ test('default image test runs from an unrelated working directory without histor
   assert.equal(result.status,0,result.stderr+result.stdout)
   assert.match(result.stdout,/# tests 1(?:\r?\n|$)/) // prove the child actually selected the fixture test
 })
+
+
+test('loadEvidenceContext preserves original UTF-8 BOM and raw source digest', async t => {
+  const f = await fixture(t)
+  const raw = Buffer.from('\uFEFF全表单位：万元。\r\n余额 -12；不确定；未披露。\r\n')
+  await f.put('核查/BOM.md', raw)
+  const manifest = await evidence.snapshotEvidence(f)
+  const context = await evidence.loadEvidenceContext({ ...f, manifest })
+  assert.equal(context.sourceTexts['核查/BOM.md'], raw.toString('utf8'))
+  assert.equal(sha256(context.sourceTexts['核查/BOM.md']), manifest.sources.find(s => s.path === '核查/BOM.md').sha256)
+})

@@ -186,3 +186,23 @@ test('counts each review once including clean reviews and requires reserved roun
   assert.equal(second.budget.valid_reviews, 2)
   assert.throws(() => reconcileReview({ ledger: second, review: reviewFor(second, { reviewId: 'RV-000003' }), snapshot }), /budget|reserved/)
 })
+
+test('review contract carries exact judgment constraints into tasks and rejects empty/conflicting declarations', async () => {
+  const { reconcileReview } = await import('../../tools/codex_workflow/review-ledger.mjs')
+  const { issueFixtureV2, reviewFixtureV2, snapshotFixtureV2 } = await import('./fixtures/review-fixture.mjs')
+  const make = judgment_constraints => {
+    const ledger = createLedger()
+    const issue = issueFixtureV2({ judgment_constraints })
+    const review = reviewFixtureV2({ ledgerSha256: sha256(canonicalJson(ledger)), verdict: 'revise', new_issues: [issue] })
+    review.sections[2].issue_keys = [issue.issue_key]
+    return { ledger, review, snapshot: snapshotFixtureV2 }
+  }
+  const declared = [{ section: 11, quote: '仅采用已披露现金流。' }]
+  assert.deepEqual(reconcileReview(make(declared)).ledger.tasks[0].judgment_constraints, declared)
+  assert.deepEqual(reconcileReview(make([])).ledger.tasks[0].judgment_constraints, [])
+  assert.throws(() => reconcileReview(make([{ section: 11, quote: ' ' }])), /constraint|quote/i)
+  assert.throws(() => reconcileReview(make([{ section: 13, quote: 'bad' }])), /schema/i)
+  const conflict = make(declared)
+  conflict.review.new_issues.push({ ...conflict.review.new_issues[0], judgment_constraints: [] })
+  assert.throws(() => reconcileReview(conflict), /conflict/i)
+})

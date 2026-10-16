@@ -72,6 +72,10 @@ function mergeIssues(issues, snapshot) {
   for (const issue of issues) {
     checkKind(issue)
     if (![issue.issue_key, issue.description, ...issue.acceptance_criteria].every(nonempty)) fail('issue requires issue_key, description and acceptance criteria')
+    if (issue.judgment_constraints !== undefined) {
+      for (const ref of issue.judgment_constraints) if (!nonempty(ref.quote)) fail('judgment constraint requires a nonempty quote')
+      unique(issue.judgment_constraints.map(ref => canonicalJson(ref)), 'judgment constraints')
+    }
     for (const ref of issue.evidence_refs) {
       if (!nonempty(ref.source) || !nonempty(ref.quote) || !digest(ref.source_sha256) || ref.evidence_sha256 !== snapshot.evidence_sha256) fail('invalid issue evidence_refs or evidence_sha256')
       if ((ref.transcript_path === undefined) !== (ref.transcript_sha256 === undefined) || (ref.transcript_sha256 !== undefined && (!digest(ref.transcript_sha256) || !nonempty(ref.transcript_path)))) fail('invalid transcript evidence reference')

@@ -34,8 +34,9 @@ const issue = object({
   locations: array(object({ section, quote: string }, ['quote']), { minItems: 1 }),
   evidence_refs: array(EVIDENCE_REF_SCHEMA),
   acceptance_criteria: array(string, { minItems: 1 }),
+  judgment_constraints: array(object({ section, quote: string })),
   route: enumeration(['local_patch', 'full_revision', 'needs_evidence']),
-})
+}, ['judgment_constraints'])
 
 export const REVIEW_SCHEMA = object({
   version: { type: 'integer', enum: [2] }, review_id: string,

@@ -75,7 +75,7 @@ async function inventory(root) {
   return files.sort()
 }
 function utf8(bytes,path) {
-  try { return new TextDecoder('utf-8',{fatal:true}).decode(bytes) } catch { fail(`invalid UTF-8 text: ${path}`) }
+  try { return new TextDecoder('utf-8',{fatal:true,ignoreBOM:true}).decode(bytes) } catch { fail(`invalid UTF-8 text: ${path}`) }
 }
 function sourceType(path,bytes) {
   const ext=extname(path).toLowerCase()
