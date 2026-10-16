@@ -1,16 +1,18 @@
 # 审查任务系统实施记录（2026-10-16）
 
+**最终验收：已完成。** 最终代码 `27c4561` 的 Node 测试为 **326/326，零失败／跳过**；原生检查和三条静态 workflow 检查通过，静态模型调用为 0。整体验证发现的 I1–I4 与 M1 均已修复并经独立复查关闭；最后的并发结算竞态四例回归通过。此前真实 Codex CLI 合成测试已跑通 xhigh→low→xhigh；后续修复用确定性生产代码／进程集成验证，未增加实际模型调用，不把历史模型日志当作最终方法包的研究质量证明。下文按阶段保留原始结果，当前结果以本段和末尾验收记录为准。
+
 本批实现稳定 RT 任务、Store 不可变版本与 receipt、二进制证据授权、精确 host 补丁、累计轮次与固定批次恢复、原始输入分类及暂存交付。原生入口仍为 $thesis-wf / CLI，运行资源位于 .codex，不依赖 .claude。业务识别、同业范围和写作前规划留待后续；没有启动新的真实股票研究。
 
-Task 8 最终代码已通过下列验证；真实合成探针分次记录，最终独立审查由 controller 执行。工作树包含迁移前已有 dirty/untracked 文件，这些保持未暂存；任务 commit 不是完整迁移快照。
+Task 8 阶段代码通过下列验证；真实合成探针分次记录，最终独立审查由 controller 派发，结果见末尾验收记录。工作树包含迁移前已有 dirty/untracked 文件，这些保持未暂存；任务 commit 不是完整迁移快照。
 
 ## 已观察到的验证
 
 - backend/config RED：40 项，30 pass / 10 fail，复现旧功能开关无效与 skills/list 未校验 cwd/errors/shape；GREEN 40/40。
 - audit RED：9 项，7 pass / 2 fail，复现缺 v2 任务摘要与缺显示文件仍报完整；audit + Store GREEN 57/57。
 - probe RED：audit+probe 11 项，9 pass / 2 fail（模块尚未实现）；GREEN 11/11。外部进程 fixture 仅替换模型响应，其余生产 coordinator/backend/Store/精确补丁/receipt 真实执行。
-- 最终 `npm test`：299/299、零失败/跳过，exit0，33.92秒（`npm-test-ultimate.tap`）。最终 probe 进程测试5/5；前一阶段覆盖 ledger/coordinator/audit/backend/config 的 focused92/92。原生布局检查exit0；三条实际 CLI --check 均exit0 / model_calls:0。两条冻结回放exit0：图片授权/转录引用边界与11个原始输入 SHA 均验证，未创建旧报告交付凭据。
-- 图 drawio/SVG 可解析，单图40节点46边；PNG1440×3170，PDF1页且 CJK 字体嵌入，实际打开渲染并目视检查。六项受保护 report/position/PDF 的原始 SHA 全部未变。Python 无改动，沿用 Task 7b 已记录的项目虚拟环境175项结果，不冒充本批重跑。
+- Task 8 阶段 `npm test`：299/299、零失败/跳过，exit0，33.92秒（`npm-test-ultimate.tap`）。最终 probe 进程测试5/5；前一阶段覆盖 ledger/coordinator/audit/backend/config 的 focused92/92。原生布局检查exit0；三条实际 CLI --check 均exit0 / model_calls:0。两条冻结回放exit0：图片授权/转录引用边界与11个原始输入 SHA 均验证，未创建旧报告交付凭据。
+- 图 drawio/SVG 可解析，单图40节点46边；PNG1440×3170，PDF1页且 CJK 字体嵌入，实际打开渲染并目视检查。六项受保护 report/position/PDF 的原始 SHA 全部未变。Task 8 及后续修补未修改 Python 生产代码，沿用 Task 7b 已记录的项目虚拟环境175项结果，不冒充本批重跑。
 
 ## 操作与边界
 
@@ -205,3 +207,9 @@ The four real-byte regressions cover new/rewritten output × independent admissi
 Final evidence for this narrow completion is in `.superpowers/sdd/2026-10-16-thesis-review-task-system/snapshots/final-i1-race-fix/`: `settlement-red.tap` reports 0/4 with the exact false unclassified/stale failures; `settlement-green.tap` reports 4/4; `focused-input-state-cli.tap` reports 61/61; the single final `npm-test-final.tap` reports **326 passed, 0 failed** after all code/test edits. Native layout succeeds and all three static workflows report model_calls:0. All six protected report/PDF/position artifacts retain their original sizes/hashes. All 23 Ruling paragraphs, including the explicit narrow process-cap exception and its cost, appear above in exact original order. No new actual model calls, stock research, separate Python-suite rerun, worker permission changes or broad rereview occurred. The detailed command/results and commit record are in `final-i1-race-fix-report.md`; this evidence supersedes only the earlier claim that I1 live admission was fully addressed, leaving the accepted I2/I3/I4/M1 scope and historical real-model logs intact.
 
 The remaining operational tradeoff is serialization of input inventory/validation I/O per tracker; model/backend execution still runs concurrently. The tests prove this precise cooperative-host settlement ordering and absence of the reproduced deadlock, not arbitrary hardware power-loss or hostile external-write behavior. Original, unknown, stale, interruption, pending-generation, cross-date and existing State/CLI checks remain enforced and passing.
+
+## 最终独立验收
+
+全部八项实施任务及后续必要修补已验收。最终整体验证原报告为 `.superpowers/sdd/2026-10-16-thesis-review-task-system/final-review-report.md`；一次统一修补后的复查在 `final-fix-wave-1-rereview-report.md` 中关闭 I2/I3/I4/M1，并精确留下 I1；最后的 `final-i1-race-rereview-report.md` 关闭 I1，spec 与 quality 均 PASS，未发现新问题。代码提交为 `ff626a7`、`27c4561`，另保留此前任务提交。最终唯一完整 Node 运行326/326，native检查与三条静态检查成功；六份受保护报告、PDF和档案再次独立核对，原字节不变。23条实施裁定及误判成本已全部按原顺序保留。
+
+当前工作树包含本批之前已有的未提交原生迁移文件；已保留，不混入本批提交。因此本批 commit 不能单独替代整个原生迁移工作树。未执行 merge/push 或新股票研究；旧 v1 运行仅支持诊断，不自动导入额度或重新授权交付。既存 Python 文件句柄 ResourceWarning 留作单独维护。工作树与实施快照、复现日志继续保留，供追溯和后续处理原有迁移改动。
