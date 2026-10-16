@@ -153,6 +153,36 @@ export async function diagnoseLegacyReviewState({ runDir, inputManifest }) {
     const currentStages = Object.entries(state?.stages ?? {}).filter(([label]) => /^(成稿审查|修订成稿):\d+$/u.test(label))
     const summaries = entries => entries.map(([label, record]) => ({label,status:record.status,verdict:record.result?.verdict ?? null})).sort((a,b)=>a.label.localeCompare(b.label))
     if (digest(summaries(currentStages)) !== digest(summaries(stages))) reasons.push('Current legacy round history contradicts frozen stage history')
+    // Stage state can omit calls completed before a crash. Reconcile the entire
+    // completed review/revision inventory before trusting any consumed allowance.
+    const stageHistory = new Map(stages), completedCalls = new Map()
+    let completeInventory = Array.isArray(rollouts)
+    for (const entry of rollouts ?? []) {
+      if (entry?.completed !== true) continue
+      if (typeof entry.stage !== 'string') {
+        reasons.push('Unexplained completed archived call without a stage label')
+        completeInventory = false
+        continue
+      }
+      if (!/^(成稿审查|修订成稿)[_:]/u.test(entry.stage)) continue
+      const match = /^(成稿审查|修订成稿)_(0|[1-9]\d*)-.+$/u.exec(entry.stage)
+      if (!match) {
+        reasons.push('Unexplained noncanonical completed archived round: ' + entry.stage)
+        completeInventory = false
+        continue
+      }
+      const label = match[1] + ':' + match[2]
+      if (completedCalls.has(label)) {
+        reasons.push('Duplicate completed archived round: ' + label)
+        completeInventory = false
+      }
+      completedCalls.set(label, entry)
+      if (stageHistory.get(label)?.status !== 'succeeded') {
+        reasons.push('Unexplained completed archived round outside succeeded state history: ' + label)
+        completeInventory = false
+      }
+    }
+    for (const [label, record] of stages) if (record.status !== 'succeeded' || !completedCalls.has(label)) completeInventory = false
     const reviews = stages.filter(([label]) => label.startsWith('成稿审查:')).sort((a,b)=>Number(a[0].split(':')[1])-Number(b[0].split(':')[1]))
     const revisions = stages.filter(([label]) => label.startsWith('修订成稿:'))
     if (!reviews.length || reviews.length !== revisions.length + 1) reasons.push('Incomplete review/revision round history')
@@ -172,11 +202,11 @@ export async function diagnoseLegacyReviewState({ runDir, inputManifest }) {
         if (!safeRelative(entry.archived) || await streamHash(archivePath)!==entry.sha256 || (await lstat(archivePath)).size!==entry.bytes) reasons.push(`Archived round digest mismatch: ${label}`)
       }
     }
-    proofs.validReviews=reviews.length
+    proofs.validReviews=completeInventory ? reviews.length : null
     proofs.finalVerdict=reviews.at(-1)?.[1].result?.verdict ?? null
     proofs.terminalReason=proofs.finalVerdict==='revise' ? 'legacy_review_rejected' : 'legacy_requires_independent_v2_review'
     proofs.requiresExplicitImport=true
-    return { migratable: reasons.length===0, reasons, usedRounds: revisions.length, proofs }
+    return { migratable: reasons.length===0, reasons, usedRounds: completeInventory ? revisions.length : null, proofs }
   } catch(error) {
     reasons.push(`Missing/invalid legacy proof: ${error.message}`)
     return { migratable:false, reasons, usedRounds:null, proofs }

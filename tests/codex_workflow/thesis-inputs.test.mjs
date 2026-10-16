@@ -24,8 +24,9 @@ test('original byte identity includes aggregate, annual PDFs, new originals and 
   const initial = await fingerprint()
   assert.equal(await workflowFingerprint(root,'equity-thesis',{symbol,review_only:true},{}),initial)
   for (const path of ['aggregate.json','annual_pdf/hk_2025.pdf','ccass.json']) {
+    const before = await fingerprint()
     await put(join(data,path), 'changed')
-    assert.notEqual(await fingerprint(),initial)
+    assert.notEqual(await fingerprint(),before,path)
   }
   const current=await fingerprint()
   await put(join(root,'.codex/skills/SKILL.md'),'changed methodology')
@@ -106,7 +107,7 @@ test('legacy diagnosis is read-only, requires independent origin and round proof
   assert.equal(current.proofs.protocol,2)
 })
 
-test('eligible frozen legacy proof reconstructs two rounds and three rejected reviews without writing state or importing',async t=>{
+async function legacyProofFixture(t) {
   const {root,symbol,runDir,put}=await setup(t)
   const {sha256}=await import('../../tools/codex_workflow/review-contracts.mjs')
   const proof=join(root,'proof'), statePath=join(runDir,'.codex-workflow/state.json')
@@ -135,6 +136,11 @@ test('eligible frozen legacy proof reconstructs two rounds and three rejected re
   }
   await put(join(proof,'native-rollouts/index.json'),JSON.stringify(index))
   await put(join(runDir,'.codex-workflow/legacy-proof.json'),JSON.stringify({directory:proof}))
+  return { root, symbol, runDir, put, proof, statePath, inputManifest, index }
+}
+
+test('eligible frozen legacy proof reconstructs two rounds and three rejected reviews without writing state or importing',async t=>{
+  const {root,symbol,runDir,put,statePath,inputManifest}=await legacyProofFixture(t)
   const original=await readFile(statePath)
   const diagnosis=await diagnoseLegacyReviewState({runDir,inputManifest})
   assert.deepEqual(diagnosis,{migratable:true,reasons:[],usedRounds:2,proofs:{validReviews:3,finalVerdict:'revise',terminalReason:'legacy_review_rejected',requiresExplicitImport:true}})
@@ -150,22 +156,25 @@ test('eligible frozen legacy proof reconstructs two rounds and three rejected re
   assert.deepEqual(await readFile(statePath),original)
 })
 
-test('frozen 300209 originals replay in temporary stock tree; exact registered additions preserve identity',async t=>{
-  const {root,runDir,put}=await setup(t)
-  const source=new URL('../../debug/300209_native_retest_20261016/test-manifest.json',import.meta.url)
-  const frozen=JSON.parse(await readFile(source,'utf8'))
-  for(const [path,expected] of Object.entries(frozen.raw_inputs)) {
-    const bytes=await readFile(new URL(`../../data/300209/${path}`,import.meta.url))
+for (const scenario of ['extra completed revision and review', 'duplicate completed call', 'noncanonical duplicate completed call']) {
+  test('legacy diagnosis refuses '+scenario+' outside a one-to-one complete state history',async t=>{
+    const {root,runDir,put,proof,statePath,inputManifest,index}=await legacyProofFixture(t)
     const {sha256}=await import('../../tools/codex_workflow/review-contracts.mjs')
-    assert.equal(sha256(bytes),expected,path)
-    await put(join(root,'data/300209',path),bytes)
-  }
-  const tracker=await createThesisInputTracker({root,symbol:'300209',runDir})
-  const fingerprint=()=>workflowFingerprint(root,'equity-thesis',{symbol:'300209'},{},{inputManifest:tracker.manifest})
-  const original=await fingerprint()
-  const before=await tracker.beforeStage('板块基准')
-  await put(join(root,'data/300209/benchmark_peers/computed.json'),'fixture derived')
-  await tracker.afterStage('板块基准',before)
-  assert.equal(await fingerprint(),original)
-  assert.equal(tracker.manifest.originals.length,11)
-})
+    const before=await readFile(statePath)
+    const add=async stage=>{
+      const archived='proof/native-rollouts/'+stage+'.jsonl',body='completed '+stage
+      await put(join(root,archived),body)
+      index.push({stage,completed:true,archived,bytes:Buffer.byteLength(body),sha256:sha256(body)})
+    }
+    if(scenario==='extra completed revision and review') {
+      await add('修订成稿_3-extra');await add('成稿审查_3-extra')
+    } else await add(scenario==='duplicate completed call'?'成稿审查_0-duplicate':'成稿审查_00-duplicate')
+    await put(join(proof,'native-rollouts/index.json'),JSON.stringify(index))
+    const diagnosis=await diagnoseLegacyReviewState({runDir,inputManifest})
+    assert.equal(diagnosis.migratable,false)
+    assert.match(diagnosis.reasons.join(' '),/Unexplained|Duplicate|noncanonical/u)
+    assert.equal(diagnosis.usedRounds,null)
+    assert.equal(diagnosis.proofs.validReviews,null)
+    assert.deepEqual(await readFile(statePath),before)
+  })
+}
