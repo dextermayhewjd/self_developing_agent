@@ -35,9 +35,10 @@ Codex 运行时没有新增 `.claude` 依赖。没有增加模型选择器、跨
 3. 最终 `npm test`：329 tests / 329 pass / 0 fail / 0 skip，exit 0，36.79s（`npm-test.tap`），仅跑一次全量。`node tools/check_codex_native.mjs` exit 0；以下三条实际静态命令均 exit 0、model_calls=0：`node tools/run_codex_workflow.mjs equity-thesis --symbol 000001 --date 20261016 --check`；`node tools/run_codex_workflow.mjs peer-comparability --args-file /tmp/task7b-check-peers.json --check`；`node tools/run_codex_workflow.mjs calibrate-equity-thesis --date 20261016 --check`（对应 `native-check.json`、`check-equity.json`、`check-peer.json`、`check-calibrate.json`）。本次没有重跑未改动的 Python 套件。
 4. 指南由控制器做独立 reference-only RED/GREEN 阅读；旧文档误答局部 low 并遗漏辅助强度/合法标签，新文档正确答继承及覆盖，且指出文件 default 的适用条件（任务目录 `guide-baseline.md`、`guide-green.md`）。
 5. change-map model 与基线只差修订节点的一行强度标签；drawio/SVG XML 可解析，PNG 1440×3170，PDF 单页 1080×2377.5pt，嵌入 NotoSansCJKsc regular/bold，渲染后目视检查文字可读。六份受保护的报告、PDF、档案 hash 均未改变。
+6. 独立审查已通过需求符合性与代码质量两项检查，没有 Critical、Important 或 Minor 发现；同时核对冻结配置解析、指南和 PNG/PDF 图示。审查记录为任务目录 `review-report.md`，未重复运行测试或真实推理。
 
 ## 历史与范围边界
 
 [上一批实施记录](2026-10-16-thesis-review-task-system-implementation.md) 中实际 `xhigh/low/xhigh` 是当时真实运行的历史证据；本次保留原值，不宣称它已经使用新的继承规则。本次实际模型调用 0 次、真实股票研究 0 次；process fixture 验证接口/调度/证明，不证明真实研究质量，也不证明所有模型的跨平台同名 effort 计算量等价。生产 worker 的只读/审批参数保持原样。
 
-仅提交本次原先干净的源码、测试及新审计记录；现有 dirty native migration、当前指南、README、图及历史记录追加说明通过完整任务前后快照审阅，不混入该提交。无 merge、push 或清理工作区。
+本次原先干净的源码、测试、新审计记录及历史文档追加说明分批提交；现有 dirty native migration、当前指南、README 和图通过完整任务前后快照审阅，保留原工作区状态。无 merge、push 或清理工作区。

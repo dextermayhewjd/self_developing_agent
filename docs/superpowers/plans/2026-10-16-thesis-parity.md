@@ -59,3 +59,8 @@ Files: tools/codex_workflow/thesis.mjs, state/dependency integration, .claude/co
 - A stale position cache after manuscript revision was reproduced and fixed; review, revision and position synchronization do not reuse mutable file inputs by prompt alone.
 - Scope clarification: stage-specific labels currently cover equity-thesis; auxiliary workflows retain global configuration. Documented explicitly.
 - Existing 301248 report and unrelated user edits were preserved.
+
+
+## 2026-10-16 后续强度校正
+
+本文件保留原设计/实施及真实探针的历史值。局部提案自动 low 已在后续有界修正中移除，现沿用问题修订的冻结配置；盘点等显式 helper low 保留。当前规则与零真实模型调用的验证见 [强度对齐审计](../reports/2026-10-16-thesis-effort-parity.md)。

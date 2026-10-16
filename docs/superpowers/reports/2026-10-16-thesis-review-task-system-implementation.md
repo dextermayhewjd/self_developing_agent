@@ -213,3 +213,8 @@ The remaining operational tradeoff is serialization of input inventory/validatio
 全部八项实施任务及后续必要修补已验收。最终整体验证原报告为 `.superpowers/sdd/2026-10-16-thesis-review-task-system/final-review-report.md`；一次统一修补后的复查在 `final-fix-wave-1-rereview-report.md` 中关闭 I2/I3/I4/M1，并精确留下 I1；最后的 `final-i1-race-rereview-report.md` 关闭 I1，spec 与 quality 均 PASS，未发现新问题。代码提交为 `ff626a7`、`27c4561`，另保留此前任务提交。最终唯一完整 Node 运行326/326，native检查与三条静态检查成功；六份受保护报告、PDF和档案再次独立核对，原字节不变。23条实施裁定及误判成本已全部按原顺序保留。
 
 当前工作树包含本批之前已有的未提交原生迁移文件；已保留，不混入本批提交。因此本批 commit 不能单独替代整个原生迁移工作树。未执行 merge/push 或新股票研究；旧 v1 运行仅支持诊断，不自动导入额度或重新授权交付。既存 Python 文件句柄 ResourceWarning 留作单独维护。工作树与实施快照、复现日志继续保留，供追溯和后续处理原有迁移改动。
+
+
+## 2026-10-16 后续强度校正
+
+以上真实探针 xhigh/low/xhigh 与历史结果保持原样。后续代码已移除局部提案自动 low，改为沿用问题修订的冻结配置；该修正未重新调用真实模型。当前规则、TDD 与边界见 [强度对齐审计](2026-10-16-thesis-effort-parity.md)。
