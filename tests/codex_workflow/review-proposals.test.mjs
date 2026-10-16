@@ -131,7 +131,7 @@ test('full revision includes exact entire report, every source and all tasks wit
   f.task.evidence_sha256 = f.evidence.sha256; f.task.evidence_refs[0].evidence_sha256 = f.evidence.sha256
   const result = buildFullRevisionContext({ ...f, tasks: [f.task] })
   assert.equal(result.report_text, f.reportBytes.toString())
-  assert.deepEqual(result.allowed_sections, Array.from({ length: 12 }, (_, i) => i + 1))
+  assert.deepEqual(result.allowed_sections, Array.from({ length: 13 }, (_, i) => i))
   assert.equal(result.evidence.length, 2)
   assert.ok(Buffer.byteLength(JSON.stringify(result)) > 32768)
   assert.equal(result.tasks[0].id, f.task.id)
@@ -330,4 +330,38 @@ test('full context honors a declared missing-evidence route and full application
     Object.assign(f.proposal, { status, edits: [], acceptance_checks: [], evidence_refs: [], escalation_reason: '需要更多证据，保留当前稿。' })
     assert.equal(applyProposal({ ...f, mode: 'full_revision', evidence: undefined, sourceTexts: undefined }).status, status)
   }
+})
+
+for (const eol of ['\n','\r\n']) test('full revision repairs exact nonempty preface; local proposals and chapter boundary changes reject '+JSON.stringify(eol), () => {
+  const f = fixture({eol})
+  f.proposal.edits[0] = {...f.proposal.edits[0], section:0, before:'约束：只使用当前底稿。', after:'约束：参照系未知，判断有限。'}
+  const context = buildFullRevisionContext({...f,tasks:[f.task]})
+  assert.ok(context.allowed_sections.includes(0))
+  const applied = applyProposal({...f, mode:'full_revision', allowedSections:context.allowed_sections})
+  assert.ok(applied.reportBytes.toString().startsWith('约束：参照系未知，判断有限。'+eol))
+  assert.deepEqual(parseReportSections(applied.reportBytes.toString()).map(s=>s.text),parseReportSections(f.reportBytes.toString()).map(s=>s.text))
+  assert.throws(()=>applyProposal({...f,allowedSections:[0]}),/scope|allowed/)
+  f.proposal.edits[0].after = '## 1、伪造边界'+eol
+  assert.throws(()=>applyProposal({...f,mode:'full_revision',allowedSections:context.allowed_sections}),/headings|boundary/)
+})
+
+for(const eol of ['\n','\r\n'])test('empty preface full-only boundary anchor inserts opening without changing chapter bytes '+JSON.stringify(eol),()=>{
+ const f=fixture({eol})
+ f.reportBytes=Buffer.from(f.reportBytes.toString().slice(f.reportBytes.toString().indexOf('## 1')))
+ f.snapshot.report_sha256=sha256(f.reportBytes);f.task.report_sha256=f.snapshot.report_sha256;f.proposal.base_report_sha256=f.snapshot.report_sha256
+ const heading='## 1、章节1',opening='## 〇、开篇结论'+eol+'参照系有限。'+eol+eol
+ f.proposal.edits[0]={...f.proposal.edits[0],section:0,before:heading,after:opening+heading}
+ const context=buildFullRevisionContext({...f,tasks:[f.task]})
+ const applied=applyProposal({...f,mode:'full_revision',allowedSections:context.allowed_sections})
+ assert.equal(applied.reportBytes.toString(),opening+f.reportBytes.toString())
+ assert.throws(()=>applyProposal({...f,allowedSections:[0]}),/scope|allowed/)
+ f.proposal.edits[0].after=opening+'## 1、改变标题'
+ assert.throws(()=>applyProposal({...f,mode:'full_revision',allowedSections:context.allowed_sections}),/boundary|suffix/)
+ f.proposal.edits[0].after=opening+heading
+ const original=f.reportBytes
+ f.reportBytes=Buffer.from(original.toString()+eol+'重复原文 '+heading);f.snapshot.report_sha256=sha256(f.reportBytes);f.proposal.base_report_sha256=f.snapshot.report_sha256
+ assert.throws(()=>applyProposal({...f,mode:'full_revision',allowedSections:context.allowed_sections}),/uniquely/)
+ f.reportBytes=original
+ f.reportBytes=Buffer.from('nonempty prefix'+eol+f.reportBytes.toString());f.snapshot.report_sha256=sha256(f.reportBytes);f.proposal.base_report_sha256=f.snapshot.report_sha256
+ assert.throws(()=>applyProposal({...f,mode:'full_revision',allowedSections:context.allowed_sections}),/anchor/)
 })

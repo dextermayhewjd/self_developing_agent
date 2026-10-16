@@ -1,3 +1,4 @@
+import {writeSyntheticReviewMethods} from './fixtures/review-methods.mjs'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { mkdtemp, mkdir, readFile, writeFile, readdir, rm, chmod } from 'node:fs/promises'
@@ -12,6 +13,7 @@ const quote = '现金流依赖回款。'
 async function fixture(t) {
   const root = await mkdtemp(join(tmpdir(), 'review-coordinator-'))
   t.after(() => rm(root, { recursive: true, force: true }))
+  await writeSyntheticReviewMethods(root)
   const args = { symbol: '000001', date: '20261016' }
   const run = join(root, 'reports/000001_thesis_20261016')
   await mkdir(join(run, 'findings'), { recursive: true })
@@ -68,6 +70,7 @@ test('real Store two sequential tasks consume one round; full review is independ
     assert.equal(options.contract, 'proposal')
     assert.equal(options.effort, 'low')
     assert.ok(options.context_bytes <= 32768)
+    assert.equal(context.methodology, undefined)
     return proposal(context)
   })
   const result = await coordinateThesisReview({ ...f, runtime })
@@ -468,4 +471,38 @@ test('same gate feedback resumes its reserved attempt after transport failure wi
   assert.deepEqual([final.ledger.budget.used_rounds, final.ledger.budget.valid_reviews], [1, 2])
   assert.equal(final.attempt.results.length, 1)
   assert.deepEqual(runtime.calls.map(call => call.options.contract), ['review', 'proposal', 'proposal', 'review'])
+})
+
+test('production full requests freeze complete applicable methods and semantic rubric; local request remains bounded',async t=>{
+ const f=await fixture(t)
+ const {syntheticMethods,writeSyntheticReviewMethods}=await import('./fixtures/review-methods.mjs')
+ await writeSyntheticReviewMethods(f.root)
+ const runtime=fake((context,options)=>{
+  if(options.contract==='review' || options.phase==='修订成稿') {
+   assert.equal(context.methodology.documents.length,8)
+   for(const [path,text] of Object.entries(syntheticMethods)) {
+    const document=context.methodology.documents.find(item=>item.path==='.codex/skills/'+path)
+    assert.equal(document.text,text);assert.equal(document.sha256,sha256(text))
+   }
+   assert.equal(context.methodology.sha256,sha256(canonicalJson({version:1,documents:context.methodology.documents,rubric:context.methodology.rubric})))
+   for(const term of ['consequential','rebuttal','uncertainty','limitation','rating-changing','format floor','covered','excluded','unrelated exact quote','doubt','support'])assert.ok(context.methodology.rubric.includes(term),term)
+  }
+  if(options.contract==='review')return review(context,context.ledger.tasks.length?[]:[issue(context,3,{route:'full_revision'})])
+  return proposal(context)
+ })
+ await coordinateThesisReview({...f,runtime})
+ assert.deepEqual(runtime.calls.map(c=>c.options.phase),['成稿审查','修订成稿','成稿审查'])
+ const hash=runtime.calls[0].context.methodology.sha256
+ assert.ok(runtime.calls.every(c=>c.context.methodology.sha256===hash))
+ await writeFile(join(f.root,'.codex/skills/equity-thesis-cn/framework.md'),'conflicting method')
+ await assert.rejects(coordinateThesisReview({...f,runtime}),/method.*changed|method.*conflict/i)
+})
+
+test('missing required native method fails before full worker dispatch',async t=>{
+ const f=await fixture(t)
+ const {writeSyntheticReviewMethods}=await import('./fixtures/review-methods.mjs');await writeSyntheticReviewMethods(f.root)
+ await rm(join(f.root,'.codex/skills/equity-thesis-cn/framework.md'))
+ const runtime=fake(()=>{throw Error('unexpected dispatch')})
+ await assert.rejects(coordinateThesisReview({...f,runtime}),/method.*missing|missing.*method/i)
+ assert.equal(runtime.calls.length,0)
 })

@@ -6,6 +6,7 @@ import { reconcileReview, markAwaitingReview, unresolvedBlockers, registerGateIs
 import { openReviewStore } from './review-store.mjs'
 import { prepareEvidence, loadEvidenceContext, validateEvidenceQuotes, safeEvidenceFile } from './review-evidence.mjs'
 import { buildTaskContext, buildFullRevisionContext, applyProposal } from './review-proposals.mjs'
+import { freezeReviewMethods } from './review-methods.mjs'
 import { validateReviewRecord } from '../check_thesis_review.mjs'
 
 export const reviewStages = Object.freeze([
@@ -95,8 +96,8 @@ async function archiveJson(runDir, path, value) {
   return { path: relative(join(runDir, control), path).split(sep).join('/'), sha256: sha256(bytes) }
 }
 
-const reviewerInstructions = `独立完整审查当前报告十二节、五路底稿和全部附件。仅使用提供的完整报告、证据与任务账本；不得依赖修订者自评。对全部旧任务 ID（包括 resolved）给出唯一独立处置，允许重新打开和发现新问题。status 与 kind/blocks_delivery 分开：blocking 必须 blocks_delivery:true，watch 必须 false；disclosure 按实际是否阻断决定。resolved 只关闭状态，不改变问题分类或阻断属性。例如旧阻断任务修复后合法处置是 {"task_id":"RT-000001","status":"resolved","reason":"独立核对验收条件已满足","kind":"blocking","blocks_delivery":true}。若确需升降级，须同时满足 kind/blocks_delivery 约束，并在 reason 说明改变依据；不能仅因任务已解决就把 blocking 的 blocks_delivery 改 false。每个新问题关联章节/coverage。局部候选须声明 judgment_constraints 的精确原文引用；没有跨节约束时明确 []，不确定则 full_revision。所有二进制附件必须逐一目视核对原图/全部 PDF 页及候选转录，返回绑定摘要的 visual_attestations。未知事实保留限制；不要制造证据。严格回传 host 分配的 review_id、Snapshot、input_ledger_sha256。只返回 schema JSON，不写文件。`
-const proposalInstructions = `只返回任务修订 Proposal，不写文件、不研究新资料、不关闭任务。基于当前 Snapshot 和精确原文给出可唯一定位的 edits，完整覆盖任务验收条件和授权证据；信息不足返回 needs_evidence，局部范围不够返回 escalate。`
+const reviewerInstructions = `独立完整审查当前报告十二节、五路底稿和全部附件。遵循提供的 methodology 完整方法文本与语义覆盖 rubric。仅使用提供的完整报告、证据与任务账本；不得依赖修订者自评。对全部旧任务 ID（包括 resolved）给出唯一独立处置，允许重新打开和发现新问题。status 与 kind/blocks_delivery 分开：blocking 必须 blocks_delivery:true，watch 必须 false；disclosure 按实际是否阻断决定。resolved 只关闭状态，不改变问题分类或阻断属性。例如旧阻断任务修复后合法处置是 {"task_id":"RT-000001","status":"resolved","reason":"独立核对验收条件已满足","kind":"blocking","blocks_delivery":true}。若确需升降级，须同时满足 kind/blocks_delivery 约束，并在 reason 说明改变依据；不能仅因任务已解决就把 blocking 的 blocks_delivery 改 false。每个新问题关联章节/coverage。局部候选须声明 judgment_constraints 的精确原文引用；没有跨节约束时明确 []，不确定则 full_revision。所有二进制附件必须逐一目视核对原图/全部 PDF 页及候选转录，返回绑定摘要的 visual_attestations。未知事实保留限制；不要制造证据。严格回传 host 分配的 review_id、Snapshot、input_ledger_sha256。只返回 schema JSON，不写文件。`
+const proposalInstructions = `full_revision 须遵循 methodology 完整方法文本及语义覆盖 rubric。full_revision 可使用 section:0 精确修改第一节之前的开篇/前言；局部提案禁止 section:0。若 preface_boundary_anchor 非空（第一节标题就在字节0），section:0 的 before 必须精确等于该完整标题，after 必须以原标题逐字结尾，只允许在其前插入开篇；禁止空 before。仍保留十二节顺序与边界。只返回任务修订 Proposal，不写文件、不研究新资料、不关闭任务。基于当前 Snapshot 和精确原文给出可唯一定位的 edits，完整覆盖任务验收条件和授权证据；信息不足返回 needs_evidence，局部范围不够返回 escalate。`
 
 async function exchange({ runDir, runtime, signal, context, label, phase, schema, contract, images, local = false, instructions }) {
   signal?.throwIfAborted()
@@ -141,6 +142,7 @@ async function evidenceStops(runDir, state) {
 export async function coordinateThesisReview({ root, args, runtime, store, reason = 'initial', signal, emit = () => {}, reviewMaxRounds, gateFeedback }) {
   if (reviewMaxRounds !== undefined && (!Number.isInteger(reviewMaxRounds) || reviewMaxRounds < 1 || reviewMaxRounds > 10)) throw new Error('reviewMaxRounds must be an integer from 1 to 10')
   const runDir = resolve(root, `reports/${args.symbol}_thesis_${args.date}`)
+  const methodology = await freezeReviewMethods({ root, runDir })
   store ??= await openReviewStore({ runDir, emit }) // Explicit expansion is deferred until a repair is necessary.
   let state = await store.read()
   if (reviewMaxRounds !== undefined && reviewMaxRounds < (state?.ledger.budget.used_rounds ?? 0)) throw new Error('reviewMaxRounds cannot be below consumed used rounds')
@@ -172,7 +174,7 @@ export async function coordinateThesisReview({ root, args, runtime, store, reaso
     const needsReview = !state.review || (active && state.attempt.state === 'finalized' && !state.ledger.terminal_reason)
     if (needsReview) {
       const reviewId = `RV-${randomUUID()}`
-      const context = { version: 2, review_id: reviewId, snapshot: state.snapshot,
+      const context = { version: 2, methodology, review_id: reviewId, snapshot: state.snapshot,
         input_ledger_sha256: sha256(canonicalJson(state.ledger)), ledger: state.ledger,
         report_text: utf8(inputs.reportBytes), evidence: inputs.evidence.sources.map(source => ({ ...source, text: inputs.sourceTexts[source.path] ?? null, text_kind: source.type === 'text' ? 'source_text' : 'candidate_transcript' })) }
       const response = await exchange({ runDir, runtime, signal, context, label: '成稿审查', phase: '成稿审查', schema: REVIEW_SCHEMA, contract: 'review', images: inputs.images, instructions: reviewerInstructions })
@@ -230,7 +232,7 @@ export async function coordinateThesisReview({ root, args, runtime, store, reaso
       mode = 'full_revision'
       // Escalate the unfinished fixed group, excluding already known missing-evidence tasks.
       tasks = attempt.task_ids.slice(attempt.cursor).map(id => state.ledger.tasks.find(task => task.id === id)).filter(task => task.id === taskId || task.route !== 'needs_evidence')
-      context = buildFullRevisionContext({ ...inputs, tasks, ledger: state.ledger })
+      context = { ...buildFullRevisionContext({ ...inputs, tasks, ledger: state.ledger }), methodology }
       if (context.route === 'needs_evidence') applied = { status: 'needs_evidence', reportBytes: inputs.reportBytes, applications: [], reason: context.reason }
       else {
         const called = await exchange({ runDir, runtime, signal, context, label: `修订成稿:${attempt.id}:${taskId}`, phase: '修订成稿', schema: PROPOSAL_SCHEMA, contract: 'proposal', images: inputs.images, instructions: proposalInstructions })

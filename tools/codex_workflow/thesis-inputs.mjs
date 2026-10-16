@@ -1,4 +1,4 @@
-import { readFile, readdir, lstat, realpath } from 'node:fs/promises'
+import { readFile, readdir, lstat, realpath, mkdir, unlink, writeFile } from 'node:fs/promises'
 import { join, resolve, relative, isAbsolute } from 'node:path'
 import { createReadStream } from 'node:fs'
 import { createHash } from 'node:crypto'
@@ -50,7 +50,7 @@ export async function resolveThesisInputManifest({ root, symbol, previousManifes
     if (originalPath(path)) originals.push({ path, sha256: current })
     else if (registry.has(path)) {
       const entry = registry.get(path)
-      derived.push({ path, stage: entry.stage, sha256: entry.sha256, current_sha256: current })
+      derived.push({ ...entry, path, stage: entry.stage, sha256: entry.sha256, current_sha256: current })
     } else unclassified.push(path)
   }
   return { version: 2, originals, derived, unclassified }
@@ -65,53 +65,131 @@ export function assertDerivedCurrent(manifest) {
   if (stale.length) throw new Error(`Derived inputs require stage reconciliation; reuse blocked: ${stale.map(e => `${e.stage}: ${e.path} (${e.current_sha256 === null ? 'missing' : 'changed'})`).join(', ')}`)
 }
 
-// Caller owns the outer run lock. Stage scopes are disjoint: concurrent lens
-// checks can never acquire the board's or another lens's output provenance.
+// Called under the symbol and run locks. Historical runs supply provenance only,
+// never reusable conclusions. The current physical digest selects prior settled bytes.
+async function nativeContinuity(root, symbol, runDir) {
+  const files = await inventory(join(root, 'data', symbol)), entries = new Map()
+  let runs = []
+  try { runs = await readdir(join(root, 'reports')) } catch (e) { if (e.code !== 'ENOENT') throw e }
+  for (const name of runs.sort()) {
+    if (!new RegExp('^' + symbol + '_thesis_[0-9]{8}$').test(name)) continue
+    const prior = join(root, 'reports', name)
+    if (resolve(prior) === resolve(runDir)) continue
+    const manifestPath = join(prior, '.codex-workflow/input-manifest.json')
+    let bytes
+    try { if ((await lstat(manifestPath)).isSymbolicLink()) throw Error('Unsafe native continuity manifest'); bytes=await readFile(manifestPath) } catch(error) { if(error.code==='ENOENT')continue;throw error }
+    const manifest = JSON.parse(bytes)
+    if (manifest?.version !== 2) continue
+    for (const entry of manifest.derived ?? []) {
+      if (!safeRelative(entry.path) || originalPath(entry.path) || !knownDerived(entry.path, entry.stage) || !/^[a-f0-9]{64}$/.test(entry.sha256)) throw Error('Invalid native continuity provenance')
+      if (files.get(entry.path) !== entry.sha256) continue
+      const candidate = { ...entry, provenance: { run: prior, stage: entry.stage, sha256: entry.sha256 }, continuity_sources: [...(entries.get(entry.path)?.continuity_sources ?? []), {run:prior,manifest_sha256:sha256(bytes)}] }
+      if (entries.has(entry.path) && entries.get(entry.path).stage !== entry.stage) throw Error('Conflicting native producer provenance: ' + entry.path)
+      entries.set(entry.path, candidate)
+    }
+  }
+  return [...entries.values()]
+}
+
+// Lifecycle is durable before dispatch. Interrupted bytes are preserved in a
+// recovery journal; only exact backed-up settled bytes may be restored. No
+// interrupted output is promoted to evidence, and the producer must rerun.
 export async function createThesisInputTracker({ root, symbol, runDir, previousManifest, persist = true }) {
   const path = join(runDir, '.codex-workflow/input-manifest.json')
   previousManifest ??= await readJson(path)
-  let manifest = await resolveThesisInputManifest({ root, symbol, previousManifest })
-  assertClassified(manifest)
-  assertDerivedCurrent(manifest)
-  const originals = manifest.originals
+  const derivedRegistry = previousManifest?.derived ?? await nativeContinuity(root, symbol, runDir)
+  let manifest = await resolveThesisInputManifest({ root, symbol, previousManifest, derivedRegistry })
+  const originals = previousManifest?.originals ?? manifest.originals
+  let lifecycle = previousManifest?.producers ?? { version: 1, symbol, run: resolve(runDir), active: {}, pending: [] }
+  if (lifecycle.version !== 1 || lifecycle.symbol !== symbol || lifecycle.run !== resolve(runDir)) throw Error('Invalid producer lifecycle binding')
   let queue = Promise.resolve()
+  const serial = fn => { const work = queue.then(fn); queue = work.catch(() => {}); return work }
   const resolveCurrent = () => resolveThesisInputManifest({ root, symbol, previousManifest: { ...manifest, originals } })
   const assertOriginals = current => {
-    if (digest(current.originals) !== digest(originals)) {
-      const changed = current.originals.filter(e => originals.find(o => o.path === e.path)?.sha256 !== e.sha256).map(e => e.path)
-      throw new Error(`Research original inputs changed: ${changed.join(', ')}`)
-    }
+    if (digest(current.originals) !== digest(originals)) throw Error('Research original inputs changed or missing: ' + current.originals.filter(e => originals.find(o => o.path === e.path)?.sha256 !== e.sha256).map(e => e.path).join(', '))
   }
-  const save = () => persist ? writeJson(path, manifest) : Promise.resolve()
+  const activeStages = () => Object.keys(lifecycle.active)
+  const scoped = p => activeStages().some(stage => knownDerived(p, stage))
+  const validate = (current, admission = false, producer = null) => {
+    assertOriginals(current)
+    assertClassified({ ...current, unclassified: current.unclassified.filter(p => !scoped(p)) })
+    assertDerivedCurrent({ ...current, derived: current.derived.filter(e => !scoped(e.path)) })
+    const unsettled = [...activeStages(), ...lifecycle.pending].filter(stage => stage !== producer)
+    if (!admission && unsettled.length) throw Error('Unsettled producer stages require rerun: ' + unsettled.join(', '))
+  }
+  const save = () => { manifest.producers = lifecycle; return persist ? writeJson(path, manifest) : Promise.resolve() }
+  const saveLife = save
+  // Validate scopes and backup hashes before masking any in-flight paths.
+  for (const [stage, record] of Object.entries(lifecycle.active)) {
+    if (record.originals_sha256 !== digest(originals) || !Array.isArray(record.before)) throw Error('Invalid producer lifecycle originals binding')
+    for (const entry of record.before) if (!safeRelative(entry.path) || !knownDerived(entry.path, stage) || sha256(Buffer.from(entry.bytes, 'base64')) !== entry.sha256 || !manifest.derived.some(e => e.path === entry.path && e.sha256 === entry.sha256 && e.stage === stage)) throw Error('Invalid producer backup provenance')
+  }
+  validate(manifest, true)
+  for (const [stage, record] of Object.entries(lifecycle.active)) {
+    if (!persist) throw Error('Interrupted producer requires locked recovery')
+    const files = await inventory(join(root, 'data', symbol))
+    if (!record.recovery) {
+      record.recovery = []
+      for (const [p, hash] of files) if (knownDerived(p, stage)) record.recovery.push({ path: p, sha256: hash, bytes: (await readFile(join(root, 'data', symbol, p))).toString('base64') })
+      await saveLife()
+    }
+    const paths = new Set([...record.before, ...record.recovery].map(e => e.path))
+    for (const p of paths) {
+      const old = record.before.find(e => e.path === p), interrupted = record.recovery.find(e => e.path === p)
+      if (interrupted && (!safeRelative(p) || !knownDerived(p, stage) || sha256(Buffer.from(interrupted.bytes,'base64')) !== interrupted.sha256)) throw Error('Invalid interrupted producer journal')
+      const hash = files.get(p) ?? null
+      if (hash !== (old?.sha256 ?? null) && hash !== (interrupted?.sha256 ?? null)) throw Error('Producer recovery conflict: ' + p)
+      if (old) { await mkdir(join(root, 'data', symbol, p, '..'), {recursive:true}); await writeFile(join(root,'data',symbol,p), Buffer.from(old.bytes,'base64')) }
+      else await unlink(join(root,'data',symbol,p)).catch(e => { if(e.code !== 'ENOENT') throw e })
+    }
+    lifecycle.history ??= []
+    lifecycle.history.push({ stage, ...record, status: 'interrupted-quarantined' })
+    delete lifecycle.active[stage]
+    lifecycle.pending = [...new Set([...lifecycle.pending, stage])]
+    await saveLife()
+  }
+  manifest = await resolveCurrent()
+  validate(manifest, true)
   await save()
   return {
     get manifest() { return manifest },
     resolve: resolveCurrent,
-    beforeStage: async stage => new Map([...(await inventory(join(root, 'data', symbol)))].filter(([p]) => knownDerived(p, stage))),
-    afterStage(stage, before) {
-      const work = queue.then(async () => {
-        const files = await inventory(join(root, 'data', symbol))
-        const registry = new Map(manifest.derived.map(e => [e.path, e]))
-        for (const [path, current] of files) if (knownDerived(path, stage) && (!before.has(path) || registry.get(path)?.stage === stage)) registry.set(path, { path, stage, sha256: current })
-        const current = await resolveThesisInputManifest({ root, symbol, previousManifest: { ...manifest, originals }, derivedRegistry: [...registry.values()] })
-        assertOriginals(current)
-        manifest = current
-        await save()
-      })
-      queue = work.catch(() => {})
-      return work
-    },
+    get pendingStages() { return [...lifecycle.pending] },
+    beforeStage(stage) { return serial(async () => {
+      const current = await resolveCurrent(); validate(current, true)
+      const files = await inventory(join(root,'data',symbol))
+      const before = new Map([...files].filter(([p]) => knownDerived(p, stage)))
+      if (stage === '板块基准' || /^(核查:|补参照系$)/u.test(stage)) {
+        if (lifecycle.active[stage]) throw Error('Producer already active: ' + stage)
+        const backups = []
+        for (const [p, hash] of before) backups.push({path:p, sha256:hash, bytes:(await readFile(join(root,'data',symbol,p))).toString('base64')})
+        lifecycle.active[stage] = { originals_sha256:digest(originals), before:backups }
+        await saveLife()
+      }
+      return before
+    }) },
+    afterStage(stage, before) { return serial(async () => {
+      const current = await resolveCurrent(); validate(current, true)
+      const registry = new Map(manifest.derived.map(e => [e.path,e]))
+      if (lifecycle.active[stage]) {
+        const files = await inventory(join(root,'data',symbol))
+        for (const p of registry.keys()) if(knownDerived(p,stage) && !files.has(p)) registry.delete(p)
+        for (const [p, hash] of files) if(knownDerived(p,stage)) registry.set(p, {path:p, stage, sha256:hash, provenance:{run:resolve(runDir),stage,sha256:hash}})
+      }
+      manifest = await resolveThesisInputManifest({root,symbol,previousManifest:{...manifest,originals},derivedRegistry:[...registry.values()]})
+      delete lifecycle.active[stage]
+      lifecycle.pending = lifecycle.pending.filter(s => s !== stage)
+      await saveLife()
+    }) },
     async dependencies(stage) {
       const current = await resolveCurrent()
-      // All research-derived evidence may feed the manuscript/review; conservative
-      // dependency invalidation is preferable to claiming stale evidence is current.
-      return { stage, sha256: digest(current.derived.filter(e => e.stage !== stage).map(e => ({ path: e.path, stage: e.stage, sha256: e.current_sha256 }))) }
+      const independent = /^(盘点$|立疑$|板块基准$|挖掘:|核查:)/u.test(stage)
+      validate(current, independent, stage)
+      // Independent research branches consume originals, not concurrent producer
+      // outputs. Aggregate consumers require all producers settled and verified.
+      return { stage, sha256:digest(independent ? [] : current.derived.filter(e=>e.stage!==stage).map(e=>({path:e.path,stage:e.stage,sha256:e.sha256}))), producer_generation:(lifecycle.history ?? []).filter(record => record.stage === stage).length }
     },
-    async assertCurrent() {
-      const current = await resolveCurrent()
-      assertOriginals(current); assertClassified(current); assertDerivedCurrent(current)
-      return current
-    },
+    async assertCurrent({ admission = false } = {}) { const current=await resolveCurrent(); validate(current, admission); return current },
   }
 }
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import {writeSyntheticReviewMethods} from '../tests/codex_workflow/fixtures/review-methods.mjs'
 import {mkdir,mkdtemp,readFile,writeFile,appendFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join,resolve,dirname} from 'node:path'
@@ -56,6 +57,7 @@ export async function runReviewTaskProbe({outputDir,symbol,executionConfig,backe
   if(executionConfig.skillCatalogAvailable!==true)throw new Error('Validated skills/list snapshot required before inference')
   await writeFile(join(destination,'execution-config.json'),JSON.stringify(executionConfig,null,2)+'\n')
   const fixtureRoot=join(destination,'fixture'),args={symbol:'SYNTHETIC',date:'20261016'}
+  await writeSyntheticReviewMethods(fixtureRoot)
   const run=join(fixtureRoot,'reports/SYNTHETIC_thesis_20261016')
   await mkdir(join(run,'findings'),{recursive:true})
   const report=initialReport

@@ -60,7 +60,7 @@ export const REVIEW_SCHEMA = object({
 export const PROPOSAL_SCHEMA = object({
   task_ids: { ...strings, minItems: 1 }, base_report_sha256: digest,
   status: enumeration(['proposed', 'needs_evidence', 'escalate']),
-  edits: array(object({ section, before: string, after: string, rationale: string, task_ids: { ...strings, minItems: 1 } })),
+  edits: array(object({ section: { type:'integer', enum:[0,1,2,3,4,5,6,7,8,9,10,11,12], description:'0 is the exact preface before chapter 1; authorized only for full_revision.' }, before: string, after: string, rationale: string, task_ids: { ...strings, minItems: 1 } })),
   evidence_refs: array(EVIDENCE_REF_SCHEMA),
   acceptance_checks: array(object({ task_id: string, criterion_index: { type: 'integer' }, response: string })),
   escalation_reason: string,

@@ -165,7 +165,8 @@ export function buildFullRevisionContext({ reportBytes, tasks, ledger, evidence,
     version: 2, route: needsEvidence ? 'needs_evidence' : 'full_revision',
     reason: missing.length ? `missing evidence text/transcript: ${missing.join(', ')}` : needsEvidence ? 'review requested missing evidence' : 'full exact revision context',
     snapshot: { report_sha256: sha256(report.bytes), evidence_sha256: evidence.sha256 },
-    tasks: clone(tasks), allowed_sections: report.sections.map(s => s.section), report_text: report.text, evidence: sources,
+    tasks: clone(tasks), allowed_sections: [0, ...report.sections.map(s => s.section)], report_text: report.text, evidence: sources,
+    preface_boundary_anchor: report.sections[0].start === 0 ? report.sections[0].heading : null,
   }
 }
 
@@ -180,7 +181,7 @@ export function applyProposal({ reportBytes, proposal: rawProposal, taskIds, all
   unique(proposal.task_ids, 'proposal task IDs')
   if (proposal.task_ids.length !== taskIds.length || !taskIds.every(id => proposal.task_ids.includes(id))) fail('proposal task ID coverage mismatch')
   unique(allowedSections, 'allowed sections')
-  if (!allowedSections.length || !allowedSections.every(sectionNumber)) fail('invalid allowed sections')
+  if (!allowedSections.length || !allowedSections.every(n => sectionNumber(n) || (mode === 'full_revision' && n === 0))) fail('invalid allowed sections')
   const reviewedRefs = new Map(tasks.flatMap(t => t.evidence_refs).map(ref => [canonicalJson(ref), ref]))
   unique(proposal.evidence_refs.map(ref => canonicalJson(ref)), 'evidence refs')
   for (const ref of proposal.evidence_refs) {
@@ -218,7 +219,13 @@ export function applyProposal({ reportBytes, proposal: rawProposal, taskIds, all
     }
     if (!nonempty(edit.before) || !nonempty(edit.rationale)) fail('edit before/rationale must be nonempty')
     if (edit.before === edit.after) fail('edit does not change report bytes')
-    const section = report.sections[edit.section - 1]
+    if (edit.section === 0 && report.sections[0].start === 0) {
+      const heading = report.sections[0].heading
+      if (edit.before !== heading || occurrences(report.text, heading).length !== 1) fail('preface boundary anchor must uniquely equal the complete first heading')
+      if (!edit.after.endsWith(heading) || edit.after.length <= heading.length) fail('preface boundary edit must preserve original heading suffix')
+      return { ...edit, start:0, end:heading.length, boundaryInsertion:edit.after.slice(0,-heading.length) }
+    }
+    const section = edit.section === 0 ? {start:0, text:report.text.slice(0, report.sections[0].start)} : report.sections[edit.section - 1]
     const hits = occurrences(section.text, edit.before)
     if (hits.length !== 1) fail('before anchor must uniquely match the specified section')
     const start = section.start + hits[0]
@@ -229,6 +236,9 @@ export function applyProposal({ reportBytes, proposal: rawProposal, taskIds, all
   let text = report.text
   for (const edit of edits.toReversed()) text = text.slice(0, edit.start) + edit.after + text.slice(edit.end)
   const updatedSections = parseReportSections(text)
+  let expectedPreface = report.text.slice(0, report.sections[0].start)
+  for (const edit of edits.filter(e => e.section === 0).toReversed()) expectedPreface = edit.boundaryInsertion ?? (expectedPreface.slice(0,edit.start) + edit.after + expectedPreface.slice(edit.end))
+  if (text.slice(0,updatedSections[0].start) !== expectedPreface) fail('patch changed a preface boundary')
   for (const section of report.sections) {
     let expected = section.text
     for (const edit of edits.filter(e => e.section === section.section).toReversed()) expected = expected.slice(0, edit.start - section.start) + edit.after + expected.slice(edit.end - section.start)

@@ -49,7 +49,7 @@ test('exact registered derived files do not alter identity; dependency mutation/
   const dependency=await tracker.dependencies('成稿')
   await put(join(data,'benchmark_peers/computed.json'),'externally modified')
   await assert.rejects(tracker.assertCurrent(),/板块基准.*benchmark_peers/u)
-  assert.notEqual(await tracker.dependencies('成稿'),dependency)
+  await assert.rejects(tracker.dependencies('成稿'), /reconciliation/)
   assert.equal(await workflowFingerprint(root,'equity-thesis',{symbol},{},{inputManifest:await tracker.resolve()}),original)
   await unlink(join(data,'check_sources/产业/source.txt'))
   await assert.rejects(tracker.assertCurrent(),/check_sources/u)
@@ -77,9 +77,7 @@ test('concurrent producers register only their scoped new paths and reject unkno
   await Promise.all([tracker.afterStage('板块基准',board),tracker.afterStage('核查:产业',check)])
   assert.deepEqual(tracker.manifest.derived.map(x=>[x.path,x.stage]),[['benchmark_peers/peer.json','板块基准'],['check_sources/产业/source.txt','核查:产业']])
   await put(join(data,'benchmark_peers/stray.json'),'stray')
-  const before=await tracker.beforeStage('板块基准')
-  await tracker.afterStage('板块基准',before)
-  await assert.rejects(tracker.assertCurrent(),/benchmark_peers.*stray/u)
+  await assert.rejects(tracker.beforeStage('板块基准'),/benchmark_peers.*stray/u)
 })
 
 test('research original mutation is rejected without replacing the original manifest',async t=>{
@@ -184,3 +182,166 @@ for (const scenario of ['extra completed revision and review', 'duplicate comple
     assert.deepEqual(await readFile(statePath),before)
   })
 }
+
+for (const rewrite of [false, true]) test(`in-flight ${rewrite ? 'rewritten' : 'new'} producer permits independent runtime admission and recovers interruption`, async t => {
+  const { createRuntime } = await import('../../tools/codex_workflow/runtime.mjs')
+  const f = await setup(t), tracker = await createThesisInputTracker(f)
+  const output = join(f.data, 'peers_curated.json')
+  if (rewrite) { const before = await tracker.beforeStage('板块基准'); await f.put(output, 'settled'); await tracker.afterStage('板块基准', before) }
+  let wrote, admitted
+  const written = new Promise(resolve => { wrote = resolve })
+  const admission = new Promise(resolve => { admitted = resolve })
+  const runtime = createRuntime({ jobs: 2, runAgent: async (_, {label}, signal) => {
+    await tracker.assertCurrent({ admission: true })
+    const before = await tracker.beforeStage(label)
+    if (label === '板块基准') {
+      await f.put(output, 'in flight'); wrote()
+      await admission
+      signal.throwIfAborted()
+      throw Error('interrupted producer')
+    }
+    if (label === '挖掘:财务') await written
+    else admitted()
+    await tracker.afterStage(label, before)
+  } })
+  const work = runtime.parallel([
+    () => runtime.agent('', {label:'板块基准'}),
+    async () => { await runtime.agent('', {label:'挖掘:财务'}); await runtime.agent('', {label:'核查:财务'}) },
+  ])
+  // Always release the board on admission failure so the reproduction cannot hang.
+  work.catch(() => admitted())
+  await assert.rejects(work, /interrupted producer/)
+  await runtime.drain()
+  await assert.rejects(tracker.dependencies('成稿'), /unsettled|in.flight|producer/i)
+  const reopened = await createThesisInputTracker(f)
+  await assert.rejects(reopened.assertCurrent(), /Unsettled/ )
+  await reopened.assertCurrent({admission:true})
+  if (rewrite) assert.equal(await readFile(output, 'utf8'), 'settled')
+  else await assert.rejects(readFile(output), {code:'ENOENT'})
+  const before = await reopened.beforeStage('板块基准')
+  await f.put(output, 'rerun settled'); await reopened.afterStage('板块基准', before)
+  await reopened.assertCurrent()
+  await f.put(output, 'external change')
+  await assert.rejects(reopened.assertCurrent({admission:true}), /reconciliation|changed/)
+})
+
+test('new native report date carries only verified producer provenance and leaves prior records immutable', async t => {
+  const f = await setup(t), first = await createThesisInputTracker(f)
+  const before = await first.beforeStage('板块基准')
+  await f.put(join(f.data, 'peers_curated.json'), 'prior derived')
+  await first.afterStage('板块基准', before)
+  const path = join(f.runDir, '.codex-workflow/input-manifest.json'), bytes = await readFile(path)
+  const next = {...f, runDir:join(f.root, 'reports/00700_thesis_20261017')}
+  const second = await createThesisInputTracker(next)
+  await second.assertCurrent()
+  assert.equal(second.manifest.derived[0].sha256, first.manifest.derived[0].sha256)
+  assert.deepEqual(await readFile(path), bytes)
+  assert.notEqual(second.manifest.derived[0].provenance.run, next.runDir)
+  const active = await second.beforeStage('板块基准')
+  await f.put(join(f.data, 'peers_curated.json'), 'new research')
+  await second.afterStage('板块基准', active)
+  assert.notEqual(second.manifest.derived[0].sha256, first.manifest.derived[0].sha256)
+  assert.deepEqual(await readFile(path), bytes)
+  await f.put(join(f.data, 'peers_curated.json'), 'tampered')
+  await assert.rejects(createThesisInputTracker({...next,runDir:join(f.root,'reports/00700_thesis_20261018')}), /Unclassified|provenance|reconciliation/)
+})
+
+for (const path of ['aggregate.json','unknown.txt','check_sources/产业/stray.txt']) test('interrupted producer recovery refuses '+path+' before altering any bytes',async t=>{
+ const f=await setup(t),tracker=await createThesisInputTracker(f)
+ await tracker.beforeStage('板块基准')
+ const manifestPath=join(f.runDir,'.codex-workflow/input-manifest.json')
+ const durable=JSON.parse(await readFile(manifestPath,'utf8'))
+ assert.ok(durable.producers.active['板块基准'])
+ await f.put(join(f.data,'peers_curated.json'),'interrupted bytes')
+ await f.put(join(f.data,path),'unowned edit')
+ const before=await readFile(manifestPath)
+ await assert.rejects(createThesisInputTracker(f),/original|Unclassified/)
+ assert.deepEqual(await readFile(manifestPath),before)
+ assert.equal(await readFile(join(f.data,'peers_curated.json'),'utf8'),'interrupted bytes')
+ assert.equal(await readFile(join(f.data,path),'utf8'),'unowned edit')
+})
+
+test('recovery preserves quarantined bytes, rejects changed recovery bytes, and never adopts unknown matching names',async t=>{
+ const f=await setup(t),tracker=await createThesisInputTracker(f)
+ await tracker.beforeStage('板块基准')
+ await f.put(join(f.data,'peers_curated.json'),'interrupted bytes')
+ const reopened=await createThesisInputTracker(f)
+ const history=reopened.manifest.producers.history[0]
+ assert.equal(Buffer.from(history.recovery[0].bytes,'base64').toString(),'interrupted bytes')
+ assert.deepEqual(reopened.pendingStages,['板块基准'])
+ await createThesisInputTracker(f)
+ await f.put(join(f.data,'peers_curated.json'),'unowned matching name')
+ await assert.rejects(createThesisInputTracker(f),/Unclassified/)
+ await assert.rejects(reopened.beforeStage('板块基准'),/Unclassified/)
+})
+
+test('two concurrent successful producers settle only after independent runtime admission',async t=>{
+ const {createRuntime}=await import('../../tools/codex_workflow/runtime.mjs')
+ const f=await setup(t),tracker=await createThesisInputTracker(f)
+ let wrote,checked
+ const written=new Promise(resolve=>{wrote=resolve}),check=new Promise(resolve=>{checked=resolve})
+ const runtime=createRuntime({jobs:2,runAgent:async(_,{label})=>{
+  await tracker.assertCurrent({admission:true});await tracker.dependencies(label)
+  const before=await tracker.beforeStage(label)
+  if(label==='板块基准'){await f.put(join(f.data,'peers_curated.json'),'settled board');wrote();await check}
+  if(label==='挖掘:财务')await written
+  if(label==='核查:财务'){await f.put(join(f.data,'check_sources/财务/source.txt'),'settled check');checked()}
+  await tracker.afterStage(label,before)
+ }})
+ await runtime.parallel([()=>runtime.agent('',{label:'板块基准'}),async()=>{await runtime.agent('',{label:'挖掘:财务'});await runtime.agent('',{label:'核查:财务'})}])
+ await tracker.assertCurrent()
+ const before=await tracker.dependencies('成稿')
+ assert.equal(tracker.manifest.derived.length,2)
+ const reopened=await createThesisInputTracker(f)
+ assert.deepEqual(await reopened.dependencies('成稿'),before)
+})
+
+test('cross-date continuity records exact immutable native manifest digest',async t=>{
+ const {sha256}=await import('../../tools/codex_workflow/review-contracts.mjs')
+ const f=await setup(t),first=await createThesisInputTracker(f)
+ const before=await first.beforeStage('板块基准');await f.put(join(f.data,'peers_curated.json'),'native');await first.afterStage('板块基准',before)
+ const bytes=await readFile(join(f.runDir,'.codex-workflow/input-manifest.json'))
+ const next=await createThesisInputTracker({...f,runDir:join(f.root,'reports/00700_thesis_20261017')})
+ assert.deepEqual(next.manifest.derived[0].continuity_sources,[{run:f.runDir,manifest_sha256:sha256(bytes)}])
+})
+
+test('repeated interrupted producer recovery invalidates real State success cache and invokes backend each time',async t=>{
+ const {openState}=await import('../../tools/codex_workflow/state.mjs')
+ const f=await setup(t);let tracker=await createThesisInputTracker(f),calls=0
+ const state=await openState({dir:join(f.runDir,'.codex-workflow'),fingerprint:'fixture',artifactRoots:[f.runDir],artifactsFor:()=>[]})
+ t.after(()=>state.close())
+ const run=async()=>state.run('produce',{label:'板块基准',dependencyDigests:await tracker.dependencies('板块基准')},async()=>{
+  calls++;const before=await tracker.beforeStage('板块基准');await f.put(join(f.data,'peers_curated.json'),'settled');await tracker.afterStage('板块基准',before);return {}
+ })
+ await run();assert.equal(calls,1)
+ for(let i=0;i<2;i++) {
+  await tracker.beforeStage('板块基准');await f.put(join(f.data,'peers_curated.json'),'interrupted '+i)
+  tracker=await createThesisInputTracker(f)
+  await run();assert.equal(calls,i+2)
+  await tracker.assertCurrent()
+ }
+})
+
+test('recovery journal refuses later physical edits and preserves conflict bytes',async t=>{
+ const {sha256}=await import('../../tools/codex_workflow/review-contracts.mjs')
+ const f=await setup(t),tracker=await createThesisInputTracker(f)
+ await tracker.beforeStage('板块基准');await f.put(join(f.data,'peers_curated.json'),'interrupted')
+ const path=join(f.runDir,'.codex-workflow/input-manifest.json'),manifest=JSON.parse(await readFile(path))
+ manifest.producers.active['板块基准'].recovery=[{path:'peers_curated.json',sha256:sha256('interrupted'),bytes:Buffer.from('interrupted').toString('base64')}]
+ await writeFile(path,JSON.stringify(manifest));const before=await readFile(path)
+ await f.put(join(f.data,'peers_curated.json'),'later manual edit')
+ await assert.rejects(createThesisInputTracker(f),/recovery conflict/)
+ assert.deepEqual(await readFile(path),before)
+ assert.equal(await readFile(join(f.data,'peers_curated.json'),'utf8'),'later manual edit')
+})
+
+test('supplement producer can rerun its own interrupted scope while aggregate consumers remain blocked',async t=>{
+ const f=await setup(t),tracker=await createThesisInputTracker(f)
+ await tracker.beforeStage('补参照系');await f.put(join(f.data,'check_sources/补参照系/source.txt'),'interrupted')
+ const reopened=await createThesisInputTracker(f)
+ await assert.rejects(reopened.dependencies('成稿'),/Unsettled/)
+ const dependency=await reopened.dependencies('补参照系')
+ assert.equal(dependency.producer_generation,1)
+ const before=await reopened.beforeStage('补参照系');await f.put(join(f.data,'check_sources/补参照系/source.txt'),'rerun');await reopened.afterStage('补参照系',before)
+ await reopened.dependencies('成稿')
+})
