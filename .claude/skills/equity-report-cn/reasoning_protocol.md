@@ -9,10 +9,14 @@ LLM 在按模板填充时，必须按以下顺序合成，**不能跳步**：
 - 当前价、市值、估值倍数（PE/PB/PS）
 - 5 年营收 / 净利 / 毛利率 / ROE
 - 季度营收节奏（8 季单季）
-- 最近的研报 EPS 共识（区间 + 中位）；若 `research_coverage != "covered"`，此项记为
-  「无券商覆盖」或「未取得」，情景 EPS 改由历史财务自行推演，并在 1.6 注明缺少卖方交叉验证
-- 最近 3 条重要公告 / 新闻 / 重组 / 事件
-- 十大股东结构（国资 vs 机构 vs 个人）
+- 最近的研报 EPS 共识（区间 + 中位）；若 `research_coverage != "covered"` 或 `consensus_eps_available`
+  为 false，此项记为「无券商覆盖」或「未取得」（措辞见 data_contract.md），情景 EPS 改由历史财务自行推演，
+  并在 1.6 注明缺少卖方交叉验证
+- 最近 3 条重要公告 / 新闻 / 重组 / 事件——**读正文**：`earnings_call.json` 的 material_contract /
+  accounting_change / investment / lockup_release 四类。只看标题会漏掉合同金额这类改变判断的数字
+- 最新半年报分产品表（`annual.json` 的 `semiannual`，有则必读）：分部增长来源与年报叙事不一致时以最新一期为准
+- 十大股东结构（国资 vs 机构 vs 个人）+ 限售解禁队列（`restricted_release`）
+- 交易面：两融余额（`margin_recent`）、龙虎榜（`lhb_recent`）、同期基准指数（`benchmark_index`）
 
 这份清单是后续所有判断的依据。**任何不在清单里的数字不得出现在报告里**。
 

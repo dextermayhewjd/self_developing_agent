@@ -358,16 +358,19 @@ def resolve_md_path(args: argparse.Namespace) -> pathlib.Path:
     return p
 
 
-def build_pdf(md_path: pathlib.Path) -> pathlib.Path:
-    require("pandoc")
-    require("xelatex")
+def build_pdf(md_path: pathlib.Path, output_path=None) -> pathlib.Path:
+    require("pandoc")  # 两条路线都要它，硬依赖
+    # xelatex 只是主路线的依赖，缺了不能直接退出——否则走不到 HTML+Chrome 兜底。
+    # 缺失时 pandoc 会自己报错返回非零，兜底在那里接手。
+    if shutil.which("xelatex") is None:
+        sys.stderr.write("[md_to_pdf] WARN: 未找到 xelatex，将直接走 HTML+Chrome 兜底\n")
     if not HEADER_TEX.exists():
         sys.exit(f"[md_to_pdf] ERROR: header file missing: {HEADER_TEX}")
     if not md_path.exists():
         sys.exit(f"[md_to_pdf] ERROR: source MD not found: {md_path}")
 
-    PDF_OUT_DIR.mkdir(parents=True, exist_ok=True)
-    out_pdf = PDF_OUT_DIR / (output_stem(md_path) + ".pdf")
+    out_pdf = pathlib.Path(output_path) if output_path is not None else PDF_OUT_DIR / (output_stem(md_path) + ".pdf")
+    out_pdf.parent.mkdir(parents=True, exist_ok=True)
 
     text = md_path.read_text(encoding="utf-8")
     cover_tex = build_cover_tex(text)
@@ -424,9 +427,91 @@ def build_pdf(md_path: pathlib.Path) -> pathlib.Path:
         if proc.returncode != 0:
             sys.stderr.write(proc.stdout)
             sys.stderr.write(proc.stderr)
-            sys.exit(f"[md_to_pdf] pandoc failed for {md_path.name}")
+            sys.stderr.write(
+                f"[md_to_pdf] xelatex 路线失败（{md_path.name}），改走 HTML+Chrome 兜底\n"
+            )
+            if build_pdf_via_chrome(text, out_pdf):
+                return out_pdf
+            sys.exit(f"[md_to_pdf] pandoc failed for {md_path.name}（兜底也失败）")
 
     return out_pdf
+
+
+# 兜底渲染用的样式。LaTeX 那条路有 pdf_header.tex 管排版，这条路什么都没有，
+# 所以样式必须自带：A4 页边距、CJK 字体栈、表格边框、表内不断页。
+_FALLBACK_CSS = """
+@page { size: A4; margin: 18mm 15mm; }
+body {
+  font-family: "Noto Sans CJK SC", "Source Han Sans SC", "WenQuanYi Micro Hei",
+               "Microsoft YaHei", sans-serif;
+  font-size: 10.5pt; line-height: 1.6; color: #1a1a1a;
+}
+h1 { font-size: 20pt; border-bottom: 2px solid #1f4e79; padding-bottom: .3em; }
+h2 { font-size: 15pt; color: #1f4e79; margin-top: 1.4em; }
+h3 { font-size: 12pt; color: #2e5f8a; }
+table { border-collapse: collapse; width: 100%; margin: .8em 0; font-size: 9pt;
+        page-break-inside: avoid; }
+th, td { border: 1px solid #bbb; padding: 4px 7px; text-align: left;
+         vertical-align: top; word-break: break-word; }
+th { background: #eef3f8; font-weight: 600; }
+code, pre { font-family: "DejaVu Sans Mono", monospace; font-size: 9pt; }
+pre { background: #f6f8fa; padding: .6em; border-radius: 4px;
+      white-space: pre-wrap; word-break: break-all; }
+blockquote { border-left: 3px solid #1f4e79; margin-left: 0; padding-left: .9em;
+             color: #444; }
+strong { color: #1f4e79; }
+"""
+
+
+def build_pdf_via_chrome(md_text: str, out_pdf: pathlib.Path) -> bool:
+    """兜底：pandoc → 独立 HTML → headless Chrome 打印成 PDF。返回是否成功。
+
+    为什么需要这条路：主路线是 pandoc→xelatex，而 xelatex 会因为宽表、异常字符、
+    缺字形等原因整篇失败——判断稿动辄几十张表，这不是小概率。HTML+Chrome
+    完全绕开 LaTeX，字体走系统 fontconfig，CJK 不需要额外宏包。
+
+    代价：没有封面页、没有页脚评级角标、没有目录（那些是 pdf_header.tex 里的
+    LaTeX 定义）。这是兜底不是等价替代——有一份能读的 PDF，好过没有。
+    """
+    chrome = next(
+        (c for c in ("google-chrome", "chromium", "chromium-browser")
+         if shutil.which(c)), None
+    )
+    if not chrome or shutil.which("pandoc") is None:
+        sys.stderr.write("[md_to_pdf] 兜底不可用：缺 pandoc 或 chrome\n")
+        return False
+
+    with tempfile.TemporaryDirectory() as td:
+        tmp = pathlib.Path(td)
+        src, html = tmp / "in.md", tmp / "out.html"
+        src.write_text(md_text, encoding="utf-8")
+        css = tmp / "s.css"
+        css.write_text(_FALLBACK_CSS, encoding="utf-8")
+
+        p = subprocess.run(
+            ["pandoc", str(src), "-o", str(html), "--standalone",
+             "--css", str(css), "--embed-resources", "--toc", "--toc-depth=2",
+             "-M", "title="],
+            capture_output=True, text=True,
+        )
+        if p.returncode != 0:
+            sys.stderr.write(p.stderr)
+            return False
+
+        # --no-sandbox：网关是 systemd user service 起的，没有交互式 session，
+        # Chrome 的 setuid sandbox 在这种环境下起不来。
+        p = subprocess.run(
+            [chrome, "--headless", "--disable-gpu", "--no-sandbox",
+             f"--print-to-pdf={out_pdf}", "--no-pdf-header-footer",
+             f"file://{html}"],
+            capture_output=True, text=True, timeout=300,
+        )
+        if p.returncode != 0 or not out_pdf.exists():
+            sys.stderr.write(p.stderr)
+            return False
+
+    sys.stderr.write(f"[md_to_pdf] 兜底成功（HTML+Chrome，无封面/目录样式）: {out_pdf}\n")
+    return True
 
 
 def main() -> None:
@@ -434,13 +519,16 @@ def main() -> None:
     parser.add_argument("symbol", nargs="?", help="6-digit A-share code (e.g. 000333)")
     parser.add_argument("date", nargs="?", help="YYYYMMDD report date (default: today)")
     parser.add_argument("--md", help="explicit MD path (overrides symbol/date)")
+    parser.add_argument("--output", help="explicit PDF output path")
     args = parser.parse_args()
     if not (args.md or args.symbol):
         parser.error("either SYMBOL or --md is required")
 
     md_path = resolve_md_path(args)
-    out = build_pdf(md_path)
-    print(f"[md_to_pdf] OK  {md_path.relative_to(ROOT)} → {out.relative_to(ROOT)}")
+    out = build_pdf(md_path, output_path=pathlib.Path(args.output).resolve()) if args.output else build_pdf(md_path)
+    source_display = md_path.relative_to(ROOT) if md_path.is_relative_to(ROOT) else md_path
+    output_display = out.relative_to(ROOT) if out.is_relative_to(ROOT) else out
+    print(f"[md_to_pdf] OK  {source_display} → {output_display}")
 
 
 if __name__ == "__main__":

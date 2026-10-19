@@ -1,0 +1,87 @@
+{
+  "version": 1,
+  "inspection_only": true,
+  "original_summary_sha256": "bb72c6decc32c8a00fc9c40bad55167002c8ce4a34f9e0160bea2b3cae8dd24f",
+  "overall_probe_status": "failed",
+  "scenario_error": {
+    "name": "Error",
+    "message": "Observed probe did not complete initial review, one host local application, and independent full review"
+  },
+  "independent_review_accepted": true,
+  "current_physical_proof_validated": true,
+  "final_receipt": {
+    "evidence_sha256": "feee8567cc3a4a91d3f848727650b0e376cf4189b3fee6f86cd0998e1e434100",
+    "input_ledger_sha256": "1dacfc56785710a0496edb4076273ac7c76f8ed6f6fecfab14457d239ba3fc59",
+    "output_ledger_sha256": "c39f630c2d9cccb258fed1085a00dc8d93afeeea0a3847ee0de9b661d49a999f",
+    "report_sha256": "6879f417065c3b1e0e30b9d3522510011a9dd9b758b768f6e3a6fb8afeec09ac",
+    "review_id": "RV-ae4e051a-662b-4d90-b991-0cd72c1454b6"
+  },
+  "budget": {
+    "extensions": [],
+    "max_rounds": 2,
+    "review_ids": [
+      "RV-644e5f65-d038-4f15-816a-592268a397e4",
+      "RV-ae4e051a-662b-4d90-b991-0cd72c1454b6"
+    ],
+    "used_rounds": 1,
+    "valid_reviews": 2
+  },
+  "attempt": {
+    "base_snapshot": {
+      "evidence_sha256": "feee8567cc3a4a91d3f848727650b0e376cf4189b3fee6f86cd0998e1e434100",
+      "report_sha256": "4784fb15c67dec959f1379f5e40d9786039b97f5cdfce7224dd3616f49219feb"
+    },
+    "current_snapshot": {
+      "evidence_sha256": "feee8567cc3a4a91d3f848727650b0e376cf4189b3fee6f86cd0998e1e434100",
+      "report_sha256": "6879f417065c3b1e0e30b9d3522510011a9dd9b758b768f6e3a6fb8afeec09ac"
+    },
+    "cursor": 1,
+    "id": "A-0001",
+    "results": [
+      {
+        "output_ledger_sha256": "1dacfc56785710a0496edb4076273ac7c76f8ed6f6fecfab14457d239ba3fc59",
+        "result": {
+          "applications": [
+            {
+              "after_sha256": "ffed301f239e542bdda4fb7412142f4010888e3c9acb14ecb9d47c719a67fd3d",
+              "before_sha256": "50edb8f42018e3e7358b2ee0ffef38536f7ed55733b2135a42aba825defbd0ea",
+              "end_byte": 163,
+              "section": 3,
+              "start_byte": 110,
+              "task_ids": [
+                "RT-000001"
+              ]
+            }
+          ],
+          "archives": [
+            {
+              "request": {
+                "path": "exchanges/EX-afdd5010-ab01-4fbf-b897-d51331f02de5/request.json",
+                "sha256": "fbaa8d6be001214dc97999f6605ee6e2fdb863579d423b6ca332077400c3d739"
+              },
+              "response": {
+                "path": "exchanges/EX-afdd5010-ab01-4fbf-b897-d51331f02de5/response.json",
+                "sha256": "99313a8c499c0ac26d9bf714b89edd94daf554c3a480985ef2d25d1402a3f052"
+              }
+            }
+          ],
+          "mode": "full_revision",
+          "status": "applied",
+          "task_ids": [
+            "RT-000001"
+          ]
+        },
+        "snapshot": {
+          "evidence_sha256": "feee8567cc3a4a91d3f848727650b0e376cf4189b3fee6f86cd0998e1e434100",
+          "report_sha256": "6879f417065c3b1e0e30b9d3522510011a9dd9b758b768f6e3a6fb8afeec09ac"
+        },
+        "task_id": "RT-000001"
+      }
+    ],
+    "state": "finalized",
+    "task_ids": [
+      "RT-000001"
+    ]
+  },
+  "explanation": "Original summary conflated independent review acceptance with the local-low fixture assertion. Current Store pass and receipt are valid; original summary/logs untouched. Full route was selected because task.description contains 全文."
+}

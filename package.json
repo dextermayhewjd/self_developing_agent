@@ -1,0 +1,8 @@
+{
+  "name": "sda-codex-workflows",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": { "test": "node --test tests/codex_workflow/*.test.mjs" },
+  "dependencies": { "ajv": "8.20.0" }
+}

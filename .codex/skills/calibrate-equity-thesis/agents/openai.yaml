@@ -1,0 +1,4 @@
+interface:
+  display_name: "判断稿方法校准"
+  short_description: "通过五份人工底稿盲抽、对撞与原文抽查校准判断稿的研究方法"
+  default_prompt: "请使用 $calibrate-equity-thesis 校准当前判断稿研究方法并输出修改建议。"

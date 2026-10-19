@@ -1,0 +1,229 @@
+{
+  "version": 1,
+  "source_date": "2026-10-16",
+  "purpose": "Provenance only; runtime does not read source paths. Hashes record the migration snapshot, not an immutable update policy.",
+  "notes": [
+    "Current working tree sources include pre-existing user edits.",
+    "Research constraints retained; platform execution and conflicting legacy orchestration translated.",
+    "Codex source of truth is .codex; .agents entries are discovery links."
+  ],
+  "entries": [
+    {
+      "source": ".claude/skills/calibrate-equity-thesis/SKILL.md",
+      "target": ".codex/skills/calibrate-equity-thesis/SKILL.md",
+      "source_sha256": "a07cd84e1337f1127764012c9b228dc4da726e5b9bfdce984c45239ef1e0a066",
+      "target_sha256": "c41329382e87a26c3a6a5d44a8ecb937fb38e3b046a69d6961024af9d592961b",
+      "mode": "adapted"
+    },
+    {
+      "source": ".claude/skills/calibrate-equity-thesis/evidence/methods.md",
+      "target": ".codex/skills/calibrate-equity-thesis/evidence/methods.md",
+      "source_sha256": "d48361071ec60a611dd4cc7eb4eb6bd5345fa12389d67de413feae0d34844e5b",
+      "target_sha256": "d48361071ec60a611dd4cc7eb4eb6bd5345fa12389d67de413feae0d34844e5b",
+      "mode": "preserved"
+    },
+    {
+      "source": ".claude/skills/calibrate-equity-thesis/evidence/中控.md",
+      "target": ".codex/skills/calibrate-equity-thesis/evidence/中控.md",
+      "source_sha256": "be5db332cb1c2d52aa629190b94589dc8209826907bedfe27493c44addf71f42",
+      "target_sha256": "be5db332cb1c2d52aa629190b94589dc8209826907bedfe27493c44addf71f42",
+      "mode": "preserved"
+    },
+    {
+      "source": ".claude/skills/calibrate-equity-thesis/evidence/乐鑫.md",
+      "target": ".codex/skills/calibrate-equity-thesis/evidence/乐鑫.md",
+      "source_sha256": "faeab726c83a0ddfe6e9c104aa79d173a93f635d363c2f41e0fd838e3117eb29",
+      "target_sha256": "faeab726c83a0ddfe6e9c104aa79d173a93f635d363c2f41e0fd838e3117eb29",
+      "mode": "preserved"
+    },
+    {
+      "source": ".claude/skills/calibrate-equity-thesis/evidence/开立.md",
+      "target": ".codex/skills/calibrate-equity-thesis/evidence/开立.md",
+      "source_sha256": "1497cea114caf3996b30989555accd2f8e489eee3c4c812982e3e0725a560d39",
+      "target_sha256": "1497cea114caf3996b30989555accd2f8e489eee3c4c812982e3e0725a560d39",
+      "mode": "preserved"
+    },
+    {
+      "source": ".claude/skills/calibrate-equity-thesis/evidence/澜起.md",
+      "target": ".codex/skills/calibrate-equity-thesis/evidence/澜起.md",
+      "source_sha256": "d106f074da5cce15efca63f37d6c66953f3f735a173bb81c67c42267b459b009",
+      "target_sha256": "d106f074da5cce15efca63f37d6c66953f3f735a173bb81c67c42267b459b009",
+      "mode": "preserved"
+    },
+    {
+      "source": ".claude/skills/calibrate-equity-thesis/evidence/石基.md",
+      "target": ".codex/skills/calibrate-equity-thesis/evidence/石基.md",
+      "source_sha256": "42276271f9c9e144fe8ad87ad08f7125462517adabbb9131a4cb7abbbf33d259",
+      "target_sha256": "42276271f9c9e144fe8ad87ad08f7125462517adabbb9131a4cb7abbbf33d259",
+      "mode": "preserved"
+    },
+    {
+      "source": ".claude/skills/debug-equity-thesis/SKILL.md",
+      "target": ".codex/skills/debug-equity-thesis/SKILL.md",
+      "source_sha256": "718421df66da14e4aa5f294a32d73973963c975f7083f5fdd63464f3f3264965",
+      "target_sha256": "911c2dbba45d4d0e99e80aa49fb66c0c251204b657e68266847b900b599fd5e0",
+      "mode": "adapted"
+    },
+    {
+      "source": ".claude/skills/equity-report-cn/SKILL.md",
+      "target": ".codex/skills/equity-report-cn/SKILL.md",
+      "source_sha256": "7faa4b2f7b1be8949a447fccbec32e6ca63d4ad48b227c3215e51acd65d1a925",
+      "target_sha256": "25c8c01d8810a876f6110e361ad37583e8383e0f0b7d4eb734c3f05fdf8a9d12",
+      "mode": "adapted"
+    },
+    {
+      "source": ".claude/skills/equity-report-cn/competitor_pool.json",
+      "target": ".codex/skills/equity-report-cn/competitor_pool.json",
+      "source_sha256": "71b9e9d09bfde06837ae9c1163922aee5aa8719007ca16c3bcd16ee6e658f4e8",
+      "target_sha256": "71b9e9d09bfde06837ae9c1163922aee5aa8719007ca16c3bcd16ee6e658f4e8",
+      "mode": "preserved"
+    },
+    {
+      "source": ".claude/skills/equity-report-cn/data_contract.md",
+      "target": ".codex/skills/equity-report-cn/data_contract.md",
+      "source_sha256": "fa4e78d6bd4d051adfd6f1798375e479593653f1f8960953df49b8e4cddfea76",
+      "target_sha256": "fa4e78d6bd4d051adfd6f1798375e479593653f1f8960953df49b8e4cddfea76",
+      "mode": "preserved"
+    },
+    {
+      "source": ".claude/skills/equity-report-cn/reasoning_protocol.md",
+      "target": ".codex/skills/equity-report-cn/reasoning_protocol.md",
+      "source_sha256": "fed3bef063ca0456392a8e56ba44d12c69497e711aa2b0867ae693c898b1c98e",
+      "target_sha256": "fed3bef063ca0456392a8e56ba44d12c69497e711aa2b0867ae693c898b1c98e",
+      "mode": "preserved"
+    },
+    {
+      "source": ".claude/skills/equity-report-cn/style_guide.md",
+      "target": ".codex/skills/equity-report-cn/style_guide.md",
+      "source_sha256": "646fda1989760d033fef211baed9353c447cbffcdcf43cb27130df10dd7781a9",
+      "target_sha256": "646fda1989760d033fef211baed9353c447cbffcdcf43cb27130df10dd7781a9",
+      "mode": "preserved"
+    },
+    {
+      "source": ".claude/skills/equity-report-cn/template.md",
+      "target": ".codex/skills/equity-report-cn/template.md",
+      "source_sha256": "b2ae80a863d7dbe33b768eeb0832bb2fe53542c6bcc92a020e1c6aa52a610257",
+      "target_sha256": "b2ae80a863d7dbe33b768eeb0832bb2fe53542c6bcc92a020e1c6aa52a610257",
+      "mode": "preserved"
+    },
+    {
+      "source": ".claude/skills/equity-thesis-cn/SKILL.md",
+      "target": ".codex/skills/equity-thesis-cn/SKILL.md",
+      "source_sha256": "24708c62e9d772913a3d4ee27e4ae955981c0e49b349363b62dbd5a85b3dc18b",
+      "target_sha256": "cb70e00c85d7ae4072efc189c4d04ac39efb840dc2252b7cbd2e8eff71df6c03",
+      "mode": "adapted"
+    },
+    {
+      "source": ".claude/skills/equity-thesis-cn/framework.md",
+      "target": ".codex/skills/equity-thesis-cn/framework.md",
+      "source_sha256": "148993ab4722b3d6d78b562fb5a9e30a1890293aa9d8d5a2f6ecafabb1705474",
+      "target_sha256": "148993ab4722b3d6d78b562fb5a9e30a1890293aa9d8d5a2f6ecafabb1705474",
+      "mode": "preserved"
+    },
+    {
+      "source": ".claude/skills/equity-thesis-cn/lenses/产业.md",
+      "target": ".codex/skills/equity-thesis-cn/lenses/产业.md",
+      "source_sha256": "e026c5c4ca1d455b4e87a25086998dca039a1641cbea36db97a1053bab0576ff",
+      "target_sha256": "357708235d44a579357547f4e3d0495af334f1176290e9b60974c19173b54098",
+      "mode": "adapted"
+    },
+    {
+      "source": ".claude/skills/equity-thesis-cn/lenses/可比性判定.md",
+      "target": ".codex/skills/equity-thesis-cn/lenses/可比性判定.md",
+      "source_sha256": "801a93e4d29390f4759b3dc0f5e1ec490c3d89fd81d083c9e838566eb146fdb8",
+      "target_sha256": "801a93e4d29390f4759b3dc0f5e1ec490c3d89fd81d083c9e838566eb146fdb8",
+      "mode": "preserved"
+    },
+    {
+      "source": ".claude/skills/equity-thesis-cn/lenses/尽调.md",
+      "target": ".codex/skills/equity-thesis-cn/lenses/尽调.md",
+      "source_sha256": "c7873ea9b616293d616030864bb0014dfce0e60cab6c96b966679f5f38ec2d2e",
+      "target_sha256": "896a7a35f8e2f3aa36fab9e24682c0ab02cd3d4d948aa2b9340d245f203167c7",
+      "mode": "adapted"
+    },
+    {
+      "source": ".claude/skills/equity-thesis-cn/lenses/战略驱动.md",
+      "target": ".codex/skills/equity-thesis-cn/lenses/战略驱动.md",
+      "source_sha256": "1bd18da0734dd39b0b262cc23309eaa8e00fd717412e7012e0b1f8a9c4fe49af",
+      "target_sha256": "76daf348335204c3b469a93ca0f1b93263d493a33a43159aeb64e45dd1263733",
+      "mode": "adapted"
+    },
+    {
+      "source": ".claude/skills/equity-thesis-cn/lenses/核查.md",
+      "target": ".codex/skills/equity-thesis-cn/lenses/核查.md",
+      "source_sha256": "88457e05de6b100cfcdb813c5bc7811620cffa75cc0340dccdc92d2b241c89cf",
+      "target_sha256": "e119fa040a00889d05b47541bdbe758cda435412d938c3206eb195c458f56e85",
+      "mode": "adapted"
+    },
+    {
+      "source": ".claude/skills/equity-thesis-cn/lenses/竞争.md",
+      "target": ".codex/skills/equity-thesis-cn/lenses/竞争.md",
+      "source_sha256": "10915c8b25c67de42644585f392f570bee8e52be8d1d203cdeed06e74aba673d",
+      "target_sha256": "04553f0de6bd5e387f7a9c4fe0b97aedf5878d66e1b70f73b819d08d822ac0e1",
+      "mode": "adapted"
+    },
+    {
+      "source": ".claude/skills/equity-thesis-cn/orchestration.md",
+      "target": ".codex/skills/equity-thesis-cn/orchestration.md",
+      "source_sha256": "3ed98eab82e00b1c9f673daabda68216bf62b1b439679c54759f94c2169a0317",
+      "target_sha256": "f056ef43b5c1c042440cc8b1331114469ef312b2df475ddc86475ffeb1e23105",
+      "mode": "adapted"
+    },
+    {
+      "source": ".claude/skills/equity-thesis-cn/position_file.md",
+      "target": ".codex/skills/equity-thesis-cn/position_file.md",
+      "source_sha256": "79c62a7b3066cbc289e0d9dfcacdcc9b8ba6d1ee1f1df35436c9977ea1eb9a7b",
+      "target_sha256": "79c62a7b3066cbc289e0d9dfcacdcc9b8ba6d1ee1f1df35436c9977ea1eb9a7b",
+      "mode": "preserved"
+    },
+    {
+      "source": ".claude/skills/equity-thesis-cn/style_guide.md",
+      "target": ".codex/skills/equity-thesis-cn/style_guide.md",
+      "source_sha256": "31f3b1ad43a7456557988b840bb935f2dc55894a91ac5eacc0fc6914590d03dc",
+      "target_sha256": "31f3b1ad43a7456557988b840bb935f2dc55894a91ac5eacc0fc6914590d03dc",
+      "mode": "preserved"
+    },
+    {
+      "source": ".claude/skills/equity-thesis-cn/valuation_archetypes.md",
+      "target": ".codex/skills/equity-thesis-cn/valuation_archetypes.md",
+      "source_sha256": "d23681ab77777ffdd94acdae78bf8928d17c23d3513438cbd4527d236d801d9d",
+      "target_sha256": "d23681ab77777ffdd94acdae78bf8928d17c23d3513438cbd4527d236d801d9d",
+      "mode": "preserved"
+    },
+    {
+      "source": ".claude/skills/financial-redflags-cn/SKILL.md",
+      "target": ".codex/skills/financial-redflags-cn/SKILL.md",
+      "source_sha256": "f2bebde569c9c789b3c35b113d153f294fce78164e0fcf2b44d9506cd873b401",
+      "target_sha256": "058544ebf809b6ea4df0c9c17b9fde9fefd1bdd5f9cb2c506bfd940b26e14b7b",
+      "mode": "adapted"
+    },
+    {
+      "source": ".claude/workflows/calibrate-equity-thesis.mjs",
+      "target": ".codex/workflows/calibrate-equity-thesis.mjs",
+      "source_sha256": "5f6b613ba221827957b12de1c093a67153f7ee39db5c92be233e226cbf2db7f5",
+      "target_sha256": "d0d30fa303404660d1815894f2b7757ffe9984c37846fc43f8fbe661d0bdeb81",
+      "mode": "adapted"
+    },
+    {
+      "source": ".claude/workflows/equity-thesis.mjs",
+      "target": ".codex/workflows/equity-thesis.mjs",
+      "source_sha256": "a4ec79662d250b33eccd0b23994d7624be152dbb46922efe11b68d539b995f0d",
+      "target_sha256": "4d7856833fa950b0abd91b6f88e888d5bccdd7e076aeadfd3ac713b2368e0fb7",
+      "mode": "adapted"
+    },
+    {
+      "source": ".claude/workflows/peer-comparability.mjs",
+      "target": ".codex/workflows/peer-comparability.mjs",
+      "source_sha256": "7c02c6dc3e87fc24e8033d3c23ccd0bb1d6db23fb824bc58cc4d8ce0594508bb",
+      "target_sha256": "e47fd59b3e73fb0798ffad820bdb1a18f65cee506d720581df87256f8302da12",
+      "mode": "adapted"
+    },
+    {
+      "source": ".claude/commands/thesis-wf.md",
+      "target": ".codex/skills/thesis-wf/SKILL.md",
+      "source_sha256": "7cd39816ca8150ec3a90b834ec673e2cd635fe419925cbd2e9e1ffe13ab97694",
+      "target_sha256": "fb5c3e077ed949d839f76d9358c17fc6db44370ea8335096727b1a7c6ff20b5c",
+      "mode": "adapted"
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Codex 深度判断稿"
+  short_description: "在 Codex 中按十二节研究框架执行并行挖掘、核查及独立成稿"
+  default_prompt: "请使用 $equity-thesis-cn 为指定股票生成或续跑判断型研究报告。"

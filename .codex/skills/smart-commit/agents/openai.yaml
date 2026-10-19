@@ -1,0 +1,4 @@
+interface:
+  display_name: "智能分批提交"
+  short_description: "按功能依赖拆分 Git 提交，核对每批白名单与测试，并按已有授权推送"
+  default_prompt: "请使用 $smart-commit 检查当前改动，制定并执行分批提交方案。"

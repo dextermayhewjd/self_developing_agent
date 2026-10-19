@@ -15,6 +15,7 @@
     - run 文件夹产物缺失（疑惑.md / findings 不在报告旁边）
 代码只能查形式，查不了判断质量——那仍靠模型。
 """
+import argparse
 import re
 import sys
 from pathlib import Path
@@ -352,11 +353,12 @@ def check_chain_table(report, run_dir):
 
 
 def main():
-    if len(sys.argv) != 3:
-        print("用法：python tools/check_thesis.py <SYMBOL> <REPORT_PATH>", file=sys.stderr)
-        return 1
-
-    symbol, report_path = sys.argv[1], sys.argv[2]
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("symbol")
+    parser.add_argument("report_path")
+    parser.add_argument("--position", help="staged position path (default: positions/SYMBOL.md)")
+    args = parser.parse_args()
+    symbol, report_path = args.symbol, args.report_path
     if not Path(report_path).exists():
         print(f"[FAIL] 报告不存在：{report_path}", file=sys.stderr)
         return 1
@@ -383,7 +385,7 @@ def main():
         )
 
     # ---- 硬约束 2：档案已更新到报告日 ----
-    pos_path = Path("positions") / f"{symbol}.md"
+    pos_path = Path(args.position) if args.position else Path("positions") / f"{symbol}.md"
     if not pos_path.exists():
         hard.append(f"档案不存在：{pos_path}（步骤 6 未执行）")
     elif report_date:

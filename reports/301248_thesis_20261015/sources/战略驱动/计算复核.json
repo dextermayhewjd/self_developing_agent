@@ -1,0 +1,47 @@
+{
+  "unit": "人民币亿元（未注明除外）",
+  "ops_H1": 1.7200705978,
+  "other_cloud_H1": 0.40349603840000003,
+  "other_cloud_implied_gross_margin": 0.8335894306019537,
+  "ops_H1_cost": 0.9807609031,
+  "annualized_ops": 3.4401411956,
+  "required_multiplier_at_same_price": 2.3254859452374044,
+  "required_multiplier_at_20pct_lower_price": 2.9068574315467552,
+  "price_down20_gm": 0.2872669700633145,
+  "depreciation_steady": 3.403494002985,
+  "rd_cap2025": 0.44506766056160985,
+  "rd_cap2026H1": 0.3162669100525055,
+  "rd_cap2025H1": 0.5614200403386187,
+  "contracts_annual_tax_included": 0.7533759999999999,
+  "planned_placement": 19.650688,
+  "placement_scenario_40_totalshares": 2.0283172,
+  "eps_gate_placement40": 3.3061570359999997,
+  "scenarios": [
+    {
+      "name": "压力",
+      "quantity_multiplier": 1.5,
+      "price_factor": 0.8,
+      "ops": 4.12816943472,
+      "other_cloud": 1,
+      "total_cloud": 5.12816943472
+    },
+    {
+      "name": "中间",
+      "quantity_multiplier": 2.5,
+      "price_factor": 0.9,
+      "ops": 7.7403176900999995,
+      "other_cloud": 2,
+      "total_cloud": 9.7403176901
+    },
+    {
+      "name": "较强",
+      "quantity_multiplier": 3.2,
+      "price_factor": 0.95,
+      "ops": 10.458029234624,
+      "other_cloud": 3,
+      "total_cloud": 13.458029234624
+    }
+  ],
+  "H1_four_expenses": 1.3952917551,
+  "grant_2027_revenue_gate": 8.37666947078
+}

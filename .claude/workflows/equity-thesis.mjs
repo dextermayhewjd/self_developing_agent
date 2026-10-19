@@ -8,6 +8,8 @@ export const meta = {
     { title: '核查', detail: '每份 findings 一产出就核查，不堆到尾部' },
     { title: '补参照系', detail: '只对核查判为私有基准/无参照系的承重数逐条接地，一条都没有就跳过' },
     { title: '成稿', detail: '只读 findings 与已核实清单，统一口吻写全文' },
+    { title: '成稿审查', detail: '独立逐节核对完整底稿；遗漏或矛盾必须修订' },
+    { title: '修订成稿', detail: '仅使用现有证据，最多两轮修订后重新独立审查' },
   ],
 }
 
@@ -203,6 +205,148 @@ const REPORT = {
     rating: { type: 'string', description: '五维均分与字母评级' },
     decisive_variable: { type: 'string', description: '收敛到的那一个决定性变量' },
   },
+}
+
+const CONTENT_REVIEW = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['written_file', 'report_sha256', 'verdict', 'reviewed_sources', 'sections', 'coverage', 'blocking_issues'],
+  properties: {
+    written_file: { type: 'string', description: '落盘的 RUN/成稿审查.json 绝对路径' },
+    report_sha256: { type: 'string', description: '用 sha256sum 对当前 report.md 原始字节计算的真实 SHA-256，64位小写十六进制；不能猜' },
+    verdict: { type: 'string', enum: ['pass', 'revise'] },
+    reviewed_sources: { type: 'array', minItems: 1, items: { type: 'string' }, description: '完整读取的底稿清单，RUN 内相对路径；所有 findings/、核查/、参照系/ 文件与疑惑.md，一份不能少' },
+    sections: {
+      type: 'array', minItems: 12, maxItems: 12,
+      items: {
+        type: 'object', additionalProperties: false, required: ['section', 'status', 'evidence'],
+        properties: {
+          section: { type: 'integer', enum: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] },
+          status: { type: 'string', enum: ['pass', 'revise'] },
+          evidence: { type: 'string', description: '该节判断、推理与证据的具体核对依据；有问题时说明修订要求' },
+        },
+      },
+    },
+    coverage: {
+      type: 'array', minItems: 5, maxItems: 5,
+      items: {
+        type: 'object', additionalProperties: false, required: ['lens', 'findings'],
+        properties: {
+          lens: { type: 'string', enum: LENSES.map(l => l.key) },
+          findings: {
+            type: 'array', minItems: 1,
+            description: '该 lens 的所有关键发现及反证逐条列入；至少一条只是格式下限，绝非读完或覆盖全面的标准',
+            items: {
+              type: 'object', additionalProperties: false,
+              required: ['finding', 'source', 'source_quote', 'disposition', 'report_quote', 'exclusion_reason'],
+              properties: {
+                finding: { type: 'string', description: '具体发现、限制或反证，以及它怎样影响判断' },
+                source: { type: 'string', description: 'RUN 内真实底稿相对路径，限 findings/、核查/、参照系/ 或疑惑.md' },
+                source_quote: { type: 'string', description: '底稿逐字原文片段，不是摘要或改写' },
+                disposition: { type: 'string', enum: ['covered', 'excluded', 'omitted', 'contradicted'] },
+                report_quote: { type: 'string', description: 'covered/contradicted 必填报告逐字原文；未出现在报告则空串' },
+                exclusion_reason: { type: 'string', description: 'excluded 必填具体排除依据；其他情况空串' },
+              },
+            },
+          },
+        },
+      },
+    },
+    blocking_issues: { type: 'array', items: { type: 'string' }, description: '每个阻断问题写清位置、证据和具体修订要求；无问题时空数组' },
+  },
+}
+
+// Workflow 没有文件系统 API：这里拦截结构性假通过，交付方必须再运行
+// tools/check_thesis_review.mjs，核对落盘 JSON、真实引文与报告摘要。
+function checkReviewResult(review) {
+  const nonempty = value => typeof value === 'string' && value.trim().length > 0
+  const reject = () => { throw new Error('成稿审查返回不完整或结论与证据不一致，禁止交付') }
+  if (!review || review.written_file !== `${RUN}/成稿审查.json` ||
+      typeof review.report_sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(review.report_sha256) ||
+      !['pass', 'revise'].includes(review.verdict) || !Array.isArray(review.reviewed_sources) ||
+      !review.reviewed_sources.includes('疑惑.md') || new Set(review.reviewed_sources).size !== review.reviewed_sources.length ||
+      !Array.isArray(review.sections) || review.sections.length !== 12 ||
+      new Set(review.sections.map(s => s?.section)).size !== 12 ||
+      review.sections.some(s => !Number.isInteger(s?.section) || s.section < 1 || s.section > 12 || !['pass', 'revise'].includes(s.status) || !nonempty(s.evidence)) ||
+      !Array.isArray(review.coverage) || review.coverage.length !== 5 ||
+      new Set(review.coverage.map(c => c?.lens)).size !== 5 ||
+      !Array.isArray(review.blocking_issues) || review.blocking_issues.some(issue => !nonempty(issue))) reject()
+  let needsRevision = review.sections.some(s => s.status === 'revise') || review.blocking_issues.length > 0
+  for (const entry of review.coverage) {
+    if (!LENSES.some(l => l.key === entry?.lens) || !Array.isArray(entry.findings) || !entry.findings.length ||
+        !review.reviewed_sources.includes(`findings/${entry.lens}.md`) ||
+        !entry.findings.some(f => f?.source === `findings/${entry.lens}.md`)) reject()
+    for (const f of entry.findings) {
+      if (!nonempty(f?.finding) || !nonempty(f.source_quote) || !review.reviewed_sources.includes(f.source) ||
+          !['covered', 'excluded', 'omitted', 'contradicted'].includes(f.disposition) ||
+          typeof f.report_quote !== 'string' || typeof f.exclusion_reason !== 'string' ||
+          (['covered', 'contradicted'].includes(f.disposition) && !nonempty(f.report_quote)) ||
+          (f.disposition === 'excluded' && !nonempty(f.exclusion_reason))) reject()
+      if (['omitted', 'contradicted'].includes(f.disposition)) needsRevision = true
+    }
+  }
+  if ((review.verdict === 'revise') !== needsRevision) reject()
+}
+
+async function reviewManuscript() {
+  let revisedReport = null
+  for (let round = 0; round <= 2; round++) {
+    const label = `成稿审查:${round}`
+    phase(label)
+    const review = await agent(
+      `你是独立成稿审查员，审查 ${SYMBOL} 在 ${DATE} 的报告。这是一个独立工序，不能沿用成稿者自评。
+
+先完整读取 ${RUN}/report.md、${RUN}/疑惑.md，以及 ${RUN}/findings/、${RUN}/核查/、
+${RUN}/参照系/ 下的全部底稿（有子目录也必须读全）；参照系目录不存在时如实处理。
+必须列全文件并逐份读到末尾，禁止只读摘要、搜索命中、前几行或承重数字小节。
+然后完整读 ${SKILL}/equity-thesis-cn/SKILL.md、framework.md、style_guide.md 和五个 lens 的指南：
+${LENSES.map(l => l.guide).join('\n')}。
+
+逐节检查十二节是否履行判断任务、证据到推理到结论是否成立、疑惑是否回收、反证和限制是否保留，
+以及未核实数字/参照系强度是否被误写成已证实事实。不能用字数、页数、篇幅长短判断深度。
+对五个 lens 的所有关键发现逐条建立 coverage：不仅看正面结论，还要看反证、不确定性、
+口径限制、边界条件与会改变评级的内容。覆盖的报告引文必须承载该发现的实质和限制。
+每个 lens 至少一条只是 JSON 格式下限，绝不代表全面；不得为了最少条目跳过底稿。
+至少一条引用该 lens 自己的 findings 文件，其余可引用核查、参照系、疑惑。
+covered=实质完整保留；excluded=有具体证据支持的不采用；omitted=重要内容遗漏；
+contradicted=报告与底稿冲突。不能用无关报告句子充当 covered，不得把遗漏换标签为 excluded。
+
+只允许 source 为 RUN 内相对路径 findings/、核查/、参照系/ 或疑惑.md；source_quote、report_quote
+逐字复制真实原文。excluded 必须有具体 exclusion_reason；covered/contradicted 必须有报告原文。
+sections 必须恰好覆盖数字 1..12，coverage 恰好五个 lens，reviewed_sources 列出全部底稿相对路径。
+只有十二节全 pass、无 omitted/contradicted、blocking_issues 为空时 verdict 才能是 pass。
+否则 verdict=revise，blocking_issues 明确列出位置、依据、所需修订；缺外部证据就要求保留限制。
+
+只读审查，不修改报告或底稿，不联网、不搜索新研究、不读年报；不更新档案、不生成 PDF。
+用 sha256sum 实际计算 ${RUN}/report.md 的真实 SHA-256，不能猜或沿用旧摘要。
+把完整 JSON 写入 ${RUN}/成稿审查.json（含 written_file 本身），并返回完全相同的结构化 JSON。
+上一轮审查可参考，但本轮必须完整重读报告和全部底稿、重新核对引文与摘要。`,
+      { label, phase: label, schema: CONTENT_REVIEW }
+    )
+    checkReviewResult(review)
+    if (review.verdict === 'pass') return { content_review: review, revisedReport }
+    if (round === 2) throw new Error('成稿审查在两轮修订后仍未通过，禁止档案与 PDF 交付')
+    const revisionLabel = `修订成稿:${round + 1}`
+    phase(revisionLabel)
+    revisedReport = await agent(
+      `仅修订 ${RUN}/report.md，解决 ${RUN}/成稿审查.json 列出的全部遗漏、矛盾和阻断问题。
+先完整读取审查 JSON、报告、疑惑，以及 findings/、核查/、参照系/ 下全部现有底稿，
+再读 ${SKILL}/equity-thesis-cn/SKILL.md、${SKILL}/equity-thesis-cn/framework.md、
+${SKILL}/equity-thesis-cn/style_guide.md。
+只使用现有底稿证据：不新增研究、不联网、不搜年报、不获取新数据、不修改任何底稿或审查文件。
+补齐实质判断、反证、限制与疑惑销账，修复推理和口径；不能靠加字数或编造证据过关。
+缺少外部证据时必须如实保留限制、降级结论，不得假装已经核实。保留十二节结构和已正确内容。
+审查的修订要求：${JSON.stringify(review.blocking_issues)}
+只落盘修改后的 ${RUN}/report.md 并返回 REPORT 摘要；不要更新档案或生成 PDF。`,
+      { label: revisionLabel, phase: revisionLabel, schema: REPORT }
+    )
+  }
+}
+
+// 旧稿与硬门修订后的稿件也必须绑定新审查；不能触发任何研究阶段。
+if (args?.review_only === true) {
+  const { content_review } = await reviewManuscript()
+  return { content_review, report: { written_file: `${RUN}/report.md` } }
 }
 
 // ── 步骤 1.5：盘点（跨会话续跑的关键）──────────────────────────────
@@ -535,6 +679,8 @@ const report = await agent(
   { label: '成稿', phase: '成稿', schema: REPORT }
 )
 
+const { content_review, revisedReport } = await reviewManuscript()
+
 return {
   symbol: SYMBOL,
   run_dir: RUN,
@@ -556,11 +702,13 @@ return {
     悬空承重数_本轮新核: dangling.length,   // agent 还会读 核查/ 全量筛，实际接地条数可能更多
     补: benchFill ? (benchFill.items?.length ?? 0) : 0,
   },
-  report: report ?? null,
+  report: revisedReport ?? report ?? null,
+  content_review,
   // 这四条按顺序执行，顺序本身是约束不是排版：
   // 建档必须在硬门之前（硬约束 2 查档案存在且「最近更新」==报告日，先跑门必吃 FAIL）；
   // 转 PDF 必须在硬门之后（门挂了要改 report.md，先转就是一份过期 PDF）。
   编排器待办: [
+    `先运行 node tools/check_thesis_review.mjs ${RUN} 验证审查、引文与报告摘要；失败禁止档案与 PDF 交付；后续任何报告改动都必须 review_only 重审后再验证`,
     `校验 ${RUN}/ 下 疑惑.md / findings(5) / 参照系/ / report.md 是否齐全`,
     `更新 ${ROOT}/positions/${SYMBOL}.md（评分、评级、估值锚及变更理由、假设记分板、未决疑问、变更日志），frontmatter 的「最近更新」写成 ${DATE.slice(0, 4)}-${DATE.slice(4, 6)}-${DATE.slice(6, 8)}`,
     `跑 .venv/bin/python tools/check_thesis.py ${SYMBOL} reports/${SYMBOL}_thesis_${DATE}/report.md，退出码 1 必须回去修`,
