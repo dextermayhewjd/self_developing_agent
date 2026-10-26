@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { canonicalJson, sha256 } from '../../tools/codex_workflow/review-contracts.mjs'
 import { createLedger } from '../../tools/codex_workflow/review-ledger.mjs'
 import { parseReportSections } from '../../tools/codex_workflow/review-sections.mjs'
-import { buildTaskContext, buildFullRevisionContext, applyProposal } from '../../tools/codex_workflow/review-proposals.mjs'
+import { buildTaskContext, buildFullRevisionContext, applyProposal, bindProposalEvidence } from '../../tools/codex_workflow/review-proposals.mjs'
 
 function fixture({ eol = '\n', sourceText = '全表单位：万元；期间：2025年度。\n\n余额 -12；不确定；未披露；口径限制：未经审计。\n\n后续调整可能改变本表。', extra = '' } = {}) {
   const reportBytes = Buffer.from('约束：只使用当前底稿。' + eol + Array.from({ length: 12 }, (_, i) => `## ${i + 1}、章节${i + 1}${eol}${i === 2 ? '原文待补充。' + extra : i === 10 ? '判断边界：现金流不足时限制结论。' : '相邻段落。'}${eol}${eol}`).join(''))
@@ -27,6 +27,25 @@ function sameInputs(f, action, expected) {
   assert.deepEqual(f.reportBytes, original)
   assert.equal(canonicalJson(f.ledger), ledger)
 }
+
+test('host retains required evidence when the reviser cites an expanded paragraph', () => {
+  const f = fixture()
+  f.proposal.evidence_refs = [{ ...f.task.evidence_refs[0], quote: f.sourceTexts['核查/核查.md'] }]
+  const original = structuredClone(f.proposal)
+  const bound = bindProposalEvidence({ proposal: f.proposal, tasks: [f.task] })
+  assert.deepEqual(f.proposal, original)
+  assert.deepEqual(bound.added_refs, f.task.evidence_refs)
+  assert.equal(bound.proposal.evidence_refs.length, 2)
+  const result = applyProposal({ ...f, proposal: bound.proposal, mode: 'full_revision' })
+  assert.equal(result.status, 'applied')
+})
+
+test('host evidence binding does not sanitize a forged or nonexistent extra reference', () => {
+  const f = fixture()
+  f.proposal.evidence_refs = [{ ...f.task.evidence_refs[0], quote: '不存在的引用' }]
+  const bound = bindProposalEvidence({ proposal: f.proposal, tasks: [f.task] })
+  assert.throws(() => applyProposal({ ...f, proposal: bound.proposal, mode: 'full_revision' }), /quote not found/)
+})
 
 test('local context includes exact target, adjacent paragraphs, judgment constraints and whole cited source', () => {
   const f = fixture({ eol: '\r\n' })

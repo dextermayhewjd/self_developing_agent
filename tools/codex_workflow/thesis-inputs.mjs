@@ -10,9 +10,32 @@ const originalPath = path => originalNames.has(path) || /^annual_pdf\/[^/]+\.pdf
 const digest = value => sha256(canonicalJson(value))
 const safeRelative = path => typeof path === 'string' && path && !isAbsolute(path) && !path.includes('\\') && !path.split('/').some(p => !p || p === '.' || p === '..')
 const readJson = async path => { try { return JSON.parse(await readFile(path, 'utf8')) } catch (error) { if (error.code === 'ENOENT') return null; throw error } }
-const knownDerived = (path, stage) => stage === '板块基准'
-  ? ['peers_curated.json', 'peer_financials_benchmark.json'].includes(path) || path.startsWith('benchmark_peers/')
-  : /^(核查:|补参照系$)/u.test(stage) && path.startsWith(`check_sources/${stage.replace('核查:', '')}/`)
+// The admission rule and the worker's assigned paths must come from one scope.
+function derivedScope(stage) {
+  if (stage === '板块基准') return {
+    files: ['peers_curated.json', 'peer_financials_benchmark.json'], directory: 'benchmark_peers/',
+  }
+  if (/^(核查:|补参照系$)/u.test(stage)) return {
+    files: [], directory: `check_sources/${stage.replace('核查:', '')}/`,
+  }
+  return null
+}
+const knownDerived = (path, stage) => {
+  const scope = derivedScope(stage)
+  return !!scope && (scope.files.includes(path) || path.startsWith(scope.directory))
+}
+
+function producerInstructions(root, symbol, stage) {
+  const scope = derivedScope(stage)
+  if (!scope) return ''
+  const data = join(root, 'data', symbol)
+  const files = scope.files.map(path => join(data, path))
+  return `\n本阶段的数据写入约定（由执行器分配，适用于 ${data}/）：
+辅助资料目录：${resolve(data, scope.directory)}/
+补充财务数据、下载的 PDF、截图、转录和计算中间结果均写入上述辅助资料目录；可在其下创建子目录，不能另设同级目录。
+${files.length ? '本阶段工具还可生成或更新以下固定文件：\n' + files.map(path => '- ' + path).join('\n') + '\n' : ''}上述范围之外的数据文件不得创建或修改，原始输入保持只读。执行器会在阶段完成时登记这些资料及其摘要。
+本阶段正文仍写入任务指定的报告路径。\n`
+}
 
 async function inventory(directory) {
   const files = new Map()
@@ -155,11 +178,12 @@ export async function createThesisInputTracker({ root, symbol, runDir, previousM
     get manifest() { return manifest },
     resolve: resolveCurrent,
     get pendingStages() { return [...lifecycle.pending] },
+    instructionsFor: stage => producerInstructions(root, symbol, stage),
     beforeStage(stage) { return serial(async () => {
       const current = await resolveCurrent(); validate(current, true)
       const files = await inventory(join(root,'data',symbol))
       const before = new Map([...files].filter(([p]) => knownDerived(p, stage)))
-      if (stage === '板块基准' || /^(核查:|补参照系$)/u.test(stage)) {
+      if (derivedScope(stage)) {
         if (lifecycle.active[stage]) throw Error('Producer already active: ' + stage)
         const backups = []
         for (const [p, hash] of before) backups.push({path:p, sha256:hash, bytes:(await readFile(join(root,'data',symbol,p))).toString('base64')})

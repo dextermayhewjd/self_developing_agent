@@ -42,7 +42,7 @@ export const REVIEW_SCHEMA = object({
   version: { type: 'integer', enum: [2] }, review_id: string,
   report_sha256: digest, evidence_sha256: digest, input_ledger_sha256: digest,
   written_file: string, verdict: enumeration(['pass', 'revise']),
-  reviewed_sources: { ...strings, minItems: 1 },
+  reviewed_sources: { ...strings, minItems: 1, description: 'Exactly the paths in CONTEXT_JSON.expected_reviewed_sources, once each. Exclude methodology documents, report_text and ledger.' },
   sections: array(object({ section, status: enumeration(['pass', 'revise']), evidence: string, ...links }, ['issue_keys', 'task_ids']), { minItems: 12, maxItems: 12 }),
   coverage: array(object({
     lens: enumeration(REVIEW_LENSES),

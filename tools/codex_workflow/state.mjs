@@ -78,7 +78,7 @@ export async function acquireRunLock(dir, { processesFile = join(dir, 'workers.j
   }
 }
 
-export async function openState({ dir, fingerprint, artifactRoots, artifactsFor = () => [], dependents = () => [], reset = false, resetArtifacts = [], invocation = {}, protectedPaths = [], processesFile, emit = () => {} }) {
+export async function openState({ dir, fingerprint, artifactRoots, artifactsFor = () => [], dependents = () => [], reset = false, resetArtifacts = [], invocation = {}, protectedPaths = [], processesFile, emit = () => {}, acceptFingerprintChange }) {
   dir = resolve(dir)
   const unlock = await acquireRunLock(dir, { processesFile })
   let writes = Promise.resolve()
@@ -147,7 +147,14 @@ export async function openState({ dir, fingerprint, artifactRoots, artifactsFor 
       } else await quarantine(record.artifacts ?? [])
       record.restored = true
     }
-    if (data.fingerprint !== fingerprint && !reset) throw new Error('Workflow or inputs changed; use --reset to archive prior workflow outputs and restart')
+    if (data.fingerprint !== fingerprint && !reset) {
+      if (!acceptFingerprintChange) throw new Error('Workflow or inputs changed; use --reset to archive prior workflow outputs and restart')
+      const upgrade = await acceptFingerprintChange({ previous: structuredClone(data), fingerprint })
+      if (upgrade?.from !== data.fingerprint || upgrade?.to !== fingerprint || upgrade?.kind !== 'review-only') throw new Error('Invalid review compatibility upgrade')
+      data.review_upgrades = [...(data.review_upgrades ?? []), upgrade]
+      data.fingerprint = fingerprint
+      emit({ type: 'review.compatibility-upgraded', message: `${upgrade.from} -> ${upgrade.to}` })
+    }
     for (const record of Object.values(data.stages)) await validateOwnership(record)
     if (!reset) for (const record of Object.values(data.stages)) {
       if (['running', 'failed'].includes(record.status)) await restore(record)

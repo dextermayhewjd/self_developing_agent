@@ -1,0 +1,6 @@
+{
+  "default": {
+    "model": "gpt-6-astra",
+    "effort": "xhigh"
+  }
+}

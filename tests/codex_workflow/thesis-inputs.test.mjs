@@ -80,6 +80,52 @@ test('concurrent producers register only their scoped new paths and reject unkno
   await assert.rejects(tracker.beforeStage('板块基准'),/benchmark_peers.*stray/u)
 })
 
+test('host-assigned board evidence permits a sibling to finish before the board settles', async t => {
+  const f = await setup(t), tracker = await createThesisInputTracker(f)
+  const instructions = tracker.instructionsFor('板块基准')
+  const directory = instructions.match(/^辅助资料目录：(.+)$/m)?.[1]
+  assert.equal(directory, join(f.data, 'benchmark_peers') + '/')
+  const board = await tracker.beforeStage('板块基准')
+  const finance = await tracker.beforeStage('挖掘:财务排雷')
+  const sources = ['financials/peer.json', 'filing.pdf', 'page.png', 'transcript.txt']
+  for (const source of sources) await f.put(join(directory, source), source)
+  await tracker.afterStage('挖掘:财务排雷', finance)
+  await tracker.dependencies('核查:财务排雷')
+  assert.deepEqual(Object.keys(tracker.manifest.producers.active), ['板块基准'])
+  await assert.rejects(tracker.dependencies('成稿'), /Unsettled/)
+  await tracker.afterStage('板块基准', board)
+  await tracker.assertCurrent()
+  assert.deepEqual(tracker.manifest.derived.map(e => [e.path, e.stage]),
+    sources.sort().map(source => ['benchmark_peers/' + source, '板块基准']))
+  assert.equal(await readFile(join(f.data, 'aggregate.json'), 'utf8'), '{}')
+})
+
+for (const [stage, directory] of [['核查:产业', 'check_sources/产业'], ['补参照系', 'check_sources/补参照系']]) {
+  test(`host-assigned evidence directory stays within the ${stage} scope`, async t => {
+    const f = await setup(t), tracker = await createThesisInputTracker(f)
+    const assigned = tracker.instructionsFor(stage).match(/^辅助资料目录：(.+)$/m)?.[1]
+    assert.equal(assigned, join(f.data, directory) + '/')
+    const before = await tracker.beforeStage(stage)
+    await f.put(join(assigned, 'source.txt'), 'evidence')
+    await tracker.afterStage(stage, before)
+    await tracker.assertCurrent()
+    assert.deepEqual(tracker.manifest.derived.map(e => [e.path, e.stage]), [[directory + '/source.txt', stage]])
+    for (const reader of ['盘点', '立疑', '挖掘:产业', '成稿', '成稿审查:0', '更新档案']) {
+      assert.equal(tracker.instructionsFor(reader), '')
+    }
+  })
+}
+
+test('an active board cannot admit evidence under a different sibling directory', async t => {
+  const f = await setup(t), tracker = await createThesisInputTracker(f)
+  await tracker.beforeStage('板块基准')
+  const finance = await tracker.beforeStage('挖掘:财务排雷')
+  const outside = join(f.data, 'peer_benchmark_20261019/peer.json')
+  await f.put(outside, 'unregistered evidence')
+  await assert.rejects(tracker.afterStage('挖掘:财务排雷', finance), /Unclassified.*peer_benchmark_20261019/)
+  assert.equal(await readFile(outside, 'utf8'), 'unregistered evidence')
+})
+
 test('research original mutation is rejected without replacing the original manifest',async t=>{
   const {root,symbol,runDir,data,put}=await setup(t)
   const tracker=await createThesisInputTracker({root,symbol,runDir})

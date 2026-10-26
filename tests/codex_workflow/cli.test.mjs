@@ -24,6 +24,16 @@ test('CLI preserves HK leading zeros and rejects unsafe inputs and impossible da
   assert.match(parseArguments(['calibrate-equity-thesis']).args.date, /^\d{8}$/)
 })
 
+test('review upgrade flags are explicit mutually exclusive thesis operations', () => {
+  const args = ['equity-thesis', '--symbol', '00700', '--date', '20261019']
+  assert.ok(parseArguments([...args, '--review-upgrade', '/tmp/baseline.json']).reviewUpgrade)
+  assert.ok(parseArguments([...args, '--capture-review-baseline', '/tmp/baseline.json']).captureReviewBaseline)
+  for (const suffix of [['--reset'], ['--check'], ['--capture-review-baseline', '/tmp/other.json']]) {
+    assert.throws(() => parseArguments([...args, '--review-upgrade', '/tmp/baseline.json', ...suffix]), /Review baseline\/upgrade/)
+  }
+  assert.throws(() => parseArguments(['peer-comparability', '--review-upgrade', '/tmp/baseline.json']), /Review baseline\/upgrade/)
+})
+
 test('report dates serialize through the same symbol lock and peer paths support spaces', async t => {
   const root = await mkdtemp(join(tmpdir(), 'space root '))
   t.after(() => rm(root, { recursive: true, force: true }))
@@ -288,9 +298,11 @@ if(m.method==='initialize')result={userAgent:'thesis-workflow/1.0.0'};
 if(m.method==='config/read')result={config:{model:'test-model',model_reasoning_effort:'low'},origins:{}};
 if(m.method==='model/list')result={data:[{model:'test-model',isDefault:true,defaultReasoningEffort:'low',supportedReasoningEfforts:[{reasoningEffort:'low'}]}]};
 if(m.id)process.stdout.write(JSON.stringify({id:m.id,result})+'\\n');
-});else{fs.readFileSync(0);const root=a[a.indexOf('--cd')+1],run=path.join(root,'reports/00700_thesis_'+(process.env.FIXTURE_REPORT_DATE||'20261016'));
+});else{const input=fs.readFileSync(0,'utf8');const root=a[a.indexOf('--cd')+1],run=path.join(root,'reports/00700_thesis_'+(process.env.FIXTURE_REPORT_DATE||'20261016'));
 fs.mkdirSync(path.join(run,'参照系'),{recursive:true});fs.writeFileSync(path.join(run,'参照系/板块基准.md'),'board findings');
-fs.mkdirSync(path.join(root,'data/00700/benchmark_peers'),{recursive:true});fs.writeFileSync(path.join(root,'data/00700/benchmark_peers/computed.json'),'generated peers');
+// Follow the host's directory; absent guidance reproduces the real worker's path choice.
+const evidenceDir=input.match(/^辅助资料目录：(.+)$/m)?.[1]||path.join(root,'data/00700/peer_benchmark_20261016');
+fs.mkdirSync(evidenceDir,{recursive:true});fs.writeFileSync(path.join(evidenceDir,'computed.json'),'generated peers');
 fs.appendFileSync(path.join(root,'workers-called'),'board\\n');fs.writeFileSync(a[a.indexOf('--output-last-message')+1],JSON.stringify({written_file:path.join(run,'参照系/板块基准.md')}));}
 `,0o755)
   const cli=fileURLToPath(new URL('../../tools/run_codex_workflow.mjs',import.meta.url)),argv=[cli,'equity-thesis','--root',root,'--symbol','00700','--date','20261016','--no-pdf']
