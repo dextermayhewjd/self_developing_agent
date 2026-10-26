@@ -8,6 +8,9 @@ import { coordinateThesisReview, reviewStages } from '../../tools/codex_workflow
 import { openReviewStore } from '../../tools/codex_workflow/review-store.mjs'
 import { REVIEW_LENSES, canonicalJson, sha256 } from '../../tools/codex_workflow/review-contracts.mjs'
 import { reportFixture, reviewFixtureV2 } from './fixtures/review-fixture.mjs'
+import { decodeResult } from '../../tools/codex_workflow/schema.mjs'
+import fsPromises from 'node:fs/promises'
+import { syncBuiltinESMExports } from 'node:module'
 
 const quote = '现金流依赖回款。'
 async function fixture(t) {
@@ -54,6 +57,158 @@ function fake(handler) {
     return handler(context, options, calls)
   } }
 }
+
+test('review request bounds reviewed_sources to the exact evidence inventory, excluding methods and context fields', async t => {
+  const f = await fixture(t)
+  const runtime = fake((context, options) => {
+    assert.deepEqual(context.expected_reviewed_sources, context.evidence.map(source => source.path))
+    const valid = review(context)
+    assert.deepEqual(decodeResult(options.schema, valid), valid)
+    for (const extra of ['CONTEXT_JSON.report_text', 'CONTEXT_JSON.ledger', context.methodology.documents[0].path]) {
+      assert.throws(() => decodeResult(options.schema, { ...valid, reviewed_sources: [...valid.reviewed_sources, extra] }), /schema/)
+    }
+    assert.throws(() => decodeResult(options.schema, { ...valid, reviewed_sources: valid.reviewed_sources.slice(1) }), /schema/)
+    return valid
+  })
+  const result = await coordinateThesisReview({ ...f, runtime })
+  assert.equal(result.review.verdict, 'pass')
+})
+
+test('full revision preserves host evidence and corrects a bad anchor before stopping', async t => {
+  const f = await fixture(t)
+  const runtime = fake((context, options) => {
+    if (options.contract === 'review') return review(context, context.ledger.tasks.length ? [] : [issue(context, 3, { route: 'full_revision' })])
+    const result = proposal(context)
+    result.evidence_refs = []
+    if (!context.correction) result.edits[0].before = '这个锚点不在稿件中'
+    else assert.match(context.correction.error, /anchor/)
+    return result
+  })
+  const result = await coordinateThesisReview({ ...f, runtime })
+  assert.equal(result.review.verdict, 'pass')
+  assert.equal(runtime.calls.filter(c => c.options.contract === 'proposal').length, 2)
+  const state = await f.store.read()
+  assert.equal(state.ledger.budget.used_rounds, 1)
+  assert.equal(state.attempt.results[0].result.archives.length, 2)
+  assert.equal(state.attempt.results[0].result.host_added_refs.length, 1)
+})
+
+test('correction slots and failed validations survive a transport interruption without resetting the limit', async t => {
+  const f = await fixture(t)
+  let completed = 0, interrupted = false
+  const runtime = fake((context, options) => {
+    if (options.contract === 'review') return review(context, [issue(context, 3, { route: 'full_revision' })])
+    if (completed === 2 && !interrupted) { interrupted = true; throw Error('third slot transport interruption') }
+    completed++
+    return { ...proposal(context), closed: true }
+  })
+  await assert.rejects(coordinateThesisReview({ ...f, runtime }), /third slot transport interruption/)
+  const paused = await f.store.read()
+  const group = paused.attempt.proposal_progress[0]
+  assert.deepEqual(group.calls.map(call => call.status), ['rejected', 'rejected', 'pending'])
+  assert.equal(paused.attempt.results.length, 0)
+  const result = await coordinateThesisReview({ ...f, runtime })
+  assert.equal(result.terminalReason, 'no_safe_edit')
+  const final = await f.store.read()
+  assert.equal(completed, 3)
+  assert.equal(final.ledger.budget.used_rounds, 1)
+  assert.equal(final.attempt.results[0].result.archives.length, 3)
+  assert.equal(final.attempt.results[0].result.validation_attempts, 3)
+  assert.deepEqual(final.attempt.proposal_progress[0].calls.map(call => call.id), group.calls.map(call => call.id))
+})
+
+for (const phase of ['response_archived', 'validation_recorded']) {
+  test(`proposal resumes after ${phase} without another model call`, async t => {
+    const f = await fixture(t)
+    const runtime = fake((context, options) => options.contract === 'review'
+      ? review(context, context.ledger.tasks.length ? [] : [issue(context, 3, { route: 'full_revision' })]) : proposal(context))
+    let armed = true
+    await assert.rejects(coordinateThesisReview({ ...f, runtime, emit(event) {
+      if (armed && event.type === 'proposal.' + phase) { armed = false; throw Error('durable boundary interruption') }
+    } }), /durable boundary interruption/)
+    const result = await coordinateThesisReview({ ...f, runtime })
+    assert.equal(result.review.verdict, 'pass')
+    assert.equal(runtime.calls.filter(call => call.options.contract === 'proposal').length, 1)
+    assert.equal((await f.store.read()).ledger.budget.used_rounds, 1)
+  })
+}
+
+for (const name of ['request', 'response']) {
+  test(`partial ${name} archive write leaves no final file and reuses the reserved slot`, async t => {
+    const f = await fixture(t)
+    const runtime = fake((context, options) => options.contract === 'review'
+      ? review(context, context.ledger.tasks.length ? [] : [issue(context, 3, { route: 'full_revision' })]) : proposal(context))
+    let armed = true
+    const originalOpen = fsPromises.open
+    const wrapped = t.mock.method(fsPromises, 'open', async (path, ...args) => {
+      const file = await originalOpen(path, ...args)
+      if (armed && String(path).includes(`/.${name}.json-`) && (await f.store.read()).attempt?.proposal_progress?.length) {
+        armed = false
+        const write = file.writeFile.bind(file)
+        file.writeFile = async bytes => { await write(bytes.subarray(0, 20)); throw Error('partial archive write') }
+      }
+      return file
+    })
+    syncBuiltinESMExports()
+    t.after(() => { wrapped.mock.restore(); syncBuiltinESMExports() })
+    await assert.rejects(coordinateThesisReview({ ...f, runtime }), /partial archive write/)
+    const paused = await f.store.read(), call = paused.attempt.proposal_progress[0].calls[0]
+    const path = join(f.run, `.codex-workflow/review/exchanges/EX-${call.id}/${name}.json`)
+    await assert.rejects(readFile(path), { code: 'ENOENT' })
+    wrapped.mock.restore(); syncBuiltinESMExports()
+    const result = await coordinateThesisReview({ ...f, runtime })
+    assert.equal(result.review.verdict, 'pass')
+    const final = await f.store.read()
+    assert.equal(final.attempt.proposal_progress[0].calls.length, 1)
+    assert.equal(final.attempt.proposal_progress[0].calls[0].id, call.id)
+  })
+}
+
+test('legacy rejected evidence coverage can be replayed once with history and quota preserved', async t => {
+  const f = await fixture(t)
+  const first = fake((context, options) => {
+    if (options.contract === 'review') return review(context, [issue(context, 3, { route: 'full_revision' })])
+    throw Error('interrupt before proposal')
+  })
+  await assert.rejects(coordinateThesisReview({ ...f, runtime: first }), /interrupt before proposal/)
+  const context = first.calls.at(-1).context
+  const oldProposal = proposal(context); oldProposal.evidence_refs = []
+  const archive = join(f.run, '.codex-workflow/review/exchanges/EX-legacy')
+  await mkdir(archive, { recursive: true })
+  const request = { context }, response = oldProposal
+  await writeFile(join(archive, 'request.json'), canonicalJson(request))
+  await writeFile(join(archive, 'response.json'), canonicalJson(response))
+  const refs = { request: { path: 'exchanges/EX-legacy/request.json', sha256: sha256(canonicalJson(request)) },
+    response: { path: 'exchanges/EX-legacy/response.json', sha256: sha256(canonicalJson(response)) } }
+  let state = await f.store.read()
+  state = await f.store.checkpointAttempt({ attemptId: state.attempt.id, taskId: state.attempt.task_ids[0],
+    result: { status: 'rejected', task_ids: state.attempt.task_ids, mode: 'full_revision', reason: 'proposal evidence ref coverage incomplete', archives: [refs], applications: [] },
+    reportBytes: await readFile(join(f.run, 'report.md')), ledger: state.ledger, evidence: JSON.parse(await readFile(join(f.run, '.codex-workflow/review/evidence-manifest.json'))) })
+  await f.store.finalizeAttempt({ attemptId: state.attempt.id, reason: 'no_safe_edit' })
+  const retry = fake((context, options) => {
+    assert.equal(options.contract, 'review', 'saved proposal should be reused without another model proposal')
+    return review(context)
+  })
+  const oldHead = await readFile(join(f.run, '.codex-workflow/review/HEAD.json'))
+  await writeFile(join(archive, 'response.json'), canonicalJson(response) + '\nchanged')
+  await assert.rejects(coordinateThesisReview({ ...f, runtime: retry }), /digest|reference/)
+  assert.deepEqual(await readFile(join(f.run, '.codex-workflow/review/HEAD.json')), oldHead)
+  await writeFile(join(archive, 'response.json'), canonicalJson(response))
+  let armed = true
+  const interruptedStore = await openReviewStore({ runDir: f.run, failpoint(name) {
+    if (armed && name === 'after_head') { armed = false; throw Error('interrupted protocol recovery') }
+  } })
+  await assert.rejects(coordinateThesisReview({ ...f, store: interruptedStore, runtime: retry }), /interrupted protocol recovery/)
+  const result = await coordinateThesisReview({ ...f, runtime: retry })
+  assert.equal(result.review.verdict, 'pass')
+  state = await f.store.read()
+  assert.equal(state.ledger.budget.used_rounds, 1)
+  assert.equal(state.ledger.budget.valid_reviews, 2)
+  assert.equal(state.attempt.retry_history.length, 1)
+  assert.equal(state.attempt.retry_history[0].results[0].result.status, 'rejected')
+  assert.equal(state.attempt.results[0].result.status, 'applied')
+  await assert.rejects(f.store.reopenEvidenceRejection({ attemptId: state.attempt.id, snapshot: state.snapshot }), /not a recoverable/)
+})
 
 test('real Store two sequential tasks consume one round; full review is independent and archives actual inputs', async t => {
   const f = await fixture(t)
@@ -190,14 +345,84 @@ test('gate task follows existing pass directly into same-budget repair and indep
   assert.equal(state.ledger.budget.used_rounds, 1)
 })
 
-test('invalid independent review cannot consume semantic count and resume allocates a fresh archived ID', async t => {
+test('invalid independent review is corrected before consuming one semantic review', async t => {
   const f = await fixture(t)
-  const runtime = fake(context => ({ ...review(context), review_id: 'RV-wrong' }))
-  await assert.rejects(coordinateThesisReview({ ...f, runtime }), /review_id/)
+  const runtime = fake(context => context.review_correction ? review(context) : ({ ...review(context), review_id: 'RV-wrong' }))
+  await coordinateThesisReview({ ...f, runtime })
+  assert.equal((await f.store.read()).ledger.budget.valid_reviews, 1)
+  assert.equal(runtime.calls.length, 2)
+  assert.equal(runtime.calls[0].context.review_id, runtime.calls[1].context.review_id)
+  assert.match(runtime.calls[1].context.review_correction.error, /review_id/)
+})
+
+test('cross-section task link is corrected independently without changing the report', async t => {
+  const f = await fixture(t)
+  let candidate
+  const runtime = fake(async (context, options) => {
+    if (options.contract === 'proposal') return proposal(context)
+    const result = review(context, context.ledger.tasks.length ? [] : [issue(context, 3)])
+    if (context.ledger.tasks.length && !context.review_correction) {
+      candidate = await readFile(join(f.run, 'report.md'), 'utf8')
+      result.sections[9].task_ids = ['RT-000001']
+    }
+    if (context.review_correction) assert.match(context.review_correction.error, /location mismatch/)
+    return result
+  })
+  assert.equal((await coordinateThesisReview({ ...f, runtime })).review.verdict, 'pass')
+  assert.equal(await readFile(join(f.run, 'report.md'), 'utf8'), candidate)
+  assert.deepEqual((await f.store.read()).ledger.budget.valid_reviews, 2)
+  assert.equal(runtime.calls.filter(c => c.options.contract === 'review').length, 3)
+})
+
+test('review correction resumes the third slot after transport failure and never resets its limit', async t => {
+  const f = await fixture(t)
+  let completed = 0, interrupted = false
+  const runtime = fake(context => {
+    if (completed === 2 && !interrupted) { interrupted = true; throw Error('review transport interruption') }
+    completed++
+    return completed < 3 ? { ...review(context), review_id: 'RV-wrong' } : review(context)
+  })
+  await assert.rejects(coordinateThesisReview({ ...f, runtime }), /review transport interruption/)
   assert.equal((await f.store.read()).ledger.budget.valid_reviews, 0)
-  const good = fake(context => review(context))
-  await coordinateThesisReview({ ...f, runtime: good })
-  assert.notEqual(runtime.calls[0].context.review_id, good.calls[0].context.review_id)
+  await coordinateThesisReview({ ...f, runtime })
+  assert.equal(completed, 3)
+  assert.equal((await f.store.read()).ledger.budget.valid_reviews, 1)
+  assert.equal(new Set(runtime.calls.map(c => c.context.review_id)).size, 1)
+  const failed = await fixture(t), bad = fake(context => ({ ...review(context), review_id: 'RV-wrong' }))
+  await assert.rejects(coordinateThesisReview({ ...failed, runtime: bad }), /validation exhausted/)
+  await assert.rejects(coordinateThesisReview({ ...failed, runtime: bad }), /validation exhausted/)
+  assert.equal(bad.calls.length, 3)
+})
+
+test('legacy archived review response survives interruption without a duplicate model call', async t => {
+  const f = await fixture(t), runtime = fake(context => review(context))
+  await assert.rejects(coordinateThesisReview({ ...f, runtime, emit(event) {
+    if (event.type === 'review.response_archived') throw Error('interrupted archived review')
+  } }), /interrupted archived review/)
+  await rm(join(f.run, '.codex-workflow/review/review-sessions'), { recursive: true })
+  await coordinateThesisReview({ ...f, runtime })
+  assert.equal(runtime.calls.length, 1)
+  assert.equal((await f.store.read()).ledger.budget.valid_reviews, 1)
+})
+
+test('legacy discovery ignores unrelated partial orphan archives but selected session refs stay strict', async t => {
+  const f = await fixture(t), runtime = fake(context => review(context))
+  const orphan = join(f.run, '.codex-workflow/review/exchanges/EX-unrelated')
+  await mkdir(orphan, { recursive: true })
+  await writeFile(join(orphan, 'request.json'), '{"partial":')
+  await assert.rejects(coordinateThesisReview({ ...f, runtime, emit(event) {
+    if (event.type === 'review.response_archived') throw Error('archive interruption')
+  } }), /archive interruption/)
+  await rm(join(f.run, '.codex-workflow/review/review-sessions'), { recursive: true })
+  await assert.rejects(coordinateThesisReview({ ...f, runtime, emit(event) {
+    if (event.type === 'review.response_archived') throw Error('adopted interruption')
+  } }), /adopted interruption/)
+  const sessions = join(f.run, '.codex-workflow/review/review-sessions')
+  const session = JSON.parse(await readFile(join(sessions, (await readdir(sessions)).find(name => name.endsWith('.json')))))
+  const selected = join(f.run, '.codex-workflow/review', session.initial_exchange.response.path)
+  await chmod(selected, 0o644); await writeFile(selected, '{}')
+  await assert.rejects(coordinateThesisReview({ ...f, runtime }), /reference digest mismatch/)
+  assert.equal(runtime.calls.length, 1)
 })
 
 test('human report edit and current evidence mutation fail closed and preserve human bytes', async t => {
@@ -352,9 +577,14 @@ test('invalid proposal is archived then escalated, and full rejection consumes n
   assert.equal(result.terminalReason, 'no_safe_edit')
   const state = await f.store.read()
   assert.equal(state.ledger.budget.valid_reviews, 1)
-  assert.equal(state.attempt.results[0].result.archives.length, 2)
+  assert.equal(state.attempt.results[0].result.archives.length, 4)
   assert.equal(state.ledger.tasks[0].status, 'open')
   assert.equal(await readFile(join(f.run, 'report.md'), 'utf8'), reportFixture(quote))
+  assert.equal(state.attempt.results[0].result.validation_attempts, 3)
+  await assert.rejects(f.store.reopenEvidenceRejection({ attemptId: state.attempt.id, snapshot: state.snapshot }), /not a recoverable/)
+  const calls = runtime.calls.length
+  await coordinateThesisReview({ ...f, runtime })
+  assert.equal(runtime.calls.length, calls)
 })
 
 test('default absolute allowance stops after two revisions and three valid reviews', async t => {
@@ -422,9 +652,8 @@ test('missing source inventory and malformed schema consume no valid reviews', a
     })
     await assert.rejects(coordinateThesisReview({ ...f, runtime }), /reviewed|inventory|allowed values|enum/)
     assert.equal((await f.store.read()).ledger.budget.valid_reviews, 0)
-    const good = fake(context => review(context))
-    await coordinateThesisReview({ ...f, runtime: good })
-    assert.equal((await f.store.read()).ledger.budget.valid_reviews, 1)
+    await assert.rejects(coordinateThesisReview({ ...f, runtime }), /validation exhausted/)
+    assert.equal(runtime.calls.length, 3)
   }
 })
 

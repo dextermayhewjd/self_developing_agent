@@ -2,7 +2,7 @@
 import { parseArgs, isDeepStrictEqual } from 'node:util'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { resolve, join, dirname } from 'node:path'
-import { readFile, readdir, appendFile, access } from 'node:fs/promises'
+import { readFile, readdir, appendFile, access, open } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
 import { createReadStream } from 'node:fs'
 import { createRuntime, loadWorkflow } from './codex_workflow/runtime.mjs'
@@ -16,6 +16,7 @@ import { calibrationLocations, calibrationDocuments, calibrationStages, runCalib
 
 import { reviewStages } from './codex_workflow/review-coordinator.mjs'
 import { recoverDelivery } from './codex_workflow/thesis-delivery.mjs'
+import { captureReviewUpgradeBaseline, verifyReviewUpgrade } from './codex_workflow/review-upgrade.mjs'
 
 const defaultRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const workflows = ['equity-thesis', 'peer-comparability', 'calibrate-equity-thesis']
@@ -26,10 +27,16 @@ export function parseArguments(argv) {
     jobs: { type: 'string', default: '3' }, model: { type: 'string' }, effort: { type: 'string' },
     'stage-config': { type: 'string' }, 'review-max-rounds': { type: 'string' },
     'args-file': { type: 'string' }, 'no-pdf': { type: 'boolean' }, check: { type: 'boolean' },
+    'capture-review-baseline': { type: 'string' }, 'review-upgrade': { type: 'string' },
     reset: { type: 'boolean' }, help: { type: 'boolean' },
   } })
   if (v.help) return { help: true }
   if (positionals.length !== 1 || !workflows.includes(positionals[0])) throw new Error(`Choose workflow: ${workflows.join(', ')}`)
+  if (v['capture-review-baseline'] || v['review-upgrade']) {
+    if (positionals[0] !== 'equity-thesis' || v.reset || v.check || (v['capture-review-baseline'] && v['review-upgrade'])) {
+      throw new Error('Review baseline/upgrade requires equity-thesis without --reset, --check or the other review operation')
+    }
+  }
   const jobs = Number(v.jobs)
   if (!Number.isInteger(jobs) || jobs < 1) throw new Error('jobs must be a positive integer')
   if (v.effort && !/^[a-z][a-z0-9_-]*$/i.test(v.effort)) throw new Error('effort must be a reasoning level supported by the model catalog')
@@ -49,7 +56,9 @@ export function parseArguments(argv) {
   return { name: positionals[0], root, args: { ...args, root }, jobs, model: v.model, effort: v.effort,
     reviewMaxRounds, stageConfigPath: v['stage-config'] ? resolve(v['stage-config']) : undefined,
     provided: Object.fromEntries(['jobs', 'model', 'effort', 'stage-config', 'no-pdf', 'review-max-rounds'].map(key => [key, argv.some(value => value === `--${key}` || value.startsWith(`--${key}=`))])),
-    argsFile: v['args-file'], noPdf: !!v['no-pdf'], check: !!v.check, reset: !!v.reset }
+    argsFile: v['args-file'], noPdf: !!v['no-pdf'], check: !!v.check, reset: !!v.reset,
+    captureReviewBaseline: v['capture-review-baseline'] ? resolve(v['capture-review-baseline']) : undefined,
+    reviewUpgrade: v['review-upgrade'] ? resolve(v['review-upgrade']) : undefined }
 }
 
 function sample(schema) {
@@ -220,7 +229,7 @@ export function workflowLocations({ root, name, args }) {
 export async function main(argv = process.argv.slice(2)) {
   const config = parseArguments(argv)
   if (config.help) {
-    console.log('Usage: node tools/run_codex_workflow.mjs <equity-thesis|peer-comparability|calibrate-equity-thesis>\n  --symbol CODE --date YYYYMMDD --args-file FILE --root DIR\n  --jobs 3 --model MODEL --effort LEVEL --stage-config FILE --check --reset --no-pdf --review-max-rounds 2')
+    console.log('Usage: node tools/run_codex_workflow.mjs <equity-thesis|peer-comparability|calibrate-equity-thesis>\n  --symbol CODE --date YYYYMMDD --args-file FILE --root DIR\n  --jobs 3 --model MODEL --effort LEVEL --stage-config FILE --check --reset --no-pdf --review-max-rounds 2\n  --capture-review-baseline FILE | --review-upgrade FILE')
     return
   }
   if (config.argsFile) {
@@ -241,6 +250,19 @@ export async function main(argv = process.argv.slice(2)) {
     return
   }
   const { run, sharedLock, roots, artifactsFor, resetArtifacts, dependents } = workflowLocations(config)
+  if (config.captureReviewBaseline) {
+    const releaseSymbol = await acquireRunLock(sharedLock)
+    let releaseRun
+    try {
+      releaseRun = await acquireRunLock(join(run, '.codex-workflow'))
+      const baseline = await captureReviewUpgradeBaseline({ root: config.root, runDir: run })
+      const output = await open(config.captureReviewBaseline, 'wx', 0o400)
+      try { await output.writeFile(JSON.stringify(baseline) + '\n'); await output.sync() } finally { await output.close() }
+      console.log(JSON.stringify({ baseline_file: config.captureReviewBaseline, fingerprint: baseline.fingerprint, snapshot: baseline.snapshot }, null, 2))
+    } finally { await releaseRun?.(); await releaseSymbol() }
+    return
+  }
+  if (config.reviewUpgrade) config.args.review_only = true
   const control = new AbortController()
   const interrupt = () => control.abort(new Error('Workflow interrupted'))
   let state, runtime, prepared, sharedRelease, inputTracker, preparedManifest, logWrites = Promise.resolve()
@@ -270,15 +292,29 @@ export async function main(argv = process.argv.slice(2)) {
   }
   try {
     if (sharedLock) sharedRelease = await acquireRunLock(sharedLock, { processesFile: registry.path })
-    if(config.name==='equity-thesis')await recoverDelivery({runDir:run,targets:{position:join(config.root,'positions',config.args.symbol+'.md'),pdf:join(config.root,'reports/pdf',config.args.symbol+'_thesis_'+config.args.date+'.pdf')}})
+    // A compatibility upgrade must be validated before any recovery mutates
+    // old artifacts. runThesis performs delivery recovery after admission.
+    if(config.name==='equity-thesis' && !config.reviewUpgrade)await recoverDelivery({runDir:run,targets:{position:join(config.root,'positions',config.args.symbol+'.md'),pdf:join(config.root,'reports/pdf',config.args.symbol+'_thesis_'+config.args.date+'.pdf')}})
     config.executionConfig = await resolveRunExecutionConfig(config, run)
     state = await openState({ dir: join(run, '.codex-workflow'), artifactRoots: roots, protectedPaths: config.name==='equity-thesis'?[join(config.root,'positions',config.args.symbol+'.md')]:[], artifactsFor, resetArtifacts, dependents, processesFile: registry.path, reset: config.reset, emit,
+      acceptFingerprintChange: config.reviewUpgrade ? ({ previous, fingerprint }) => verifyReviewUpgrade({ root: config.root, runDir: run,
+        baselinePath: config.reviewUpgrade, previous, fingerprint,
+        invocation: { args: config.args, executionConfig: config.executionConfig, jobs: config.jobs, noPdf: config.noPdf } }) : undefined,
       invocation: { ...(config.name === 'equity-thesis' ? { reviewProtocol: 2 } : {}), name: config.name, args: config.args, jobs: config.jobs, model: config.model ?? null, effort: config.effort ?? null, noPdf: config.noPdf,
         stageConfigPath: config.stageConfigPath ?? null, executionConfig: config.executionConfig },
       fingerprint: async () => {
         if (config.name === 'equity-thesis') {
           let previousManifest
           try { previousManifest = JSON.parse(await readFile(join(run, '.codex-workflow/input-manifest.json'), 'utf8')) } catch (error) { if (error.code !== 'ENOENT') throw error }
+          if (config.reviewUpgrade) {
+            if (!previousManifest) throw Error('Review upgrade requires the original input manifest; no data fetched')
+            const current = await resolveThesisInputManifest({ root: config.root, symbol: config.args.symbol, previousManifest })
+            assertClassified(current); assertDerivedCurrent(current)
+            if (!isDeepStrictEqual(current.originals, previousManifest.originals)) throw Error('Research original inputs changed or missing; review upgrade blocked')
+            prepared = { warnings: ['恢复使用冻结的原始输入；本次未重新取数。'] }
+            preparedManifest = previousManifest
+            return workflowFingerprint(config.root, config.name, config.args, config, { inputManifest: current })
+          }
           if (config.reset && previousManifest) {
             if (Object.keys(previousManifest.producers?.active ?? {}).length) {
               const recovered = await createThesisInputTracker({ root:config.root, symbol:config.args.symbol, runDir:run, previousManifest })
@@ -315,8 +351,10 @@ export async function main(argv = process.argv.slice(2)) {
       if (config.name === 'equity-thesis' && ['立疑', '成稿'].includes(options.label)) {
         prompt += `\n读取 ${config.root}/positions/${config.args.symbol}.md（不存在就是首次建档）。带入上次估值锚及理由、假设记分板、未决疑问，保留人工注入信息。\n数据警告必须在成稿披露：${prepared.warnings.join('\n') || '无'}\n`
       }
-      if (inputTracker && /^(核查:|补参照系$)/u.test(options.label)) prompt += '\n辅助核查取数仅写入 ' + join(config.root, 'data', config.args.symbol, 'check_sources', options.label.replace('核查:', '')) + '/；不得修改原始输入。\n'
-      if(inputTracker)await inputTracker.assertCurrent({ admission:true })
+      if (inputTracker) {
+        prompt += inputTracker.instructionsFor(options.label)
+        await inputTracker.assertCurrent({ admission:true })
+      }
       const result = await state.run(prompt, { ...options, dependencyDigests: {inputs:await inputTracker?.dependencies(options.label),reportSnapshot:options.reportSnapshot}, execution: resolveStageSettings(config.executionConfig, options) }, async (...params) => {
         const before = inputTracker ? await inputTracker.beforeStage(options.label) : null
         const value = await backend(...params)

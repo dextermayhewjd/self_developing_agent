@@ -1,0 +1,63 @@
+{
+  "version": 2,
+  "originals": [
+    {
+      "path": "aggregate.json",
+      "sha256": "6c72cea43488537d874d0fe90f184ec1b4b79bfa2cf30cb037ee93b1af993b4f"
+    },
+    {
+      "path": "annual.json",
+      "sha256": "3a8eabb35eac004b3e12fe25ee3ad0df0856c1a4a154f9faae7175884ee6cd08"
+    },
+    {
+      "path": "annual_pdf/AN202404291631624546.pdf",
+      "sha256": "1c0f7508367df4bd4c2f7dbb0a99aa8c931c035e080fd94550d0aca18a10de3c"
+    },
+    {
+      "path": "annual_pdf/AN202504291664546557.pdf",
+      "sha256": "c276fd66ad4d8c32909f9a6794e484eb2c6a4b28d099febc6a03a29e66247d75"
+    },
+    {
+      "path": "annual_pdf/AN202604141821188651.pdf",
+      "sha256": "586ed2c18db28cdeb8b2df23bc9dc8ff995ec33bc37895c885b5e9aa8e426517"
+    },
+    {
+      "path": "annual_pdf/AN202608261828493051.pdf",
+      "sha256": "a4475cfe8dd4deb2b79d265927930cedd99ad68d42c0d4d5c124060c863bed4e"
+    },
+    {
+      "path": "basic.json",
+      "sha256": "ecff96935bd4b868870cc8e3f28278f632d47a29078bf565eb2786259e426bd7"
+    },
+    {
+      "path": "earnings_call.json",
+      "sha256": "0406c60f6471f695ee0cdba3ccaac480c604c9be208ea153ed22e671a378b715"
+    },
+    {
+      "path": "governance.json",
+      "sha256": "6f8d2ba447b0c5d3a7fff23c3733ef0f78748dcac1d1977268e9524e1f85df68"
+    },
+    {
+      "path": "news.json",
+      "sha256": "1acce431b066f3e354602169e0487f3680067de9549c10d8e616237b8cea47af"
+    },
+    {
+      "path": "peers.json",
+      "sha256": "bc8c1004f99cd6a42d48c37568bfd506ea5e366168b0e98b5c98740b2af9dea7"
+    }
+  ],
+  "derived": [],
+  "unclassified": [],
+  "producers": {
+    "version": 1,
+    "symbol": "688165",
+    "run": "/home/hongshi/projects/sda-dev/reports/688165_thesis_20261019",
+    "active": {
+      "板块基准": {
+        "originals_sha256": "e74c2b0154380effca85ac03657bd8f192a4ecd3bbbf14e2762bc3277b2de669",
+        "before": []
+      }
+    },
+    "pending": []
+  }
+}

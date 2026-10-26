@@ -53,7 +53,8 @@ test('failed final review preserves actual host checkpoint and budget without cl
  assert.equal(summary.status,'failed');assert.equal(summary.host_application.changed,true)
  assert.equal(summary.host_application.applications,1);assert.equal(summary.budget.valid_reviews,1)
  assert.equal(summary.receipt,null);assert.equal(summary.final_receipt,null);assert.ok(summary.prior_receipt)
- assert.equal(summary.attempt.state,'finalized');assert.equal(summary.workers.length,3)
+ assert.equal(summary.attempt.state,'finalized')
+ assert.deepEqual(summary.workers.map(w=>w.contract),['review','proposal','review','review','review'])
 })
 
 test('valid full-route receipt stays accepted when equal-effort full revision fails the local-route scenario',async t=>{

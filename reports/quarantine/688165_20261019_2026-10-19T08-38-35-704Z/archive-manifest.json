@@ -1,0 +1,136 @@
+{
+  "source": "/home/hongshi/projects/sda-dev/data/688165/peer_benchmark_20261019",
+  "destination": "/home/hongshi/projects/sda-dev/reports/quarantine/688165_20261019_2026-10-19T08-38-35-704Z/peer_benchmark_20261019",
+  "files": [
+    {
+      "path": "002527_market_cap.json",
+      "bytes": 150,
+      "sha256": "f83084d69738f77ee2e027ee415871e48e945393e44e270995873aa7f8f095c1"
+    },
+    {
+      "path": "002527_share_changes.json",
+      "bytes": 129572,
+      "sha256": "e5742f7126ee157c82558012f95c097827a74198980972023f1cdcac82a3e0ae"
+    },
+    {
+      "path": "002527_利润表.json",
+      "bytes": 242457,
+      "sha256": "000fa9bf94774e19a69cd2249109c668b9f9c9e9bd9cc12ae26bc45b77e94246"
+    },
+    {
+      "path": "002527_现金流量表.json",
+      "bytes": 269081,
+      "sha256": "b5012083e9456b61ea43366ed5d58d8d912e695cb36179e81ab234b23d3eba7c"
+    },
+    {
+      "path": "002527_资产负债表.json",
+      "bytes": 364238,
+      "sha256": "78bef486f8cdfed16ad1da7708b8a00d731cacd15bb4e95a7660ca9ea128b1ca"
+    },
+    {
+      "path": "002747_market_cap.json",
+      "bytes": 152,
+      "sha256": "7d6b9a0a08f5a33021364d28889530514e3bb0daf4d518e3ddddda56b933b13c"
+    },
+    {
+      "path": "002747_利润表.json",
+      "bytes": 185298,
+      "sha256": "2d1bf985fb293429b38aa3687b35a0af1d9725e5fa9895055007265740a3fb25"
+    },
+    {
+      "path": "002747_现金流量表.json",
+      "bytes": 206863,
+      "sha256": "79aac03157a56df8d2298f1be8aeba8aec30b606e65612d0312082c96f00ae81"
+    },
+    {
+      "path": "002747_资产负债表.json",
+      "bytes": 279057,
+      "sha256": "c4d5c51409191a323cc9854313fd2387f084588fa7e1c25f6de1c14fa757bd22"
+    },
+    {
+      "path": "300024_financial_indicator.json",
+      "bytes": 318119,
+      "sha256": "7c3bffce2826e8632d253eda222e047ca7ae17917e7c73f262c917c428c8e8a3"
+    },
+    {
+      "path": "300024_market_cap.json",
+      "bytes": 144,
+      "sha256": "5aa62a3416084a526682ed4d66270a3345beea627af6df9f3e69240938a0ff37"
+    },
+    {
+      "path": "300024_share_changes.json",
+      "bytes": 77835,
+      "sha256": "c3519937987857715bc6035885c80f3a51473abecd1438345a387cb782fbfae1"
+    },
+    {
+      "path": "300024_利润表.json",
+      "bytes": 258663,
+      "sha256": "30d71a45be9d66f32a547522c7db5b88a40c25cee54d6450f3863e53263d4c2e"
+    },
+    {
+      "path": "300024_现金流量表.json",
+      "bytes": 287755,
+      "sha256": "3d00b1fb89e7ccdb0074197e84e5abd6f334ff7b64fec55becd38fbd53449f67"
+    },
+    {
+      "path": "300024_资产负债表.json",
+      "bytes": 387323,
+      "sha256": "294715c37a6f3bf068b149ecb8301e81b6a5ff32ed39a6fa90a4f85a84ae9f33"
+    },
+    {
+      "path": "300607_market_cap.json",
+      "bytes": 151,
+      "sha256": "052f026df78bf675a76bf53ab23d65daee9a7da5fb332bd0c6a46a5587b2cdb1"
+    },
+    {
+      "path": "300607_利润表.json",
+      "bytes": 169837,
+      "sha256": "d115c73e613e99eadea831a6ae69933c16b44a2fc22a1a45a039e351c980c048"
+    },
+    {
+      "path": "300607_现金流量表.json",
+      "bytes": 190405,
+      "sha256": "ccb3cf267824417494f74351085f227ddc8f3ce56bd7d795e4b25d5627851857"
+    },
+    {
+      "path": "300607_资产负债表.json",
+      "bytes": 253067,
+      "sha256": "f1dbfd1256567a80b251ab6e1e4fb77c1e37afc598bd762bb9f908a014fb3563"
+    },
+    {
+      "path": "local_metrics.json",
+      "bytes": 3917,
+      "sha256": "d4669631113c66ae409b29fe75111577cb7c22331e246269ca30194663421593"
+    },
+    {
+      "path": "local_metrics_draft.json",
+      "bytes": 2965,
+      "sha256": "56d5a9187ad2f3262649ef7be0c7052ff84eddd173c5af4f1e6469cbb7286ee8"
+    },
+    {
+      "path": "rokae_20260630.pdf",
+      "bytes": 24586966,
+      "sha256": "144833fa440d67fc35e1a32f5ab7d14469bb38556cd156140a9f56809d6361df"
+    },
+    {
+      "path": "rokae_20260630.txt",
+      "bytes": 1453827,
+      "sha256": "e7f91fcb04586ce9312d0210f34b326845f947c50f3f0d549a324d319bb1cf76"
+    },
+    {
+      "path": "rokae_financing_table.png",
+      "bytes": 259407,
+      "sha256": "d6e4c79e3688f28856e4e18ca519f586630c0a27818f4fab33d0432eca9057ea"
+    },
+    {
+      "path": "rokae_page112.png",
+      "bytes": 546758,
+      "sha256": "92442f2a7a70a9ec1592c026fa7d644e9111a57971cf27c172735e60c6d7ebe9"
+    },
+    {
+      "path": "supplementary_business.json",
+      "bytes": 2498,
+      "sha256": "44129d1904bd4beb68cd78e7c5a395fb161c95fde5d47f3d4ac7a5a85e7d7970"
+    }
+  ]
+}

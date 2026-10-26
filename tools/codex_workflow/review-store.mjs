@@ -20,6 +20,61 @@ function checkSnapshot(value, expected) {
   if (!digest(value?.report_sha256) || !digest(value?.evidence_sha256) || !same(value, expected)) fail('Snapshot does not match current report/evidence')
 }
 const nonempty = value => typeof value === 'string' && value.trim().length > 0
+
+/** Only the pre-v2 reference-copy failure is eligible for one audited replay. */
+export function recoverableEvidenceRejection(state) {
+  const { ledger, attempt, snapshot } = state ?? {}
+  if (!ledger || !attempt || ledger.terminal_reason !== 'no_safe_edit' || ledger.active_attempt_id !== attempt.id ||
+      attempt.state !== 'finalized' || attempt.cursor !== attempt.task_ids.length || attempt.retry_history?.length ||
+      !same(attempt.base_snapshot, snapshot) || !same(attempt.current_snapshot, snapshot) ||
+      attempt.results.length !== attempt.task_ids.length) return false
+  const first = attempt.results[0]?.result
+  if (first?.archives?.length !== 1) return false
+  return attempt.task_ids.every(id => ledger.tasks.some(task => task.id === id && task.status === 'open')) &&
+    attempt.results.every(entry => entry.result.status === 'rejected' && entry.result.protocol_version === undefined &&
+      entry.result.mode === 'full_revision' && entry.result.reason === 'proposal evidence ref coverage incomplete' &&
+      same(entry.result.task_ids, attempt.task_ids) && same(entry.result.archives, first.archives))
+}
+/** Read-only proof shared by upgrade admission and the subsequent Store replay. */
+export async function validateEvidenceRejectionArchives({ runDir, state }) {
+  if (!recoverableEvidenceRejection(state)) fail('attempt is not a recoverable evidence-reference rejection')
+  const archived = state.attempt.results[0].result.archives[0], exchange = {}
+  for (const name of ['request', 'response']) {
+    const ref = archived[name]
+    if (!ref || !digest(ref.sha256) || !new RegExp(`^exchanges/EX-[A-Za-z0-9-]+/${name}\\.json$`).test(ref.path)) fail('invalid recovery exchange reference')
+    const bytes = await optionalBytes(join(runDir, '.codex-workflow/review', ref.path))
+    if (!bytes || sha256(bytes) !== ref.sha256) fail('recovery exchange digest mismatch')
+    exchange[name] = JSON.parse(bytes.toString('utf8'))
+  }
+  const selected = state.attempt.task_ids.map(id => state.ledger.tasks.find(task => task.id === id))
+  if (!same(exchange.request.context?.snapshot, state.snapshot) || !same(exchange.request.context?.tasks, selected) ||
+      !same(exchange.response.task_ids, state.attempt.task_ids) || exchange.response.base_report_sha256 !== state.snapshot.report_sha256) fail('recovery exchange does not bind current tasks and snapshot')
+  return archived
+}
+/** Validate proposal archives in the immutable ancestry before any upgrade/write. */
+export async function validateProposalArchives({ runDir, state }) {
+  const checked = new Set()
+  async function read(reference) {
+    if (!reference || !digest(reference.sha256) || typeof reference.path !== 'string' ||
+        !/^(?:attempt-snapshots\/AS-[A-Za-z0-9-]+\.json|commits\/CP-\d+\.json|exchanges\/EX-[A-Za-z0-9-]+\/(?:request|response)\.json)$/.test(reference.path)) fail('invalid proposal archive reference')
+    const bytes = await optionalBytes(join(runDir, '.codex-workflow/review', reference.path))
+    if (!bytes || sha256(bytes) !== reference.sha256) fail('immutable review reference digest mismatch')
+    return JSON.parse(bytes.toString('utf8'))
+  }
+  let commit = state.commit
+  while (commit) {
+    if (commit.refs.attempt && !checked.has(commit.refs.attempt.sha256)) {
+      checked.add(commit.refs.attempt.sha256)
+      const attempt = await read(commit.refs.attempt)
+      const archives = [...attempt.results.flatMap(item => item.result.archives ?? []),
+        ...(attempt.proposal_progress ?? []).flatMap(group => group.calls.flatMap(call => call.archive ? [call.archive] : []))]
+      for (const archive of archives) for (const ref of [archive.request, archive.response]) {
+        if (!checked.has(ref.sha256)) { await read(ref); checked.add(ref.sha256) }
+      }
+    }
+    commit = commit.previous ? await read(commit.previous) : null
+  }
+}
 function fieldsOnly(value, required, optional = []) {
   return value !== null && typeof value === 'object' && !Array.isArray(value) && required.every(key => Object.hasOwn(value, key)) &&
     Object.keys(value).every(key => required.includes(key) || optional.includes(key))
@@ -391,6 +446,59 @@ class ReviewStore {
     ledger.terminal_reason = null
     const attempt = { id: attemptId, state: 'collecting', task_ids: [...taskIds], cursor: 0, base_snapshot: clone(snapshot), current_snapshot: clone(snapshot), results: [] }
     return this.publish({ previous: current, reportBytes: current.values.report, ledger, evidence: current.values.evidence, attempt })
+  }
+  async reopenEvidenceRejection({ attemptId, snapshot }) {
+    const current = await this.current()
+    const state = this.state(current)
+    checkSnapshot(snapshot, current.commit.snapshot)
+    if (state.attempt?.id !== attemptId || !recoverableEvidenceRejection(state)) fail('attempt is not a recoverable evidence-reference rejection')
+    const archived = await validateEvidenceRejectionArchives({ runDir: this.runDir, state })
+    const attempt = clone(state.attempt), ledger = clone(state.ledger)
+    attempt.retry_history = [{ reason: 'host now preserves mandatory task references', commit: current.reference, results: clone(attempt.results) }]
+    attempt.replay = clone(archived)
+    attempt.results = []; attempt.cursor = 0; attempt.state = 'collecting'
+    ledger.terminal_reason = null
+    const result = await this.publish({ previous: current, reportBytes: current.values.report, ledger, evidence: current.values.evidence, attempt })
+    await this.emit({ type: 'review_proposal_recovered', attempt_id: attemptId, reason: 'revalidate archived proposal with host-owned task references' })
+    return result
+  }
+  /** Reserve durable proposal slots before dispatch; transport retries reuse a slot. */
+  async reserveProposalCall({ attemptId, snapshot, taskIds, mode }) {
+    const current = await this.current(), attempt = clone(current.values.attempt)
+    checkSnapshot(snapshot, current.commit.snapshot)
+    if (!attempt || attempt.id !== attemptId || current.values.ledger.active_attempt_id !== attemptId ||
+        current.values.ledger.terminal_reason || !['collecting', 'applying'].includes(attempt.state)) fail('unknown active proposal attempt')
+    if (!['local_patch', 'full_revision'].includes(mode) || !Array.isArray(taskIds) || !taskIds.length ||
+        taskIds[0] !== attempt.task_ids[attempt.cursor] || new Set(taskIds).size !== taskIds.length ||
+        taskIds.some(id => !attempt.task_ids.includes(id) || attempt.results.some(item => item.task_id === id)) ||
+        (mode === 'local_patch' && taskIds.length !== 1)) fail('invalid proposal task group')
+    const key = hash({ snapshot, task_ids: taskIds, mode })
+    attempt.proposal_progress ??= []
+    let group = attempt.proposal_progress.find(item => item.key === key)
+    if (!group) {
+      group = { key, snapshot: clone(snapshot), task_ids: [...taskIds], mode, maximum: mode === 'full_revision' ? 3 : 1, calls: [] }
+      attempt.proposal_progress.push(group)
+    }
+    const last = group.calls.at(-1)
+    if (last && (last.status !== 'rejected' || group.calls.length === group.maximum)) return clone(group)
+    group.calls.push({ id: randomUUID(), status: 'pending' })
+    await this.publish({ previous: current, reportBytes: current.values.report, ledger: current.values.ledger, evidence: current.values.evidence, attempt })
+    return clone(group)
+  }
+  async recordProposalValidation({ attemptId, groupKey, callId, archive, error = null }) {
+    const current = await this.current(), attempt = clone(current.values.attempt)
+    if (!attempt || attempt.id !== attemptId || current.values.ledger.active_attempt_id !== attemptId ||
+        current.values.ledger.terminal_reason || !['collecting', 'applying'].includes(attempt.state)) fail('unknown active proposal attempt')
+    const group = attempt.proposal_progress?.find(item => item.key === groupKey)
+    if (!group) fail('unknown proposal group')
+    checkSnapshot(group.snapshot, current.commit.snapshot)
+    const call = group.calls.at(-1)
+    if (call?.id !== callId || (error !== null && !nonempty(error))) fail('invalid proposal validation')
+    const result = { id: callId, status: error === null ? 'accepted' : 'rejected', archive: clone(archive), error }
+    if (same(call, result)) return
+    if (call.status !== 'pending') fail('conflicting proposal validation replay')
+    group.calls[group.calls.length - 1] = result
+    await this.publish({ previous: current, reportBytes: current.values.report, ledger: current.values.ledger, evidence: current.values.evidence, attempt })
   }
   async checkpointAttempt({ attemptId, taskId, result, reportBytes, ledger, evidence }) {
     const current = await this.current()

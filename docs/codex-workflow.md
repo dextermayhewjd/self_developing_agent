@@ -95,6 +95,8 @@ node tools/run_codex_workflow.mjs equity-thesis --symbol 00700 --stage-config /p
 
 阶段 worker 是独立的 Codex CLI 进程。它们读取同一工作区，以文件交换全文，以 JSON 交换摘要；不会出现在当前对话的原生子代理列表中。终端会持续显示阶段事件，完整 JSONL 和错误输出保存在日志目录。这里没有 Claude `/workflows` 进度树。
 
+研究阶段的补充资料目录由执行器分配，并直接写入该阶段的提示词，与输入登记共用同一份路径规则。板块基准的补充数据、PDF、截图、转录及计算中间结果写入 `data/<代码>/benchmark_peers/`，可在其下建子目录；工具生成的固定文件为 `peers_curated.json` 和 `peer_financials_benchmark.json`。各路核查和补参照系使用 `data/<代码>/check_sources/<方向或补参照系>/`。最终正文仍写入任务指定的报告路径。另建同级资料目录会被作为未分类输入拦截；已有未登记文件不会因本次规则说明而自动纳入证据。
+
 研究开始时读取上一期持仓档案。研究 workflow 仅写 `初稿.md`，host 独占建立和修改 `report.md`、ledger 与 receipt。独立审查收到完整十二节、全五路底稿、核查、参照系、疑惑及全部附件，不接收修订者自评。审查新增问题由 host 分配稳定 RT ID；修订者只返回 Proposal，host 校验后应用，任务进入 awaiting_review，只有另一次完整独立审查能关闭或重开任务。
 
 任务分 blocking / disclosure / watch；交付看 `blocks_delivery` 和当前状态，不要求所有观察项都查明。局部包按 UTF-8 最多 32 KiB、最多两个目标章节，保留目标整节、引用来源全文及审查指定的跨节判断约束；范围不足转完整修订，不静默截断。局部 worker 的模型、强度和提供者沿用 `问题修订` 的冻结解析结果，不自动降为 low；完整修订与最终完整审查分别使用 `修订成稿`、原 `成稿审查` 配置，实际采用值见 execution.json。
@@ -159,6 +161,36 @@ node tools/run_codex_workflow.mjs equity-thesis --symbol <代码> --date <原日
 停止原因：`budget_exhausted` 可在授权的累计上限内显式扩额续跑；`needs_evidence` 表示当前证据无法继续，重复运行或扩额不会补证；`no_safe_edit` 表示没有安全可应用补丁。当前没有自动采集/重置证据的恢复入口。外部改过 report.md、PNG/PDF 或转录时保留原文件并报告快照/人工编辑冲突；不能改 SHA、删 HEAD 或手调 ledger 将旧 pass 绑定新字节。本批不提供自动采用外部改稿的接口。
 
 旧 v1 状态的诊断只重建可证的历史轮数与最终 verdict；即使可重建也需要未来显式导入，不自动铸造 v2 receipt 或把额度算作零。CLI 的 legacy refusal 在准备数据/状态恢复前发生。不要用 `--reset` 绕过用户只授权续跑的请求。
+
+### 仅升级审查协议并复用研究
+
+对于已有 v2 候选稿，修改审查输出协议前可保存基线：
+
+```bash
+node tools/run_codex_workflow.mjs equity-thesis --symbol 688165 --date 20261019 --capture-review-baseline /tmp/review-baseline.json
+```
+
+该操作持有原运行锁，不调用模型；保存能够重建原全局指纹的源码内容、原始输入清单、运行状态、候选稿/证据快照和 Store HEAD。代码已经变化或研究输入尚未结算时拒绝捕获。基线应随调试记录保留。
+
+完成局部修复后，显式指定基线恢复审查：
+
+```bash
+node tools/run_codex_workflow.mjs equity-thesis --symbol 688165 --date 20261019 --review-upgrade /tmp/review-baseline.json
+```
+
+升级仅允许审查 coordinator/contracts、修订提案与 Store 恢复、升级模块，以及接入操作所需的 runner/state 变动；研究 workflow、研究方法、其余执行代码、输入、候选稿、证据和冻结配置必须一致。运行状态和 Store HEAD 也必须与基线匹配。通过后在 state 的 `review_upgrades` 中追加旧/新指纹、源码差异及基线摘要，随后只恢复审查/修订/交付。原 Store、任务和累计额度均保留，旧的不合格响应也保留作诊断，不会转换为有效审查。后续正常续跑使用新的指纹。
+
+此入口不能与 `--reset`、`--check` 或捕获操作合用，也不自动接受其他代码变化。没有变更前的匹配基线时，不能凭新代码猜测旧运行是否兼容。
+
+### 修订提案的引用与纠正
+
+任务原有的必需证据引用由 host 原样携带，模型返回的新增引用仍须逐项通过原文、摘要和快照校验。原始模型响应不改写；最终 checkpoint 单独记录 `host_added_refs`，避免把 host 保留的约束冒充模型原样返回的内容。
+
+局部提案未通过时升级为完整修订。完整提案发生锚点、覆盖或引用等校验错误时，最多反馈纠正两次；每次请求与响应都独立归档，最终 checkpoint 记录 `validation_attempts`、`validation_errors` 和协议版本。`attempt.proposal_progress` 在调用前保留调用 ID，逐次保存校验结果；传输中断重试同一个调用，响应已归档则直接重放，重启不会重置纠正额度。局部与完整修订分别绑定当前快照和任务组。真正的 `needs_evidence` 不会被纠正循环覆盖，错误耗尽后仍明确停止。
+
+独立审查同样最多纠正两次返回合同错误，例如把任务 ID 挂到其未登记的章节。`review-sessions` 将调用绑定到完整上下文，响应采用原子归档，重启复用已返回结果和剩余次数；旧版的同上下文完整审查响应也可以复用。纠正不会替模型决定通过、关闭任务或增加有效审查次数，只有原校验器全部通过后才提交一次审查。已完成修订、等待独立审查的批次也允许受控审查代码升级，报告及任务历史必须保持一致。
+
+旧版本若仅因 `proposal evidence ref coverage incomplete` 拒绝了整组提案、且候选稿和证据从未变更，可进行一次带记录的恢复：核验原请求与响应绑定，保留旧结果于 `retry_history`，重放原响应并使用当前校验器重新验证。通过后仍必须进行完整独立审查。该恢复保留原 attempt ID 和已用轮数；已纠正耗尽的新版提案、真正缺证据、部分已应用、快照变化或响应被篡改均不能借此重启。
 
 同一股票即使报告日期不同，也不能同时运行两个执行器；不同股票可分别运行。同业 workflow 共用制度缓存，因此也串行执行。中断留下的锁仅在本机主进程及记录的 worker 进程组均已退出时回收；如果仍有孤立 worker，启动会失败并提示进程记录位置，不会让新旧进程同时写文件。
 

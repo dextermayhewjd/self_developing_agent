@@ -12,6 +12,21 @@ const unique = (values, label) => {
 const sectionNumber = value => Number.isInteger(value) && value >= 1 && value <= 12
 const clone = value => structuredClone(value)
 
+/** Required task references are host-owned constraints, not model re-transcription. */
+export function bindProposalEvidence({ proposal: rawProposal, tasks }) {
+  const proposal = decodeResult(PROPOSAL_SCHEMA, rawProposal)
+  const added_refs = []
+  if (proposal.status === 'proposed') {
+    const supplied = new Set(proposal.evidence_refs.map(ref => canonicalJson(ref)))
+    for (const ref of tasks.flatMap(task => task.evidence_refs)) {
+      const key = canonicalJson(ref)
+      if (!supplied.has(key)) { supplied.add(key); added_refs.push(clone(ref)) }
+    }
+    proposal.evidence_refs = [...proposal.evidence_refs, ...added_refs]
+  }
+  return { proposal, added_refs }
+}
+
 function readReport(reportBytes) {
   if (typeof reportBytes !== 'string' && !(reportBytes instanceof Uint8Array)) fail('reportBytes must contain UTF-8 bytes')
   const bytes = Buffer.from(reportBytes)
